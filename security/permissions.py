@@ -123,7 +123,7 @@ def validate_path(requested: str, allowed_paths: List[str]) -> PermissionResult:
     Uses pathlib's resolve() for canonicalization and structural parent
     comparison — never string prefix matching.
 
-    Handles: ../, ..\, absolute paths, different drive letters, UNC paths,
+    Handles: ../, ..\\, absolute paths, different drive letters, UNC paths,
     case differences (Windows is case-insensitive), symlinks, junctions.
     """
     try:
