@@ -1,0 +1,16 @@
+{
+  "name": "Local AI Router",
+  "short_name": "AI Router",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e1e2e",
+  "theme_color": "#1e1e2e",
+  "description": "Intelligent routing to local AI models.",
+  "icons": [
+    {
+      "src": "/static/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ]
+}

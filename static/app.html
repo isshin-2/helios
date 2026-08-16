@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HELIOS</title>
+    <meta name="theme-color" content="#0a0e1a">
+    <link rel="apple-touch-icon" href="/static/icon.jpg">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2236;
+            --bg-card-hover: #1f2a42;
+            --bg-input: #0f1629;
+            --border-subtle: #1e2d4a;
+            --border-active: #3b82f6;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --gradient-brand: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3);
+            --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.15);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.15s ease;
+        }
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            padding: 28px;
+            width: 90%;
+            max-width: 480px;
+            box-shadow: var(--shadow-card);
+            animation: slideUp 0.2s ease;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal.modal-lg {
+            max-width: 600px;
+        }
+        .modal-body {
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 8px;
+        }
+        .modal h2 { 
+            font-size: 24px;
+            font-weight: 800;
+            background: var(--gradient-brand);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+        }
+        .modal p { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; }
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            margin-bottom: 16px;
+            transition: var(--transition);
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            width: 100%;
+        }
+        .btn-primary { background: var(--gradient-brand); color: white; }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3); }
+        
+        .btn-secondary { background: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-primary); }
+        .btn-secondary:hover { background: var(--bg-card-hover); }
+        
+        .btn-danger { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--accent-red); }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
+
+        /* Toggles */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--border-subtle);
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--text-muted);
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+        }
+        input:checked + .slider:before {
+            transform: translateX(18px);
+            background-color: var(--accent-green);
+        }
+
+        /* Location Cards */
+        .location-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .location-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .location-card-title {
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .location-card-path {
+            font-family: 'Fira Code', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            word-break: break-all;
+        }
+        .location-card-actions {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .toggle-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .btn-remove {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: auto;
+        }
+        .btn-remove:hover { color: var(--accent-red); }
+
+        /* Terminal Chips */
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-family: 'Fira Code', monospace;
+        }
+        .chip-remove {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-weight: bold;
+        }
+        .chip-remove:hover {
+            color: var(--accent-red);
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 260px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+        }
+        .sidebar-brand {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .sidebar-brand h1 {
+            font-size: 20px;
+            font-weight: 800;
+            background: var(--gradient-brand);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        .sidebar-brand span {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .sidebar-nav {
+            padding: 16px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        #sessions-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 10px; }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
+        .nav-item.active { background: rgba(59, 130, 246, 0.12); color: var(--accent-blue); position: relative;}
+        .nav-item.active::before {
+            content: ''; position: absolute; left: 0; width: 3px; height: 28px;
+            background: var(--accent-blue); border-radius: 0 4px 4px 0;
+        }
+        
+        .sidebar-footer { padding: 16px 12px; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 12px; }
+        .status-card {
+            background: var(--bg-card);
+            padding: 15px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+        }
+        .sandbox-card {
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .sandbox-card:hover {
+            background: var(--bg-card-hover);
+        }
+        .status-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; display: flex; justify-content: space-between;}
+        .status-value { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px;}
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .status-online { color: var(--accent-green); }
+        .status-online .status-dot { background: var(--accent-green); box-shadow: 0 0 8px rgba(16,185,129,0.5); }
+        .status-offline { color: var(--accent-red); }
+        .status-offline .status-dot { background: var(--accent-red); box-shadow: 0 0 8px rgba(239,68,68,0.5); }
+        .sandbox-details { font-size: 11px; color: var(--text-secondary); margin-top: 6px; display: flex; gap: 8px; }
+        
+        /* Main Chat Area */
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: var(--bg-primary);
+        }
+        
+        #model-indicator {
+            position: absolute;
+            top: 24px;
+            right: 32px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--accent-cyan);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+            transition: var(--transition);
+        }
+        #model-indicator.active {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+        }
+        #model-indicator::before {
+            content: '';
+            display: inline-block;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background-color: var(--accent-cyan);
+            box-shadow: 0 0 8px var(--accent-cyan);
+        }
+        #model-indicator.active::before {
+            animation: pulseAlarm 2s infinite;
+        }
+
+        @keyframes pulseAlarm {
+            0%, 100% { box-shadow: 0 0 8px rgba(6, 182, 212, 0.5); transform: scale(1); }
+            50% { box-shadow: 0 0 15px rgba(6, 182, 212, 0.8); transform: scale(1.2); }
+        }
+
+        #chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        .message { 
+            max-width: 80%; 
+            padding: 20px 24px; 
+            border-radius: var(--radius-lg); 
+            line-height: 1.6; 
+            font-size: 15px;
+            animation: slideUp 0.3s ease;
+        }
+        .user-message { 
+            align-self: flex-end; 
+            background: var(--bg-card);
+            border: 1px solid var(--border-active);
+            border-bottom-right-radius: 4px; 
+        }
+        .bot-message { 
+            align-self: flex-start; 
+            background: var(--bg-secondary); 
+            border: 1px solid var(--border-subtle); 
+            border-bottom-left-radius: 4px; 
+        }
+
+        /* Loading Card */
+        .loading-card {
+            background: rgba(26, 34, 54, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            margin: 16px 0;
+            max-width: 80%;
+            align-self: flex-start;
+            transition: opacity 0.3s ease;
+            box-shadow: var(--shadow-card);
+            animation: slideUp 0.3s ease;
+        }
+        .loading-card.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loading-orb {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--gradient-brand);
+            animation: orbPulse 1.5s infinite alternate;
+        }
+        @keyframes orbPulse {
+            0% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
+            100% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 20px rgba(6, 182, 212, 0.8); }
+        }
+        .loading-status {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+        .loading-tip {
+            font-size: 13px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        .tip-label {
+            font-weight: 600;
+            color: var(--accent-blue);
+            margin-right: 4px;
+        }
+        
+        .router-meta {
+            font-size: 12px; 
+            background: var(--bg-input); 
+            padding: 10px 16px;
+            border-radius: var(--radius-sm); 
+            margin-bottom: 16px; 
+            color: var(--text-muted); 
+            display: flex; 
+            flex-wrap: wrap;
+            gap: 16px;
+            border: 1px solid var(--border-subtle);
+        }
+        .router-meta.memory-active { 
+            border-color: rgba(6, 182, 212, 0.3);
+            background: rgba(6, 182, 212, 0.05);
+        }
+        .meta-item span { 
+            color: var(--accent-cyan); 
+            font-family: 'Fira Code', monospace;
+            background: rgba(6, 182, 212, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        pre { 
+            background: var(--bg-input); 
+            padding: 16px; 
+            border-radius: var(--radius-sm); 
+            overflow-x: auto; 
+            border: 1px solid var(--border-subtle);
+            margin: 16px 0;
+        }
+        code { font-family: "Fira Code", monospace; font-size: 13px; color: var(--accent-blue); }
+        
+        #input-container { 
+            padding: 24px 40px; 
+            background: linear-gradient(to top, var(--bg-primary) 80%, transparent);
+            display: flex; 
+            gap: 16px; 
+        }
+        .input-wrapper {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 8px;
+            display: flex;
+            align-items: flex-end;
+            transition: var(--transition);
+        }
+        .input-wrapper:focus-within {
+            border-color: var(--border-active);
+            box-shadow: var(--shadow-glow-blue);
+        }
+        textarea {
+            flex: 1; 
+            background: transparent; 
+            color: var(--text-primary); 
+            border: none;
+            padding: 12px 16px; 
+            font-family: 'Inter', sans-serif; 
+            font-size: 15px;
+            resize: none; 
+            height: 48px; 
+            line-height: 24px;
+        }
+        textarea:focus { outline: none; }
+        textarea::placeholder { color: var(--text-muted); }
+        
+        button#send-btn { 
+            background: var(--gradient-brand); 
+            color: white; 
+            border: none; 
+            border-radius: var(--radius-sm); 
+            width: 48px; height: 48px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; 
+            transition: var(--transition); 
+        }
+        button#send-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-glow-blue); }
+        button#send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none;}
+        button#send-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+        /* Think Blocks */
+        .think-block { 
+            margin: 16px 0; 
+            background: var(--bg-input); 
+            border-left: 3px solid var(--accent-cyan); 
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0; 
+            color: var(--text-muted); 
+            font-size: 14px; 
+            overflow: hidden;
+        }
+        .think-block summary { 
+            padding: 12px 16px;
+            cursor: pointer; 
+            font-weight: 500; 
+            outline: none; 
+            background: rgba(255,255,255,0.02);
+        }
+        .think-block summary:hover { background: rgba(255,255,255,0.05); }
+        .think-content { padding: 16px; font-style: italic; border-top: 1px solid var(--border-subtle); }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* Drag and Drop State */
+        .drag-over {
+            border: 2px dashed var(--accent-blue) !important;
+            background: rgba(59, 130, 246, 0.1) !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal-overlay">
+        <div class="modal">
+            <h2>HELIOS</h2>
+            <p>Initialize Neural Link</p>
+            <input type="text" id="username-input" class="form-input" placeholder="Enter Designation" autocomplete="off">
+            <button class="btn btn-primary" onclick="login()">Connect</button>
+        </div>
+    </div>
+
+    <!-- Skills Manager Modal -->
+    <div id="skills-modal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <h2>Manage Skills</h2>
+            <p>Define new capabilities for HELIOS</p>
+            
+            <div id="upload-zone" style="border: 1px dashed var(--border-subtle); padding: 20px; text-align: center; border-radius: var(--radius-sm); margin-bottom: 16px; cursor: pointer; transition: var(--transition);">
+                <p style="margin:0; color: var(--text-secondary);">Drag & Drop .md file here<br>or click to upload</p>
+                <input type="file" id="file-input" accept=".md" style="display: none;">
+            </div>
+            
+            <div style="text-align: center; margin: 10px 0; color: var(--text-muted); font-size: 12px;">OR TYPE MANUALLY</div>
+
+            <input type="text" id="skill-name" class="form-input" placeholder="Skill Name (e.g. react)">
+            <textarea id="skill-content" class="form-input" placeholder="Markdown content for the skill..." style="height: 150px; resize: vertical;"></textarea>
+            
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                <button class="btn btn-secondary" onclick="closeSkillsModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSkill()">Save Skill</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Access Modal -->
+    <div id="system-access-modal" class="modal-overlay" style="display: none;">
+        <div class="modal modal-lg">
+            <h2>System Access</h2>
+            <p>Manage Sandbox Permissions and Paths</p>
+            
+            <div class="modal-body">
+                <div id="locations-list">
+                    <!-- Location cards populated dynamically -->
+                </div>
+
+                <div style="margin-top: 16px; padding: 16px; background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                    <div style="margin-bottom: 8px; font-weight: 600;">+ Add Location</div>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="new-location-path" class="form-input" style="margin-bottom: 0;" placeholder="Enter directory path">
+                        <button class="btn btn-secondary" style="width: auto;" onclick="validateAndAddPath()">Validate</button>
+                    </div>
+                    <div id="new-location-perms" style="display: none; margin-top: 16px; gap: 16px; align-items: center;">
+                        <label class="toggle-wrapper">Read 
+                            <label class="toggle-switch"><input type="checkbox" id="new-loc-read" checked><span class="slider"></span></label>
+                        </label>
+                        <label class="toggle-wrapper">Write 
+                            <label class="toggle-switch"><input type="checkbox" id="new-loc-write"><span class="slider"></span></label>
+                        </label>
+                        <label class="toggle-wrapper">Exec 
+                            <label class="toggle-switch"><input type="checkbox" id="new-loc-exec"><span class="slider"></span></label>
+                        </label>
+                        <button class="btn btn-primary" style="width: auto; margin-left: auto;" onclick="confirmAddLocation()">Add</button>
+                    </div>
+                </div>
+
+                <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div style="font-weight: 600;">Terminal Commands</div>
+                        <label class="toggle-wrapper">Enable Terminal
+                            <label class="toggle-switch"><input type="checkbox" id="terminal-enabled-toggle" onchange="toggleTerminal(this.checked)"><span class="slider"></span></label>
+                        </label>
+                    </div>
+                    <div id="terminal-section" style="display: none;">
+                        <div id="commands-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                            <!-- Command chips populated dynamically -->
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="new-command-input" class="form-input" style="margin-bottom: 0;" placeholder="Add command (e.g., git)">
+                            <button class="btn btn-secondary" style="width: auto;" onclick="addCommand()">Add</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+                <button class="btn btn-danger" style="width: auto;" onclick="promptResetPermissions()">Reset Permissions</button>
+                <button class="btn btn-primary" style="width: auto;" onclick="closeSystemAccessModal()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approval Dialog Modal -->
+    <div id="approval-modal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <h2>🔐 HELIOS needs permission</h2>
+            <div style="margin: 20px 0; font-size: 14px; background: var(--bg-card); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                <div style="margin-bottom: 8px;"><strong>Operation:</strong> <span id="approval-op" style="color: var(--accent-cyan);"></span></div>
+                <div><strong>Target:</strong> <span id="approval-target" style="font-family: 'Fira Code', monospace; color: var(--text-muted);"></span></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button class="btn btn-primary" onclick="submitApproval('once')">Allow Once</button>
+                <button class="btn btn-secondary" onclick="submitApproval('session')">Allow Session</button>
+                <button class="btn btn-danger" onclick="submitApproval('deny')">Deny</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Privacy Modal -->
+    <div id="privacy-modal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <h2>Privacy & Data</h2>
+            <p>Manage your data and memory. These actions are irreversible.</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px;">
+                <div style="background: var(--bg-card); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                    <div style="font-weight: 600; margin-bottom: 4px;">Clear Chat History</div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Deletes all past conversations and messages.</div>
+                    <button class="btn btn-secondary" onclick="confirmDelete('history')">Delete History</button>
+                </div>
+                
+                <div style="background: var(--bg-card); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+                    <div style="font-weight: 600; margin-bottom: 4px;">Wipe Persistent Memory</div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Deletes learned facts, RAG embeddings, and preferences.</div>
+                    <button class="btn btn-secondary" onclick="confirmDelete('memory')">Delete Memory</button>
+                </div>
+                
+                <div style="background: rgba(239, 68, 68, 0.05); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(239, 68, 68, 0.2);">
+                    <div style="font-weight: 600; margin-bottom: 4px; color: var(--accent-red);">Nuke All Data</div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Deletes history, memory, system access configs, and audit logs.</div>
+                    <button class="btn btn-danger" onclick="confirmDelete('data')">Nuke Everything</button>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+                <button class="btn btn-primary" style="width: auto;" onclick="closePrivacyModal()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sidebar">
+        <div class="sidebar-brand" style="display: flex; align-items: center; gap: 12px;">
+            <img src="/static/icon.jpg" alt="HELIOS Icon" style="width: 40px; height: 40px; border-radius: 8px;">
+            <div>
+                <h1>HELIOS</h1>
+                <span id="user-display">Not Logged In</span>
+            </div>
+        </div>
+        
+        <div class="sidebar-nav">
+            <button class="btn btn-primary" onclick="createNewSession()">+ New Chat</button>
+            <button class="btn btn-secondary" onclick="openSkillsModal()" style="margin-top: 8px;">🧠 Manage Skills</button>
+            <button class="btn btn-secondary" onclick="openSystemAccessModal()" style="margin-top: 8px;">🛡️ System Access</button>
+            <button class="btn btn-secondary" onclick="openPrivacyModal()" style="margin-top: 8px;">🔒 Privacy & Data</button>
+        </div>
+        
+        <div id="sessions-list">
+            <!-- Dynamically populated -->
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="status-card">
+                <div class="status-title">Core Status</div>
+                <div id="status-ollama" class="status-value status-offline"><span class="status-dot"></span> <span class="text">Initializing...</span></div>
+                <div id="status-specs" class="sandbox-details" style="display:none; justify-content:space-between; margin-top:8px; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
+                    <span>RAM: <span id="ram-val" style="font-weight:600; color:var(--text-primary);">--</span></span>
+                    <span>VRAM: <span id="vram-val" style="font-weight:600; color:var(--text-primary);">--</span></span>
+                </div>
+            </div>
+            
+            <div class="status-card sandbox-card" onclick="openSystemAccessModal()">
+                <div class="status-title"><span>🛡️ SANDBOX</span> <span id="sandbox-count">0 locations</span></div>
+                <div class="sandbox-details" id="sandbox-perms">
+                    Read ✗ &nbsp; Write ✗ &nbsp; Terminal ✗
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="main">
+        <div id="model-indicator" style="display: none;">
+            <span id="detail-badge" style="display:none; background:var(--bg-input); padding:2px 6px; border-radius:4px; margin-right:8px; font-size:10px;"></span>
+            <span id="model-name">Standby</span>
+            <span id="confidence-badge" style="display:none; color:var(--text-muted); font-size:10px; margin-left:8px;"></span>
+        </div>
+
+        <div id="chat-container">
+            <div class="message bot-message">
+                I am HELIOS. Awaiting instructions.
+            </div>
+        </div>
+        
+        <div id="input-container">
+            <div class="input-wrapper">
+                <textarea id="prompt-input" placeholder="Message HELIOS..."></textarea>
+                <button id="send-btn">
+                    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const promptInput = document.getElementById('prompt-input');
+        const sendBtn = document.getElementById('send-btn');
+        const sessionsList = document.getElementById('sessions-list');
+        const modelIndicator = document.getElementById('model-indicator');
+        const modelNameDisplay = document.getElementById('model-name');
+        
+        let ws = null;
+        let currentUser = null;
+        let currentSessionId = null;
+        let messageHistory = [];
+        
+        // System Access State
+        let systemAccess = {
+            locations: [],
+            terminal_enabled: false,
+            terminal_commands: []
+        };
+        
+        const TIPS = [
+            'HELIOS dynamically routes each request to the best model for the task.',
+            'System tools run in a sandbox — every path and command is validated.',
+            'Long-term memory lets HELIOS remember facts across sessions.',
+            'You can add custom skills as Markdown files from the Skills Manager.',
+            'HELIOS uses isolated tools without unrestricted filesystem access.',
+            'The router classifies requests by category, complexity, and required tools.',
+            'File reading is restricted to approved directories only.',
+            'All system operations are logged in an audit trail.'
+        ];
+
+        let tipInterval = null;
+        let currentApprovalRequest = null;
+
+        promptInput.addEventListener('input', function() {
+            this.style.height = '48px';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // System Access API calls
+        async function loadSystemAccess() {
+            try {
+                const res = await fetch(`/api/users/${currentUser.id}/system-access`);
+                if (res.ok) {
+                    systemAccess = await res.json();
+                    updateSandboxIndicator();
+                }
+            } catch (e) { console.error('Failed to load system access', e); }
+        }
+
+        async function saveSystemAccess() {
+            try {
+                await fetch(`/api/users/${currentUser.id}/system-access`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(systemAccess)
+                });
+                updateSandboxIndicator();
+            } catch (e) { console.error('Failed to save system access', e); }
+        }
+
+        // Privacy Modals & API Calls
+        function openPrivacyModal() {
+            document.getElementById('privacy-modal').style.display = 'flex';
+        }
+
+        function closePrivacyModal() {
+            document.getElementById('privacy-modal').style.display = 'none';
+        }
+
+        async function confirmDelete(type) {
+            let message = "";
+            if (type === 'history') message = "Are you sure you want to delete all chat history? This cannot be undone.";
+            if (type === 'memory') message = "Are you sure you want to wipe all persistent memory? HELIOS will forget learned facts.";
+            if (type === 'data') message = "WARNING: Are you sure you want to NUKE ALL DATA? This will wipe history, memory, permissions, and logs.";
+            
+            if (confirm(message)) {
+                try {
+                    const res = await fetch(`/api/users/${currentUser.id}/${type}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        alert(type.charAt(0).toUpperCase() + type.slice(1) + " deleted successfully.");
+                        if (type === 'history' || type === 'data') {
+                            loadSessions();
+                            messageHistory = [];
+                            chatContainer.innerHTML = '<div class="message bot-message">Data cleared. How can I help you today?</div>';
+                            currentSessionId = null;
+                        }
+                    } else {
+                        alert("Failed to delete " + type);
+                    }
+                } catch (e) {
+                    console.error('Failed to delete', e);
+                    alert("Error deleting " + type);
+                }
+            }
+        }
+
+        async function validatePath(path) {
+            try {
+                const res = await fetch(`/api/users/${currentUser.id}/system-access/validate-path?path=${encodeURIComponent(path)}`);
+                return await res.json();
+            } catch (e) { return { valid: false }; }
+        }
+
+        async function resetPermissions() {
+            try {
+                const res = await fetch(`/api/users/${currentUser.id}/system-access/reset`, {method: 'POST'});
+                if (res.ok) {
+                    systemAccess = await res.json();
+                    renderSystemAccessModal();
+                    updateSandboxIndicator();
+                }
+            } catch (e) { console.error('Failed to reset permissions', e); }
+        }
+
+        function updateSandboxIndicator() {
+            const count = systemAccess.locations ? systemAccess.locations.length : 0;
+            document.getElementById('sandbox-count').innerText = `${count} location${count === 1 ? '' : 's'}`;
+            
+            let hasRead = false, hasWrite = false;
+            if (systemAccess.locations) {
+                systemAccess.locations.forEach(loc => {
+                    if (loc.read) hasRead = true;
+                    if (loc.write) hasWrite = true;
+                });
+            }
+            
+            const term = systemAccess.terminal_enabled;
+            document.getElementById('sandbox-perms').innerHTML = `
+                Read ${hasRead ? '✓' : '✗'} &nbsp; Write ${hasWrite ? '✓' : '✗'} &nbsp; Terminal ${term ? '✓' : '✗'}
+            `;
+        }
+
+        function openSystemAccessModal() {
+            renderSystemAccessModal();
+            document.getElementById('system-access-modal').style.display = 'flex';
+        }
+        
+        function closeSystemAccessModal() {
+            document.getElementById('system-access-modal').style.display = 'none';
+        }
+
+        function renderSystemAccessModal() {
+            const locationsList = document.getElementById('locations-list');
+            locationsList.innerHTML = '';
+            
+            if (systemAccess.locations) {
+                systemAccess.locations.forEach((loc, index) => {
+                    const parts = loc.path.split(/[/\\]/);
+                    const displayName = parts[parts.length - 1] || loc.path;
+                    
+                    const div = document.createElement('div');
+                    div.className = 'location-card';
+                    div.innerHTML = `
+                        <div class="location-card-header">
+                            <div class="location-card-title">📁 ${displayName}</div>
+                        </div>
+                        <div class="location-card-path">${loc.path}</div>
+                        <div class="location-card-actions">
+                            <label class="toggle-wrapper">Read 
+                                <label class="toggle-switch"><input type="checkbox" onchange="updateLocationPerm(${index}, 'read', this.checked)" ${loc.read ? 'checked' : ''}><span class="slider"></span></label>
+                            </label>
+                            <label class="toggle-wrapper">Write 
+                                <label class="toggle-switch"><input type="checkbox" onchange="updateLocationPerm(${index}, 'write', this.checked)" ${loc.write ? 'checked' : ''}><span class="slider"></span></label>
+                            </label>
+                            <label class="toggle-wrapper">Exec 
+                                <label class="toggle-switch"><input type="checkbox" onchange="updateLocationPerm(${index}, 'exec', this.checked)" ${loc.exec ? 'checked' : ''}><span class="slider"></span></label>
+                            </label>
+                            <button class="btn-remove" onclick="removeLocation(${index})">[Remove]</button>
+                        </div>
+                    `;
+                    locationsList.appendChild(div);
+                });
+            }
+            
+            document.getElementById('new-location-path').value = '';
+            document.getElementById('new-location-perms').style.display = 'none';
+
+            document.getElementById('terminal-enabled-toggle').checked = systemAccess.terminal_enabled;
+            toggleTerminal(systemAccess.terminal_enabled, false);
+            
+            renderCommands();
+        }
+
+        function updateLocationPerm(index, type, value) {
+            if (systemAccess.locations[index]) {
+                systemAccess.locations[index][type] = value;
+                saveSystemAccess();
+            }
+        }
+
+        function removeLocation(index) {
+            systemAccess.locations.splice(index, 1);
+            saveSystemAccess();
+            renderSystemAccessModal();
+        }
+
+        async function validateAndAddPath() {
+            const path = document.getElementById('new-location-path').value.trim();
+            if (!path) return;
+            const res = await validatePath(path);
+            if (res.valid !== false) { // Assuming backend returns {valid: true} or similar
+                document.getElementById('new-location-perms').style.display = 'flex';
+            } else {
+                alert('Invalid or unapproved path');
+            }
+        }
+
+        function confirmAddLocation() {
+            const path = document.getElementById('new-location-path').value.trim();
+            const read = document.getElementById('new-loc-read').checked;
+            const write = document.getElementById('new-loc-write').checked;
+            const exec = document.getElementById('new-loc-exec').checked;
+            
+            if (!systemAccess.locations) systemAccess.locations = [];
+            systemAccess.locations.push({ path, read, write, exec });
+            
+            saveSystemAccess();
+            renderSystemAccessModal();
+        }
+
+        function toggleTerminal(enabled, save = true) {
+            systemAccess.terminal_enabled = enabled;
+            document.getElementById('terminal-section').style.display = enabled ? 'block' : 'none';
+            if (save) saveSystemAccess();
+        }
+
+        function renderCommands() {
+            const list = document.getElementById('commands-list');
+            list.innerHTML = '';
+            if (systemAccess.terminal_commands) {
+                systemAccess.terminal_commands.forEach((cmd, idx) => {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip';
+                    chip.innerHTML = `${cmd} <span class="chip-remove" onclick="removeCommand(${idx})">×</span>`;
+                    list.appendChild(chip);
+                });
+            }
+        }
+
+        function addCommand() {
+            const cmd = document.getElementById('new-command-input').value.trim();
+            if (!cmd) return;
+            if (!systemAccess.terminal_commands) systemAccess.terminal_commands = [];
+            if (!systemAccess.terminal_commands.includes(cmd)) {
+                systemAccess.terminal_commands.push(cmd);
+                saveSystemAccess();
+                renderCommands();
+            }
+            document.getElementById('new-command-input').value = '';
+        }
+
+        function removeCommand(idx) {
+            systemAccess.terminal_commands.splice(idx, 1);
+            saveSystemAccess();
+            renderCommands();
+        }
+
+        function promptResetPermissions() {
+            if (confirm('Are you sure you want to reset all permissions to default?')) {
+                resetPermissions();
+            }
+        }
+
+        // Skills Manager Logic
+        const skillsModal = document.getElementById('skills-modal');
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+
+        function openSkillsModal() { skillsModal.style.display = 'flex'; }
+        function closeSkillsModal() { 
+            skillsModal.style.display = 'none'; 
+            document.getElementById('skill-name').value = '';
+            document.getElementById('skill-content').value = '';
+        }
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+        uploadZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileUpload(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        async function handleFileUpload(file) {
+            if (!file.name.endsWith('.md')) {
+                alert('Only .md files are supported!');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const res = await fetch('/api/skills/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                alert(data.message);
+                closeSkillsModal();
+            } else {
+                alert('Upload failed.');
+            }
+        }
+
+        async function saveSkill() {
+            const name = document.getElementById('skill-name').value.trim();
+            const content = document.getElementById('skill-content').value.trim();
+            if (!name || !content) return alert('Name and Content are required!');
+
+            const res = await fetch('/api/skills', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, content })
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                alert(data.message);
+                closeSkillsModal();
+            }
+        }
+
+        // Login Logic
+        async function login() {
+            const username = document.getElementById('username-input').value.trim();
+            if (!username) return;
+            
+            const res = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+            currentUser = await res.json();
+            
+            document.getElementById('login-modal').style.display = 'none';
+            document.getElementById('user-display').innerText = `User: ${currentUser.username}`;
+            
+            await loadSessions();
+            await loadSystemAccess();
+        }
+
+        // Sessions Logic
+        async function loadSessions() {
+            if (!currentUser) return;
+            const res = await fetch(`/api/users/${currentUser.id}/sessions`);
+            const sessions = await res.json();
+            
+            sessionsList.innerHTML = '';
+            sessions.forEach(s => {
+                const div = document.createElement('div');
+                div.className = `nav-item ${s.id === currentSessionId ? 'active' : ''}`;
+                div.innerText = s.title || `Session ${s.id.substring(0,6)}...`;
+                div.onclick = () => selectSession(s.id);
+                sessionsList.appendChild(div);
+            });
+
+            if (sessions.length > 0 && !currentSessionId) {
+                selectSession(sessions[0].id);
+            } else if (sessions.length === 0) {
+                createNewSession();
+            }
+        }
+
+        async function createNewSession() {
+            if (!currentUser) return;
+            const res = await fetch(`/api/users/${currentUser.id}/sessions`, { method: 'POST' });
+            const session = await res.json();
+            await loadSessions();
+            selectSession(session.id);
+        }
+
+        async function selectSession(sessionId) {
+            currentSessionId = sessionId;
+            chatContainer.innerHTML = '';
+            messageHistory = [];
+            modelIndicator.style.display = 'none';
+            
+            Array.from(sessionsList.children).forEach(c => c.classList.remove('active'));
+            const activeEl = Array.from(sessionsList.children).find(c => c.innerText.includes(sessionId) || c.innerText.includes('Session ' + sessionId.substring(0,6)));
+            if (activeEl) activeEl.classList.add('active');
+
+            const res = await fetch(`/api/sessions/${sessionId}/messages`);
+            const messages = await res.json();
+
+            if (messages.length === 0) {
+                const intro = document.createElement('div');
+                intro.className = 'message bot-message';
+                intro.innerText = "I am HELIOS. Awaiting instructions.";
+                chatContainer.appendChild(intro);
+            } else {
+                messages.forEach(m => {
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = `message ${m.role === 'user' ? 'user-message' : 'bot-message'}`;
+                    msgDiv.innerHTML = m.content.replace(/\n/g, '<br>');
+                    chatContainer.appendChild(msgDiv);
+                    messageHistory.push({ role: m.role, content: m.content });
+                });
+            }
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Approval Logic
+        function showApprovalDialog(data) {
+            currentApprovalRequest = data.request_id;
+            document.getElementById('approval-op').innerText = data.operation;
+            document.getElementById('approval-target').innerText = data.target;
+            document.getElementById('approval-modal').style.display = 'flex';
+        }
+
+        function submitApproval(scope) {
+            if (!currentApprovalRequest || !ws) return;
+            
+            const approved = scope !== 'deny';
+            ws.send(JSON.stringify({
+                type: 'approval_response',
+                request_id: currentApprovalRequest,
+                approved: approved,
+                scope: scope
+            }));
+            
+            document.getElementById('approval-modal').style.display = 'none';
+            currentApprovalRequest = null;
+        }
+
+        // WebSocket Logic
+        let currentBotMessage = null;
+        let currentBotContent = null;
+        let loadingCardElement = null;
+        let firstChunkReceived = false;
+
+        function connectWebSocket() {
+            ws = new WebSocket(`ws://${window.location.host}/ws`);
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'status') {
+                    if (loadingCardElement) {
+                        const statusEl = loadingCardElement.querySelector('.loading-status');
+                        if (statusEl) statusEl.innerText = data.message || 'Processing...';
+                    }
+                }
+                else if (data.type === 'approval_request') {
+                    showApprovalDialog(data);
+                }
+                else if (data.type === 'meta') {
+                    modelIndicator.style.display = 'flex';
+                    modelIndicator.classList.add('active');
+                    modelNameDisplay.innerText = data.route.model;
+                    
+                    const confBadge = document.getElementById('confidence-badge');
+                    if (data.route.confidence && data.route.confidence >= 0.6) {
+                        confBadge.style.display = 'inline';
+                        const confLevel = data.route.confidence >= 0.85 ? "High Conf" : "Mid Conf";
+                        confBadge.innerText = confLevel;
+                    } else {
+                        confBadge.style.display = 'none';
+                    }
+                    
+                    const detailBadge = document.getElementById('detail-badge');
+                    if (data.route.detail_level && data.route.detail_level !== 'normal') {
+                        detailBadge.style.display = 'inline';
+                        detailBadge.innerText = data.route.detail_level.toUpperCase();
+                        detailBadge.style.color = data.route.detail_level === 'high' ? 'var(--accent-red)' : 'var(--accent-green)';
+                    } else {
+                        detailBadge.style.display = 'none';
+                    }
+
+                    currentBotMessage = document.createElement('div');
+                    currentBotMessage.className = 'message bot-message';
+                    
+                    const metaDiv = document.createElement('div');
+                    metaDiv.className = `router-meta ${data.memory_injected ? 'memory-active' : ''}`;
+                    const memStr = data.memory_injected ? '<span style="color:var(--accent-cyan)">[Memory]</span> ' : '';
+                    metaDiv.innerHTML = `
+                        ${memStr}
+                        <div class="meta-item">Route: <span>${data.route.route}</span></div>
+                        <div class="meta-item">Context: <span>${data.route.context_size}</span></div>
+                        <div class="meta-item" style="flex-basis: 100%; color: var(--text-muted);">Reason: ${data.route.reason}</div>
+                    `;
+                    currentBotMessage.appendChild(metaDiv);
+                    
+                    currentBotContent = document.createElement('div');
+                    currentBotMessage.appendChild(currentBotContent);
+                    
+                    chatContainer.appendChild(currentBotMessage);
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                } 
+                else if (data.type === 'chunk') {
+                    if (loadingCardElement && !firstChunkReceived) {
+                        loadingCardElement.classList.add('fade-out');
+                        setTimeout(() => {
+                            if (loadingCardElement && loadingCardElement.parentNode) {
+                                loadingCardElement.parentNode.removeChild(loadingCardElement);
+                            }
+                            loadingCardElement = null;
+                        }, 300);
+                        if (tipInterval) {
+                            clearInterval(tipInterval);
+                            tipInterval = null;
+                        }
+                        firstChunkReceived = true;
+                    }
+
+                    if (currentBotContent) {
+                        currentBotContent.dataset.raw = (currentBotContent.dataset.raw || '') + data.content;
+                        let html = currentBotContent.dataset.raw;
+                        html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        html = html.replace(/\n/g, '<br>');
+                        html = html.replace(/&lt;think&gt;/g, '<details class="think-block" open><summary>Reasoning Process</summary><div class="think-content">');
+                        html = html.replace(/&lt;\/think&gt;/g, '</div></details>');
+                        
+                        if (html.includes('<details') && !html.includes('</details>')) {
+                            html += '</div></details>';
+                        }
+                        
+                        currentBotContent.innerHTML = html;
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                }
+                else if (data.type === 'done') {
+                    enableInput();
+                    modelIndicator.classList.remove('active');
+                    if (currentBotContent) {
+                        messageHistory.push({ role: "assistant", content: currentBotContent.dataset.raw || '' });
+                    }
+                    if (loadingCardElement && !firstChunkReceived) {
+                        loadingCardElement.classList.add('fade-out');
+                        setTimeout(() => {
+                            if (loadingCardElement && loadingCardElement.parentNode) {
+                                loadingCardElement.parentNode.removeChild(loadingCardElement);
+                            }
+                            loadingCardElement = null;
+                        }, 300);
+                    }
+                }
+                else if (data.type === 'error') {
+                    if (loadingCardElement && !firstChunkReceived) {
+                        loadingCardElement.querySelector('.loading-orb').style.display = 'none';
+                        loadingCardElement.querySelector('.loading-status').innerText = 'Error';
+                        loadingCardElement.querySelector('.loading-status').style.color = 'var(--accent-red)';
+                        loadingCardElement.querySelector('.loading-tip').innerText = data.message || 'An error occurred';
+                        setTimeout(() => {
+                            if (loadingCardElement) loadingCardElement.classList.add('fade-out');
+                            enableInput();
+                        }, 3000);
+                    }
+                }
+            };
+            
+            ws.onclose = () => setTimeout(connectWebSocket, 1000);
+        }
+        
+        function sendPrompt() {
+            const text = promptInput.value.trim();
+            if (!text || !ws || ws.readyState !== WebSocket.OPEN || !currentUser || !currentSessionId) return;
+            
+            const userMsg = document.createElement('div');
+            userMsg.className = 'message user-message';
+            userMsg.innerText = text;
+            chatContainer.appendChild(userMsg);
+            
+            messageHistory.push({ role: "user", content: text });
+            
+            // Inject Loading Card
+            firstChunkReceived = false;
+            loadingCardElement = document.createElement('div');
+            loadingCardElement.className = 'loading-card';
+            loadingCardElement.id = 'loading-card';
+            loadingCardElement.innerHTML = `
+                <div class="loading-orb"></div>
+                <div class="loading-status">Analyzing your request...</div>
+                <div class="loading-tip">
+                    <span class="tip-label">Did you know?</span>
+                    <span class="tip-text">${TIPS[Math.floor(Math.random() * TIPS.length)]}</span>
+                </div>
+            `;
+            chatContainer.appendChild(loadingCardElement);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            if (tipInterval) clearInterval(tipInterval);
+            tipInterval = setInterval(() => {
+                if (loadingCardElement) {
+                    const tipText = loadingCardElement.querySelector('.tip-text');
+                    if (tipText) {
+                        tipText.style.opacity = 0;
+                        setTimeout(() => {
+                            tipText.innerText = TIPS[Math.floor(Math.random() * TIPS.length)];
+                            tipText.style.opacity = 1;
+                        }, 200);
+                    }
+                }
+            }, 4000);
+            
+            const sendHistory = messageHistory.slice(-10);
+            
+            modelIndicator.style.display = 'flex';
+            modelIndicator.classList.remove('active');
+            modelNameDisplay.innerText = "Routing...";
+
+            ws.send(JSON.stringify({
+                messages: sendHistory,
+                user_id: currentUser.id,
+                session_id: currentSessionId
+            }));
+            
+            promptInput.value = '';
+            promptInput.style.height = '48px';
+            disableInput();
+        }
+        
+        function disableInput() { promptInput.disabled = true; sendBtn.disabled = true; }
+        function enableInput() { promptInput.disabled = false; sendBtn.disabled = false; promptInput.focus(); }
+        
+        async function updateHealth() {
+            try {
+                const res = await fetch('/health');
+                const data = await res.json();
+                const statusEl = document.getElementById('status-ollama');
+                
+                const isOnline = data.ollama === 'online';
+                statusEl.className = 'status-value ' + (isOnline ? 'status-online' : 'status-offline');
+                statusEl.innerHTML = `<span class="status-dot"></span> <span class="text">${data.ollama.toUpperCase()}</span>`;
+                
+                const specsEl = document.getElementById('status-specs');
+                if (data.available_ram_mb !== undefined) {
+                    specsEl.style.display = 'flex';
+                    document.getElementById('ram-val').innerText = `${Math.round(data.available_ram_mb/1024)}GB`;
+                    document.getElementById('vram-val').innerText = `${Math.round(data.vram_used_mb)}MB`;
+                    if (data.status === 'warning_critical_ram') {
+                        document.getElementById('ram-val').style.color = 'var(--accent-red)';
+                    } else {
+                        document.getElementById('ram-val').style.color = 'var(--text-primary)';
+                    }
+                }
+            } catch (e) {
+                console.error('Health check failed', e);
+            }
+        }
+        
+        sendBtn.addEventListener('click', sendPrompt);
+        promptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPrompt(); }
+        });
+        
+        connectWebSocket();
+        updateHealth();
+        setInterval(updateHealth, 5000);
+    </script>
+</body>
+</html>
