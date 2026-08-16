@@ -4,7 +4,7 @@ All settings for the local AI model router system.
 """
 
 # ─── Network ───────────────────────────────────────────────
-OLLAMA_HOST = "http://100.75.42.67:11434"
+OLLAMA_HOST = "http://localhost:11434"
 MAC_IP = "100.75.42.67"
 MAC_USER = "krithik"
 OLLAMA_PATH = "/Applications/Ollama.app/Contents/Resources/ollama"
