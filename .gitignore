@@ -4,3 +4,4 @@ __pycache__/
 db/*.db
 .vscode/
 .idea/
+*.db
