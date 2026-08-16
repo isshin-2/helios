@@ -120,7 +120,7 @@ class FileReaderTool(BaseTool):
         )
 
 
-    def _extract_path(self, prompt: str) -> str | None:
+    def _extract_path(self, prompt: str) -> Optional[str]:
         cleaned = re.sub(r"^(read|open|cat|show|look at|display|view)\s+", "", prompt.strip(), flags=re.IGNORECASE)
         cleaned = re.sub(r"^(me\s+)?(the\s+)?(code|contents?|file)\s+(in|of|from)\s+", "", cleaned, flags=re.IGNORECASE)
         match = re.search(r"['\"]?([a-zA-Z0-9_./\\-]+)['\"]?", cleaned)
