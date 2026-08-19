@@ -112,20 +112,37 @@ class TestPathValidation:
 # ─── Blocked System Paths ────────────────────────────────────────────────────
 
 class TestBlockedSystemPaths:
+    @pytest.mark.skipif(os.name != 'nt', reason="Windows specific path tests")
     def test_windows_directory(self):
         assert is_blocked_system_path("C:\\Windows\\System32") is True
 
+    @pytest.mark.skipif(os.name != 'nt', reason="Windows specific path tests")
     def test_program_files(self):
         assert is_blocked_system_path("C:\\Program Files\\SomeApp") is True
 
+    @pytest.mark.skipif(os.name != 'nt', reason="Windows specific path tests")
     def test_program_files_x86(self):
         assert is_blocked_system_path("C:\\Program Files (x86)\\SomeApp") is True
 
-    def test_normal_path(self):
-        assert is_blocked_system_path("C:\\Users\\krithik\\Documents") is False
-
+    @pytest.mark.skipif(os.name != 'nt', reason="Windows specific path tests")
     def test_recovery(self):
         assert is_blocked_system_path("C:\\Recovery\\something") is True
+
+    @pytest.mark.skipif(os.name != 'posix', reason="POSIX specific path tests")
+    def test_posix_system(self):
+        assert is_blocked_system_path("/System/Library") is True
+
+    @pytest.mark.skipif(os.name != 'posix', reason="POSIX specific path tests")
+    def test_posix_etc(self):
+        assert is_blocked_system_path("/etc/passwd") is True
+
+    @pytest.mark.skipif(os.name != 'posix', reason="POSIX specific path tests")
+    def test_posix_bin(self):
+        assert is_blocked_system_path("/bin/bash") is True
+
+    def test_normal_path(self):
+        # We need a cross-platform normal path
+        assert is_blocked_system_path(os.path.join(tempfile.gettempdir(), "test_file.txt")) is False
 
 
 # ─── Binary File Detection ──────────────────────────────────────────────────
@@ -368,8 +385,13 @@ class TestConfigValidation:
         assert "blocked" in error.lower()
 
     def test_system_path_in_config(self):
+        if os.name == 'nt':
+            blocked_path = "C:\\Windows\\System32"
+        else:
+            blocked_path = "/System/Library"
+            
         config = {
-            "file_read": {"enabled": True, "paths": ["C:\\Windows\\System32"]},
+            "file_read": {"enabled": True, "paths": [blocked_path]},
             "file_write": {"enabled": False, "paths": []},
             "directory_list": {"enabled": True, "paths": []},
             "terminal": {"enabled": False, "commands": []}
