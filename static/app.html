@@ -714,6 +714,33 @@
         </div>
     </div>
 
+    <!-- Self-Modification Modal -->
+    <div id="selfmod-modal" class="modal-overlay" style="display: none;">
+        <div class="modal" style="max-width: 700px;">
+            <h2>🧬 Self-Modification</h2>
+            <p style="color: var(--text-muted); margin-bottom: 16px;">Review and manage HELIOS self-improvement experiments.</p>
+            
+            <div id="selfmod-list" style="display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto;">
+                <div style="color: var(--text-muted); text-align: center; padding: 24px;">Loading experiments...</div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+                <button class="btn btn-primary" style="width: auto;" onclick="closeSelfModModal()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Self-Modification Diff Modal -->
+    <div id="selfmod-diff-modal" class="modal-overlay" style="display: none;">
+        <div class="modal" style="max-width: 800px;">
+            <h2>📝 Experiment Diff</h2>
+            <pre id="selfmod-diff-content" style="background: var(--bg-input); padding: 16px; border-radius: var(--radius-sm); overflow-x: auto; max-height: 500px; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; color: var(--text-secondary);"></pre>
+            <div style="display: flex; justify-content: flex-end; margin-top: 16px; gap: 8px;">
+                <button class="btn btn-secondary" style="width: auto;" onclick="document.getElementById('selfmod-diff-modal').style.display='none'">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div id="sidebar">
         <div class="sidebar-brand" style="display: flex; align-items: center; gap: 12px;">
             <img src="/static/icon.jpg" alt="HELIOS Icon" style="width: 40px; height: 40px; border-radius: 8px;">
@@ -727,6 +754,7 @@
             <button class="btn btn-primary" onclick="createNewSession()">+ New Chat</button>
             <button class="btn btn-secondary" onclick="openSkillsModal()" style="margin-top: 8px;">🧠 Manage Skills</button>
             <button class="btn btn-secondary" onclick="openSystemAccessModal()" style="margin-top: 8px;">🛡️ System Access</button>
+            <button class="btn btn-secondary" onclick="openSelfModModal()" style="margin-top: 8px;">🧬 Self-Modification</button>
             <button class="btn btn-secondary" onclick="openPrivacyModal()" style="margin-top: 8px;">🔒 Privacy & Data</button>
         </div>
         
@@ -872,6 +900,164 @@
                 }
             }
         }
+
+        // ─── Self-Modification Functions ────────────────────────────────
+        function openSelfModModal() {
+            document.getElementById('selfmod-modal').style.display = 'flex';
+            loadExperiments();
+        }
+        function closeSelfModModal() {
+            document.getElementById('selfmod-modal').style.display = 'none';
+        }
+
+        async function loadExperiments() {
+            const container = document.getElementById('selfmod-list');
+            try {
+                const res = await fetch('/api/experiments');
+                const experiments = await res.json();
+                if (!experiments.length) {
+                    container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 24px;">No experiments yet. HELIOS will create experiments when it identifies improvements.</div>';
+                    return;
+                }
+                container.innerHTML = experiments.map(exp => {
+                    const statusColors = {
+                        'DRAFT': 'var(--text-muted)', 'EXPERIMENTING': 'var(--accent-blue)',
+                        'TESTING': 'var(--accent-cyan)', 'READY_FOR_REVIEW': '#f59e0b',
+                        'APPROVED': 'var(--accent-green)', 'DEPLOYED': 'var(--accent-green)',
+                        'FAILED': 'var(--accent-red)', 'REJECTED': 'var(--accent-red)',
+                        'DISCARDED': 'var(--text-muted)', 'ROLLED_BACK': 'var(--text-muted)'
+                    };
+                    const riskColors = { 'LOW': 'var(--accent-green)', 'MEDIUM': '#f59e0b', 'HIGH': 'var(--accent-red)' };
+                    const statusColor = statusColors[exp.status] || 'var(--text-muted)';
+                    const riskColor = riskColors[exp.risk_level] || 'var(--text-muted)';
+                    let actions = '';
+                    if (exp.status === 'READY_FOR_REVIEW') {
+                        actions = `
+                            <button class="btn btn-secondary" style="width:auto;font-size:11px;padding:4px 10px;" onclick="viewDiff('${exp.experiment_id}')">View Diff</button>
+                            <button class="btn btn-primary" style="width:auto;font-size:11px;padding:4px 10px;background:var(--accent-green);" onclick="approveExperiment('${exp.experiment_id}')">Approve</button>
+                            <button class="btn btn-danger" style="width:auto;font-size:11px;padding:4px 10px;" onclick="rejectExperiment('${exp.experiment_id}')">Reject</button>
+                        `;
+                    } else if (exp.status === 'DEPLOYED') {
+                        actions = `<button class="btn btn-secondary" style="width:auto;font-size:11px;padding:4px 10px;" onclick="rollbackExperiment('${exp.experiment_id}')">Rollback</button>`;
+                    }
+                    let statsHtml = '';
+                    if (exp.tests && exp.tests.ran_at) {
+                        const testColor = exp.tests.passed ? 'var(--accent-green)' : 'var(--accent-red)';
+                        const testText = exp.tests.passed ? 'Passed' : 'Failed';
+                        statsHtml += `<div style="font-size: 11px; margin-bottom: 4px;"><strong>Tests:</strong> <span style="color:${testColor}">${testText}</span></div>`;
+                    }
+                    
+                    if (exp.diff_stats) {
+                        statsHtml += `<div style="font-size: 11px; margin-bottom: 8px; color: var(--text-muted);">
+                            <strong>Diff:</strong> ${exp.diff_stats.files_changed} files changed 
+                            (<span style="color:var(--accent-green)">+${exp.diff_stats.lines_added}</span> / 
+                            <span style="color:var(--accent-red)">-${exp.diff_stats.lines_removed}</span>)
+                        </div>`;
+                    }
+
+                    if (exp.evaluation && exp.evaluation.comparisons) {
+                        statsHtml += `<div style="margin-bottom: 8px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px;">`;
+                        statsHtml += `<div style="font-size: 11px; font-weight: 600; margin-bottom: 4px;">Benchmarks:</div>`;
+                        
+                        for (const [metric, cmp] of Object.entries(exp.evaluation.comparisons)) {
+                            const b_mean = cmp.baseline.mean !== null ? cmp.baseline.mean.toFixed(2) : '--';
+                            const e_mean = cmp.experiment.mean !== null ? cmp.experiment.mean.toFixed(2) : '--';
+                            let changeHtml = '';
+                            if (cmp.change_percent !== null) {
+                                const arrow = cmp.change_percent < 0 ? '↓' : '↑';
+                                const color = (cmp.result === 'IMPROVEMENT' || cmp.result === 'SIGNIFICANT_IMPROVEMENT') ? 'var(--accent-green)' : 
+                                              (cmp.result.includes('REGRESSION') ? 'var(--accent-red)' : 'var(--text-muted)');
+                                changeHtml = `<span style="color:${color}">${arrow} ${Math.abs(cmp.change_percent).toFixed(1)}%</span>`;
+                            }
+                            
+                            statsHtml += `<div style="font-size: 11px; display: flex; justify-content: space-between;">
+                                <span style="color:var(--text-secondary)">${metric}:</span>
+                                <span>${b_mean} → ${e_mean} ${changeHtml}</span>
+                            </div>`;
+                        }
+                        
+                        let evalColor = 'var(--text-primary)';
+                        if (exp.evaluation.classification === 'IMPROVEMENT') evalColor = 'var(--accent-green)';
+                        else if (exp.evaluation.classification.includes('REGRESSION')) evalColor = 'var(--accent-red)';
+                        else if (exp.evaluation.classification === 'UNSTABLE' || exp.evaluation.classification === 'INCONCLUSIVE') evalColor = '#f59e0b';
+                        
+                        statsHtml += `<div style="font-size: 11px; margin-top: 6px; font-weight: 600;">Overall: <span style="color:${evalColor}">${exp.evaluation.classification}</span></div>`;
+                        
+                        if (exp.evaluation.critical_regressions && exp.evaluation.critical_regressions.length > 0) {
+                            statsHtml += `<div style="font-size: 11px; color: var(--accent-red); margin-top: 2px;">Critical Regressions: ${exp.evaluation.critical_regressions.join(', ')}</div>`;
+                        }
+                        statsHtml += `</div>`;
+                    }
+                    
+                    return `
+                        <div style="background:var(--bg-card);padding:16px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                                <span style="font-weight:600;font-size:13px;">${exp.experiment_id}</span>
+                                <div style="display:flex;gap:6px;align-items:center;">
+                                    <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${riskColor}20;color:${riskColor};">${exp.risk_level}</span>
+                                    <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${statusColor}20;color:${statusColor};font-weight:600;">${exp.status}</span>
+                                </div>
+                            </div>
+                            <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">${exp.objective}</div>
+                            ${statsHtml}
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <span style="font-size:11px;color:var(--text-muted);">${exp.files ? exp.files.length : 0} file(s) modified</span>
+                                <div style="display:flex;gap:6px;">${actions}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                container.innerHTML = '<div style="color:var(--accent-red);text-align:center;padding:24px;">Failed to load experiments.</div>';
+            }
+        }
+
+        async function viewDiff(experimentId) {
+            try {
+                const res = await fetch(`/api/experiments/${experimentId}/diff`);
+                const data = await res.json();
+                const diffEl = document.getElementById('selfmod-diff-content');
+                // Syntax highlight diff lines
+                diffEl.innerHTML = (data.diff || 'No diff available.').split('\n').map(line => {
+                    if (line.startsWith('+') && !line.startsWith('+++')) return `<span style="color:var(--accent-green);">${escapeHtml(line)}</span>`;
+                    if (line.startsWith('-') && !line.startsWith('---')) return `<span style="color:var(--accent-red);">${escapeHtml(line)}</span>`;
+                    if (line.startsWith('@@')) return `<span style="color:var(--accent-cyan);">${escapeHtml(line)}</span>`;
+                    return escapeHtml(line);
+                }).join('\n');
+                document.getElementById('selfmod-diff-modal').style.display = 'flex';
+            } catch (e) { alert('Failed to load diff.'); }
+        }
+        function escapeHtml(text) {
+            const d = document.createElement('div'); d.textContent = text; return d.innerHTML;
+        }
+
+        async function approveExperiment(experimentId) {
+            if (!confirm(`Approve and deploy experiment ${experimentId}? This will modify production files.`)) return;
+            try {
+                const res = await fetch(`/api/experiments/${experimentId}/approve?user_id=${currentUser.id}`, {method: 'POST'});
+                if (res.ok) { alert('Experiment approved and deployed!'); loadExperiments(); }
+                else { const d = await res.json(); alert('Failed: ' + (d.detail || 'Unknown error')); }
+            } catch (e) { alert('Error approving experiment.'); }
+        }
+
+        async function rejectExperiment(experimentId) {
+            if (!confirm(`Reject experiment ${experimentId}?`)) return;
+            try {
+                const res = await fetch(`/api/experiments/${experimentId}/reject?user_id=${currentUser.id}`, {method: 'POST'});
+                if (res.ok) { alert('Experiment rejected.'); loadExperiments(); }
+                else { const d = await res.json(); alert('Failed: ' + (d.detail || 'Unknown error')); }
+            } catch (e) { alert('Error rejecting experiment.'); }
+        }
+
+        async function rollbackExperiment(experimentId) {
+            if (!confirm(`Roll back experiment ${experimentId}? Production files will be restored to pre-deployment state.`)) return;
+            try {
+                const res = await fetch(`/api/experiments/${experimentId}/rollback?user_id=${currentUser.id}`, {method: 'POST'});
+                if (res.ok) { alert('Experiment rolled back successfully.'); loadExperiments(); }
+                else { const d = await res.json(); alert('Failed: ' + (d.detail || 'Unknown error')); }
+            } catch (e) { alert('Error rolling back experiment.'); }
+        }
+
 
         async function validatePath(path) {
             try {

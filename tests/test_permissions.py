@@ -421,5 +421,104 @@ class TestApprovalManager:
         assert id1 != id2
 
 
+# ─── Protected System Zones ──────────────────────────────────────────────────
+
+class TestProtectedSystemZones:
+    def setup_method(self):
+        self.pm = PermissionManager()
+        self.test_dir = tempfile.mkdtemp()
+        
+        # Override the protected paths to be inside our test directory for isolation
+        self.pm._resolved_protected_paths = [
+            (Path(self.test_dir) / "core").resolve(strict=False), 
+            (Path(self.test_dir) / "security").resolve(strict=False)
+        ]
+        
+        # Create core and security dirs
+        os.makedirs(os.path.join(self.test_dir, "core"), exist_ok=True)
+        os.makedirs(os.path.join(self.test_dir, "security"), exist_ok=True)
+        os.makedirs(os.path.join(self.test_dir, "skills"), exist_ok=True)
+        os.makedirs(os.path.join(self.test_dir, "core_backup"), exist_ok=True)
+
+    def _mock_access(self, mock_db):
+        access = {"file_write": {"enabled": True, "paths": [self.test_dir]}}
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = {"system_access": json.dumps(access)}
+        mock_conn.cursor.return_value = mock_cursor
+        mock_db.return_value = mock_conn
+
+    @patch("security.permissions.get_db")
+    def test_allowed_access(self, mock_db):
+        self._mock_access(mock_db)
+        result = self.pm.can_write_file(1, os.path.join(self.test_dir, "skills", "test.py"))
+        assert result.allowed is True
+
+    @patch("security.permissions.get_db")
+    def test_direct_protected_access(self, mock_db):
+        self._mock_access(mock_db)
+        result = self.pm.can_write_file(1, os.path.join(self.test_dir, "security", "permissions.py"))
+        assert result.allowed is False
+        assert "protected HELIOS system zone" in result.reason
+
+    @patch("security.permissions.get_db")
+    def test_nested_protected_access(self, mock_db):
+        self._mock_access(mock_db)
+        result = self.pm.can_write_file(1, os.path.join(self.test_dir, "core", "subdirectory", "test.py"))
+        assert result.allowed is False
+
+    @patch("security.permissions.get_db")
+    def test_prefix_collision(self, mock_db):
+        self._mock_access(mock_db)
+        result = self.pm.can_write_file(1, os.path.join(self.test_dir, "core_backup", "test.py"))
+        assert result.allowed is True
+
+    @patch("security.permissions.get_db")
+    def test_traversal_into_protected(self, mock_db):
+        self._mock_access(mock_db)
+        # /test_dir/skills/../core/test.py -> /test_dir/core/test.py
+        path = os.path.join(self.test_dir, "skills", "..", "core", "test.py")
+        result = self.pm.can_write_file(1, path)
+        assert result.allowed is False
+
+    @patch("security.permissions.get_db")
+    def test_other_mutations(self, mock_db):
+        self._mock_access(mock_db)
+        core_file = os.path.join(self.test_dir, "core", "test.py")
+        skills_file = os.path.join(self.test_dir, "skills", "test.py")
+
+        assert self.pm.can_delete_file(1, core_file).allowed is False
+        assert self.pm.can_rename_file(1, core_file, skills_file).allowed is False
+        assert self.pm.can_rename_file(1, skills_file, core_file).allowed is False
+        assert self.pm.can_move_file(1, core_file, skills_file).allowed is False
+        assert self.pm.can_copy_file(1, skills_file, core_file).allowed is False
+        # Valid moves
+        assert self.pm.can_rename_file(1, skills_file, os.path.join(self.test_dir, "skills", "test2.py")).allowed is True
+
+    @patch("security.permissions.get_db")
+    def test_symlink_traversal(self, mock_db):
+        self._mock_access(mock_db)
+        try:
+            link_path = os.path.join(self.test_dir, "skills", "link_to_core")
+            os.symlink(os.path.join(self.test_dir, "core"), link_path, target_is_directory=True)
+            
+            # Write to skills/link_to_core/test.py -> resolves to core/test.py
+            # Testing symlinked parent directories
+            path = os.path.join(link_path, "test.py")
+            result = self.pm.can_write_file(1, path)
+            assert result.allowed is False
+        except OSError:
+            pass  # Skip symlink test on systems that don't support it
+
+    @patch("security.permissions.get_db")
+    def test_nonexistent_destination_resolution(self, mock_db):
+        self._mock_access(mock_db)
+        # Explicitly testing Path.resolve() for nonexistent destination paths
+        nonexistent = os.path.join(self.test_dir, "core", "doesnt_exist_yet.py")
+        result = self.pm.can_write_file(1, nonexistent)
+        assert result.allowed is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+

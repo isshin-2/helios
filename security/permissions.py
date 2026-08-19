@@ -76,6 +76,17 @@ PRIVILEGED_COMMANDS = frozenset({
     "cargo", "rustc", "gcc", "g++", "make", "cmake",
 })
 
+# ─── Core Application Protection ─────────────────────────────────────────────
+# Paths that the AI is NEVER allowed to write to, even if granted broad write access.
+HELIOS_PROTECTED_PATHS = [
+    Path(HELIOS_DIR) / "security",
+    Path(HELIOS_DIR) / "core",
+    Path(HELIOS_DIR) / "router",
+    Path(HELIOS_DIR) / "config.py",
+    Path(HELIOS_DIR) / "main.py",
+    Path(HELIOS_DIR) / "skills" / "self_modification",
+]
+
 # Dangerous Python invocation patterns
 DANGEROUS_PYTHON_FLAGS = frozenset({"-c", "-m", "-i", "--interactive"})
 
@@ -246,6 +257,29 @@ class PermissionManager:
 
     def __init__(self):
         self.approval_manager = ApprovalManager()
+        self._resolved_protected_paths = []
+        for p in HELIOS_PROTECTED_PATHS:
+            try:
+                self._resolved_protected_paths.append(p.resolve(strict=False))
+            except (OSError, ValueError):
+                pass
+
+    def is_protected_path(self, path: Path) -> bool:
+        """Check if a path falls within the immutable HELIOS system zones."""
+        try:
+            resolved = path.resolve(strict=False)
+        except (OSError, ValueError):
+            return True  # Fail safe to protect against resolution attacks
+            
+        # Block database files and SQLite temp files universally
+        name = resolved.name.lower()
+        if name.endswith(('.db', '.sqlite', '.sqlite3', '-wal', '-shm', '-journal')) or name == 'helios.db':
+            return True
+            
+        for protected in self._resolved_protected_paths:
+            if resolved == protected or protected in resolved.parents:
+                return True
+        return False
 
     def _get_user_access(self, user_id: int) -> Dict[str, Any]:
         """Load the user's system_access config from the database."""
@@ -301,6 +335,23 @@ class PermissionManager:
 
     def can_write_file(self, user_id: int, path: str) -> PermissionResult:
         """Check if the user is allowed to write to the specified file."""
+        # 1. Protected zone check FIRST
+        try:
+            requested_path = Path(path).resolve(strict=False)
+        except (OSError, ValueError) as e:
+            return PermissionResult(False, f"Invalid path: {e}")
+
+        if self.is_protected_path(requested_path):
+            self.log_operation(
+                user_id, "file_writer", "write_file", path,
+                "DENIED (protected system zone)"
+            )
+            return PermissionResult(
+                False, 
+                "This operation is blocked because the target belongs to a protected HELIOS system zone."
+            )
+
+        # 2. Existing user permission check
         access = self._get_user_access(user_id)
         file_write = access.get("file_write", {})
 
@@ -315,6 +366,65 @@ class PermissionManager:
             "APPROVED" if result.allowed else "DENIED"
         )
         return result
+
+    def can_delete_file(self, user_id: int, path: str) -> PermissionResult:
+        """Check if the user is allowed to delete the specified file."""
+        try:
+            requested_path = Path(path).resolve(strict=False)
+        except (OSError, ValueError) as e:
+            return PermissionResult(False, f"Invalid path: {e}")
+
+        if self.is_protected_path(requested_path):
+            self.log_operation(user_id, "filesystem", "delete_file", path, "DENIED (protected system zone)")
+            return PermissionResult(False, "This operation is blocked because the target belongs to a protected HELIOS system zone.")
+
+        access = self._get_user_access(user_id)
+        file_write = access.get("file_write", {})
+        if not file_write.get("enabled", False):
+            return PermissionResult(False, "File deletion (write access) is disabled.")
+        
+        result = validate_path(path, file_write.get("paths", []))
+        self.log_operation(user_id, "filesystem", "delete_file", path, "APPROVED" if result.allowed else "DENIED")
+        return result
+
+    def can_rename_file(self, user_id: int, src: str, dst: str) -> PermissionResult:
+        """Check if the user is allowed to rename a file."""
+        return self._check_dual_path_operation(user_id, "rename_file", src, dst)
+
+    def can_move_file(self, user_id: int, src: str, dst: str) -> PermissionResult:
+        """Check if the user is allowed to move a file."""
+        return self._check_dual_path_operation(user_id, "move_file", src, dst)
+
+    def can_copy_file(self, user_id: int, src: str, dst: str) -> PermissionResult:
+        """Check if the user is allowed to copy a file."""
+        return self._check_dual_path_operation(user_id, "copy_file", src, dst)
+
+    def _check_dual_path_operation(self, user_id: int, operation: str, src: str, dst: str) -> PermissionResult:
+        """Helper to validate dual-path operations against protected zones."""
+        try:
+            src_path = Path(src).resolve(strict=False)
+            dst_path = Path(dst).resolve(strict=False)
+        except (OSError, ValueError) as e:
+            return PermissionResult(False, f"Invalid path: {e}")
+
+        if self.is_protected_path(src_path) or self.is_protected_path(dst_path):
+            self.log_operation(user_id, "filesystem", operation, f"{src} -> {dst}", "DENIED (protected system zone)")
+            return PermissionResult(False, "This operation is blocked because the target belongs to a protected HELIOS system zone.")
+
+        access = self._get_user_access(user_id)
+        file_write = access.get("file_write", {})
+        if not file_write.get("enabled", False):
+            return PermissionResult(False, f"File {operation} (write access) is disabled.")
+            
+        allowed_paths = file_write.get("paths", [])
+        src_res = validate_path(src, allowed_paths)
+        if not src_res.allowed:
+            self.log_operation(user_id, "filesystem", operation, f"{src} -> {dst}", "DENIED")
+            return src_res
+            
+        dst_res = validate_path(dst, allowed_paths)
+        self.log_operation(user_id, "filesystem", operation, f"{src} -> {dst}", "APPROVED" if dst_res.allowed else "DENIED")
+        return dst_res
 
     def can_list_directory(self, user_id: int, path: str) -> PermissionResult:
         """Check if the user is allowed to list the specified directory."""

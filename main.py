@@ -245,7 +245,83 @@ async def stop_voice():
     voice_assistant.stop()
     return {"status": "success", "message": "Voice assistant stopped."}
 
+# ─── SELF-MODIFICATION ENDPOINTS ────────────────────────────────────────────
+
+from skills.self_modification.workspace import ExperimentWorkspace
+from skills.self_modification.models import ExperimentStatus
+
+experiment_workspace = ExperimentWorkspace(permission_manager)
+
+@app.get("/api/experiments")
+async def list_experiments():
+    """List all self-modification experiments."""
+    return experiment_workspace.list_experiments()
+
+@app.get("/api/experiments/{experiment_id}")
+async def get_experiment(experiment_id: str):
+    """Get full metadata for a specific experiment."""
+    metadata = experiment_workspace.load_metadata(experiment_id)
+    if metadata is None:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    return metadata.to_dict()
+
+@app.get("/api/experiments/{experiment_id}/diff")
+async def get_experiment_diff(experiment_id: str):
+    """Get the generated diff for an experiment."""
+    diff = experiment_workspace.get_diff(experiment_id)
+    if diff is None:
+        raise HTTPException(status_code=404, detail="No diff available for this experiment.")
+    return {"experiment_id": experiment_id, "diff": diff}
+
+@app.post("/api/experiments/{experiment_id}/approve")
+async def approve_experiment(experiment_id: str, user_id: int):
+    """
+    Human-only: Approve an experiment for deployment.
+    The LLM cannot call this endpoint — it requires an authenticated user action.
+    """
+    success, msg = experiment_workspace.transition_human(
+        experiment_id, ExperimentStatus.APPROVED
+    )
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+
+    permission_manager.log_operation(
+        user_id, "self_modification", "approve",
+        experiment_id, "APPROVED", "SUCCESS"
+    )
+
+    # Deploy immediately after approval
+    deploy_success, deploy_msg = experiment_workspace.deploy(experiment_id, user_id)
+    if not deploy_success:
+        raise HTTPException(status_code=500, detail=deploy_msg)
+
+    return {"status": "success", "message": deploy_msg}
+
+@app.post("/api/experiments/{experiment_id}/reject")
+async def reject_experiment(experiment_id: str, user_id: int):
+    """Human-only: Reject an experiment."""
+    success, msg = experiment_workspace.transition_human(
+        experiment_id, ExperimentStatus.REJECTED
+    )
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+
+    permission_manager.log_operation(
+        user_id, "self_modification", "reject",
+        experiment_id, "REJECTED"
+    )
+    return {"status": "success", "message": msg}
+
+@app.post("/api/experiments/{experiment_id}/rollback")
+async def rollback_experiment(experiment_id: str, user_id: int):
+    """Human-only: Roll back a deployed experiment."""
+    success, msg = experiment_workspace.rollback(experiment_id, user_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "success", "message": msg}
+
 # ─── WEBSOCKET ──────────────────────────────────────────────────────────────
+
 
 async def send_status(websocket: WebSocket, text: str):
     """Send a contextual loading status update to the frontend."""

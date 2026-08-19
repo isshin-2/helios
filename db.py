@@ -74,6 +74,79 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
+
+    # ─── Self-Modification Authoritative State ────────────────────────────────
+    
+    # Experiments
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS experiments (
+            id TEXT PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            objective TEXT NOT NULL,
+            risk_level TEXT DEFAULT 'LOW',
+            status TEXT DEFAULT 'DRAFT',
+            diff_stats TEXT,
+            deployment TEXT
+        )
+    """)
+
+    # Experiment Files
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS experiment_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            experiment_id TEXT NOT NULL,
+            source TEXT NOT NULL,
+            target TEXT NOT NULL,
+            baseline_sha256 TEXT,
+            pre_deploy_sha256 TEXT,
+            deployed_sha256 TEXT,
+            FOREIGN KEY (experiment_id) REFERENCES experiments(id)
+        )
+    """)
+
+    # Evaluation Runs
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS evaluation_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            experiment_id TEXT NOT NULL,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            evaluator_version TEXT,
+            classification TEXT,
+            baseline_hash TEXT,
+            critical_regressions TEXT,
+            FOREIGN KEY (experiment_id) REFERENCES experiments(id)
+        )
+    """)
+
+    # Evaluation Comparisons
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS evaluation_comparisons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            evaluation_id INTEGER NOT NULL,
+            metric TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            baseline_result TEXT NOT NULL,
+            experiment_result TEXT NOT NULL,
+            change_percent REAL,
+            result TEXT NOT NULL,
+            FOREIGN KEY (evaluation_id) REFERENCES evaluation_runs(id)
+        )
+    """)
+
+    # Experiment Audit Log
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS experiment_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actor TEXT NOT NULL,
+            experiment_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            previous_state TEXT,
+            new_state TEXT,
+            reason TEXT
+        )
+    """)
     
     conn.commit()
     conn.close()
