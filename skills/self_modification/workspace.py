@@ -105,7 +105,7 @@ class ExperimentWorkspace:
         dest_path = (Path(exp_dir) / "modified" / production_target).resolve(strict=False)
 
         # SECURITY: Path Traversal Check
-        if not dest_path.is_relative_to(Path(exp_dir) / "modified"):
+        if not dest_path.is_relative_to((Path(exp_dir) / "modified").resolve(strict=False)):
             return False, "Path traversal detected."
 
         dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -157,7 +157,7 @@ class ExperimentWorkspace:
         dest_path = (Path(exp_dir) / "modified" / production_target).resolve(strict=False)
         
         # SECURITY: Path Traversal Check
-        if not dest_path.is_relative_to(Path(exp_dir) / "modified"):
+        if not dest_path.is_relative_to((Path(exp_dir) / "modified").resolve(strict=False)):
             return False, "Path traversal detected."
 
         dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -438,7 +438,7 @@ class ExperimentWorkspace:
                 errors.append(f"Source '{file_entry.source}' is outside experiment workspace.")
                 continue
 
-            if not abs_target.is_relative_to(Path(HELIOS_DIR)):
+            if not abs_target.is_relative_to(Path(HELIOS_DIR).resolve(strict=False)):
                 errors.append(f"Target '{file_entry.target}' escapes HELIOS_DIR.")
                 continue
 
@@ -452,7 +452,7 @@ class ExperimentWorkspace:
                 continue
 
             backup_path = (Path(exp_dir) / "backup" / file_entry.target).resolve(strict=False)
-            if not backup_path.is_relative_to(Path(exp_dir) / "backup"):
+            if not backup_path.is_relative_to((Path(exp_dir) / "backup").resolve(strict=False)):
                 errors.append("Path traversal in backup path.")
                 continue
 
