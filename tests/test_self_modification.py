@@ -557,9 +557,9 @@ def helios_dir(tmp_path):
     sandbox_dir = tmp_path / 'skills' / 'self_modification'
     os.makedirs(sandbox_dir, exist_ok=True)
     
-    # We must also copy core/platform/process.py since sandbox might need it, actually sandbox doesn't.
     # Just copy sandbox.py
-    shutil.copy('C:/Users/krithik/Documents/ai-router/skills/self_modification/sandbox.py', sandbox_dir / 'sandbox.py')
+    project_root = Path(__file__).parent.parent
+    shutil.copy(project_root / 'skills' / 'self_modification' / 'sandbox.py', sandbox_dir / 'sandbox.py')
     
     # Let's also set PYTHONPATH so sandbox can find things if it needs, though it shouldn't
     return str(tmp_path)
