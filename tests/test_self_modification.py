@@ -758,11 +758,10 @@ subprocess.Popen([sys.executable, "-c", "import time; time.sleep(100)"])
 time.sleep(100)
 """)
     
-    proc = launch_isolated_process(["python", script], cwd=helios_dir)
+    proc = launch_isolated_process([sys.executable, script], cwd=helios_dir)
     time.sleep(1) # wait for child to spawn
     kill_process_tree(proc)
     
     # The proc should be dead
     assert proc.poll() is not None
     # We can't trivially check if the child is dead without psutil, but the kill_process_tree should have run without errors.
-
