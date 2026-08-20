@@ -1,0 +1,16 @@
+{
+  "experiment_id": "change_20260820_006_021314",
+  "created_at": "2026-08-20T02:13:14.440755+00:00",
+  "objective": "create experiment test show",
+  "risk_level": "LOW",
+  "status": "DRAFT",
+  "files": [],
+  "tests": {},
+  "deployment": {},
+  "evaluation": null,
+  "diff_stats": {
+    "files_changed": 0,
+    "lines_added": 0,
+    "lines_removed": 0
+  }
+}

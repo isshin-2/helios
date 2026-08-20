@@ -273,6 +273,26 @@ async def get_experiment_diff(experiment_id: str):
         raise HTTPException(status_code=404, detail="No diff available for this experiment.")
     return {"experiment_id": experiment_id, "diff": diff}
 
+@app.get("/api/experiments/{experiment_id}/audit")
+async def get_experiment_audit(experiment_id: str):
+    """Get the audit trail for an experiment."""
+    metadata = experiment_workspace.load_metadata(experiment_id)
+    if metadata is None:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+        
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT timestamp, actor, action, previous_state, new_state, reason "
+        "FROM experiment_audit_log WHERE experiment_id = ? ORDER BY timestamp DESC",
+        (experiment_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [dict(row) for row in rows]
+
+
 @app.post("/api/experiments/{experiment_id}/approve")
 async def approve_experiment(experiment_id: str, user_id: int):
     """

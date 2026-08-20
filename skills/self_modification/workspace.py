@@ -14,6 +14,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
@@ -191,7 +192,7 @@ class ExperimentWorkspace:
         from core.platform.process import launch_isolated_process
         try:
             proc = launch_isolated_process(
-                ["python", "-m", "pytest", "tests/", "-v", "--tb=short"],
+                [sys.executable, "-m", "pytest", "tests/", "-v", "--tb=short"],
                 cwd=HELIOS_DIR
             )
             stdout, stderr = proc.communicate(timeout=120)
@@ -208,7 +209,7 @@ class ExperimentWorkspace:
             "ran_at": datetime.now(timezone.utc).isoformat(),
             "passed": tests_passed,
             "output": test_output[:10000],  # Cap output
-            "returncode": result.returncode if 'result' in dir() else -1,
+            "returncode": proc.returncode if 'proc' in dir() else -1,
         }
 
         status_msg = "PASSED" if tests_passed else "FAILED"
