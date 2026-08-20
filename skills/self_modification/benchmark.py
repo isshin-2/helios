@@ -27,6 +27,7 @@ import statistics
 import subprocess
 import os
 import time
+import sys
 from typing import Dict, List, Any, Optional, Literal
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -112,8 +113,9 @@ class BenchmarkRunner:
         
         try:
             start_time = time.perf_counter()
+            cmd = [sys.executable, sandbox_path, script_path]
             proc = launch_isolated_process(
-                ["python", sandbox_path, script_path],
+                cmd,
                 env=env,
                 cwd=self.helios_dir
             )

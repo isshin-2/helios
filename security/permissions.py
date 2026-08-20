@@ -106,7 +106,6 @@ else:
         "/etc",
         "/private/etc",
         "/var",
-        "/private/var",
         "/usr/sbin",
         "/usr/bin",
         "/bin",
