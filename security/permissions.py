@@ -104,7 +104,9 @@ else:
     BLOCKED_PATH_PREFIXES = [
         "/System",
         "/etc",
+        "/private/etc",
         "/var",
+        "/private/var",
         "/usr/sbin",
         "/usr/bin",
         "/bin",
