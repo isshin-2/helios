@@ -19,7 +19,8 @@ HELIOS is a sophisticated, locally-hosted, context-aware AI routing orchestrator
 1. Clone the repository.
 2. Run the startup script to install dependencies and launch the server:
    - Windows: `start.bat`
-   - macOS/Linux: `./start.sh`
+   - macOS: Double click `start.command` in Finder or run `./start.command` in terminal.
+   - Linux: `./start.sh`
 3. Open your browser to [http://localhost:8000](http://localhost:8000).
 
 ## Security & Usage
