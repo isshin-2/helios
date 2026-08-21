@@ -1527,7 +1527,19 @@
                 messages.forEach(m => {
                     const msgDiv = document.createElement('div');
                     msgDiv.className = `message ${m.role === 'user' ? 'user-message' : 'bot-message'}`;
-                    msgDiv.innerHTML = m.content.replace(/\n/g, '<br>');
+                    let html = m.content;
+                    if (m.role !== 'user') {
+                        html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        html = html.replace(/\n/g, '<br>');
+                        html = html.replace(/&lt;think&gt;/g, '<details class="think-block" open><summary>Reasoning Process</summary><div class="think-content">');
+                        html = html.replace(/&lt;\/think&gt;/g, '</div></details>');
+                        if (html.includes('<details') && !html.includes('</details>')) {
+                            html += '</div></details>';
+                        }
+                    } else {
+                        html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                    }
+                    msgDiv.innerHTML = html;
                     chatContainer.appendChild(msgDiv);
                     messageHistory.push({ role: m.role, content: m.content });
                 });
