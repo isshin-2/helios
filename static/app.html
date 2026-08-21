@@ -806,11 +806,33 @@
         
         <div class="sidebar-nav">
             <button class="btn btn-primary" onclick="createNewSession()">+ New Chat</button>
-            <button class="btn btn-secondary" onclick="openSkillsModal()" style="margin-top: 8px;">🧠 Manage Skills</button>
-            <button class="btn btn-secondary" onclick="openSystemAccessModal()" style="margin-top: 8px;">🛡️ System Access</button>
-            <button class="btn btn-secondary" onclick="toggleSelfModDrawer()" style="margin-top: 8px;">🧬 Self-Modification</button>
-            <button class="btn btn-secondary" onclick="openPrivacyModal()" style="margin-top: 8px;">🔒 Privacy & Data</button>
+            
+            <details class="system-menu" style="margin-top: 8px;">
+                <summary class="btn btn-secondary" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; list-style: none;">
+                    <span>⚙️ System</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </summary>
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding-left: 12px; border-left: 2px solid var(--border-subtle); margin-left: 6px;">
+                    <button class="btn btn-secondary" onclick="openSkillsModal()" style="font-size: 0.9em; padding: 6px 12px; justify-content: flex-start;">🧠 Manage Skills</button>
+                    <button class="btn btn-secondary" onclick="openSystemAccessModal()" style="font-size: 0.9em; padding: 6px 12px; justify-content: flex-start;">🛡️ System Access</button>
+                    <button class="btn btn-secondary" onclick="toggleSelfModDrawer()" style="font-size: 0.9em; padding: 6px 12px; justify-content: flex-start;">🧬 Self-Modification</button>
+                    <button class="btn btn-secondary" onclick="openPrivacyModal()" style="font-size: 0.9em; padding: 6px 12px; justify-content: flex-start;">🔒 Privacy & Data</button>
+                    
+                    <!-- Sandbox Card moved here -->
+                    <div class="status-card sandbox-card" onclick="openSystemAccessModal()" style="margin-top: 4px; cursor: pointer;">
+                        <div class="status-title"><span>🛡️ Sandbox</span> <span id="sandbox-count">0 locations</span></div>
+                        <div class="sandbox-details" id="sandbox-perms">
+                            Read ✗ &nbsp; Write ✗ &nbsp; Terminal ✗
+                        </div>
+                    </div>
+                </div>
+            </details>
         </div>
+        <style>
+            .system-menu summary::-webkit-details-marker { display: none; }
+            .system-menu[open] summary .chevron { transform: rotate(180deg); }
+            .system-menu summary { list-style: none; }
+        </style>
         
         <div id="sessions-list">
             <!-- Dynamically populated -->
@@ -823,13 +845,6 @@
                 <div id="status-specs" class="sandbox-details" style="display:none; justify-content:space-between; margin-top:8px; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
                     <span>RAM: <span id="ram-val" style="font-weight:600; color:var(--text-primary);">--</span></span>
                     <span>VRAM: <span id="vram-val" style="font-weight:600; color:var(--text-primary);">--</span></span>
-                </div>
-            </div>
-            
-            <div class="status-card sandbox-card" onclick="openSystemAccessModal()">
-                <div class="status-title"><span>🛡️ SANDBOX</span> <span id="sandbox-count">0 locations</span></div>
-                <div class="sandbox-details" id="sandbox-perms">
-                    Read ✗ &nbsp; Write ✗ &nbsp; Terminal ✗
                 </div>
             </div>
         </div>

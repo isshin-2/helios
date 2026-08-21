@@ -83,6 +83,7 @@ KEEP_ALIVE = {
 RAM_TOTAL_MB = 16384          # Mac mini 16 GB
 RAM_MIN_FREE_MB = 2048        # Keep at least 2 GB free
 RAM_CRITICAL_MB = 1024        # Below this, force-unload everything
+MODEL_CONTEXT_BUFFER_MB = 1024 # Estimated VRAM padding for context and runtime state
 
 # ─── Timeouts (seconds) ───────────────────────────────────
 REQUEST_TIMEOUT = 120

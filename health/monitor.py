@@ -18,8 +18,17 @@ class SystemMonitor:
             loaded_models = []
             vram_used = 0
             for m in models:
-                loaded_models.append(m.get("name"))
-                vram_used += m.get("size_vram", 0)
+                # Handle malformed or missing fields safely
+                name = m.get("name", "unknown")
+                size_vram = m.get("size_vram", 0)
+                size = m.get("size", 0)
+                
+                loaded_models.append({
+                    "name": name,
+                    "size_vram": size_vram if isinstance(size_vram, (int, float)) else 0,
+                    "size": size if isinstance(size, (int, float)) else 0
+                })
+                vram_used += size_vram if isinstance(size_vram, (int, float)) else 0
                 
             return {
                 "status": "online",

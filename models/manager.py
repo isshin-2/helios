@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Optional
 import httpx
 from providers.base import BaseProvider
 from health.monitor import SystemMonitor
-from config import KEEP_ALIVE, MODEL_CONFIG, RAM_MIN_FREE_MB
+from config import KEEP_ALIVE, MODEL_CONFIG, RAM_MIN_FREE_MB, MODEL_CONTEXT_BUFFER_MB
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,20 +15,69 @@ class ModelManager:
         
     async def ensure_model_loaded(self, target_model: str, required_context: int) -> bool:
         """
-        Checks if model is loaded. If there are other models loaded, swap them out to save RAM.
+        Memory-aware loading algorithm. Only unloads models if memory is constrained.
         """
+        # Step 1: Check if already loaded
         status = await self.monitor.get_full_status()
-        
         loaded = status.get("loaded_models", [])
         
-        # Proactively unload any models that are NOT the target model (Swap)
-        other_models = [m for m in loaded if m != target_model]
-        if other_models:
-            logger.info(f"Swapping models: unloading {other_models} to make room for {target_model}")
-            for model in other_models:
-                await self.provider.unload_model(model)
+        # In case the monitor still returns old strings, handle gracefully
+        if loaded and isinstance(loaded[0], str):
+            if target_model in loaded:
+                return True
+        else:
+            if any(m.get("name") == target_model for m in loaded):
+                return True
+
+        # Step 2: Estimate required memory
+        tags = await self.provider.list_models()
+        target_size_bytes = 0
+        for m in tags.get("models", []):
+            if m.get("name") == target_model:
+                target_size_bytes = m.get("size", 0)
+                break
                 
-        # Ollama will automatically load target_model on the first request.
+        target_size_mb = target_size_bytes / (1024 * 1024)
+        required_memory_mb = target_size_mb + MODEL_CONTEXT_BUFFER_MB
+        
+        # Step 3 & 4: Targeted unloading loop
+        while True:
+            status = await self.monitor.get_full_status()
+            available_ram_mb = status.get("available_ram_mb", 0)
+            
+            if available_ram_mb >= required_memory_mb + RAM_MIN_FREE_MB:
+                # Enough capacity
+                break
+                
+            loaded = status.get("loaded_models", [])
+            # Filter out target_model just in case, and normalize elements to dicts
+            candidates = []
+            for m in loaded:
+                if isinstance(m, str):
+                    if m != target_model:
+                        candidates.append({"name": m, "size_vram": 0})
+                else:
+                    if m.get("name") != target_model:
+                        candidates.append(m)
+                        
+            if not candidates:
+                # Step 5: Failure handling
+                raise MemoryError(
+                    f"Insufficient memory to load '{target_model}'. "
+                    f"Required: {required_memory_mb:.2f} MB, "
+                    f"Available: {available_ram_mb:.2f} MB. "
+                    "No safe unload candidates remain."
+                )
+                
+            # Sort by size_vram descending
+            candidates.sort(key=lambda x: x.get("size_vram", 0), reverse=True)
+            largest = candidates[0]
+            
+            logger.info(f"Insufficient memory. Unloading {largest.get('name')} to free up space for {target_model}")
+            await self.provider.unload_model(largest.get("name"))
+            
+            # Loop back and get_full_status() to refresh memory values
+
         return True
         
     async def execute_request(self, 

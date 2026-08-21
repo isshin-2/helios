@@ -14,7 +14,7 @@ from health.monitor import SystemMonitor
 from router.classifier import classify_request
 from router.rules import get_routing_decision
 from models.manager import ModelManager
-from tools.executor import ToolExecutor
+
 from router.memory import MemoryManager
 from db import get_db
 from security.permissions import PermissionManager, DEFAULT_SYSTEM_ACCESS
@@ -31,13 +31,11 @@ provider = OllamaProvider(host=OLLAMA_HOST)
 monitor = SystemMonitor(provider=provider)
 manager = ModelManager(provider=provider, monitor=monitor)
 permission_manager = PermissionManager()
-tool_executor = ToolExecutor(provider=provider, monitor=monitor,
-                             permission_manager=permission_manager)
 new_tool_router = ToolRouter(provider=provider, monitor=monitor,
                              permission_manager=permission_manager)
 memory_manager = MemoryManager(provider=provider)
 orchestrator = ConversationOrchestrator(
-    manager, tool_executor, memory_manager, permission_manager, new_tool_router
+    manager, None, memory_manager, permission_manager, new_tool_router
 )
 
 # Serve static files for the web UI
@@ -109,6 +107,65 @@ async def get_messages(session_id: int):
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+class HeadlessRequest(BaseModel):
+    user_id: int
+    session_id: int
+    message: str
+
+@app.post("/api/chat/headless")
+async def chat_headless(req: HeadlessRequest):
+    """
+    Headless API for HELIOS that accepts a request, processes it through
+    the standard ConversationOrchestrator, and returns a single JSON response.
+    """
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC", (req.session_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    messages = [dict(r) for r in rows]
+    messages.append({"role": "user", "content": req.message})
+    
+    # Custom EventBus to capture events synchronously-ish for the HTTP response
+    class CaptureEventBus(EventBus):
+        def __init__(self):
+            super().__init__()
+            self.events = []
+            
+        async def publish(self, event_type: str, data: Any = None):
+            self.events.append({"type": event_type, "data": data})
+            await super().publish(event_type, data)
+            
+    bus = CaptureEventBus()
+    
+    # Process through the standard pipeline
+    await orchestrator.process_request(req.session_id, req.user_id, messages, bus, headless=True)
+    
+    full_response = ""
+    tool_activity = []
+    meta = None
+    
+    for ev in bus.events:
+        if ev["type"] == "chunk":
+            full_response += ev["data"]
+        elif ev["type"] == "meta":
+            meta = ev["data"]
+        elif ev["type"] == "status" and isinstance(ev["data"], str):
+            # Capture tool execution statuses
+            if any(icon in ev["data"] for icon in ["🔧", "📂", "📁", "✏️", "⚙️", "🌐", "🔗"]):
+                tool_activity.append(ev["data"])
+        elif ev["type"] == "approval_request":
+            tool_activity.append(f"Requires Approval: {ev['data']['operation']} on {ev['data']['target']}")
+            full_response += f"\n\n[Action blocked pending approval: {ev['data']['operation']} on {ev['data']['target']}]"
+            
+    return {
+        "status": "success",
+        "response": full_response,
+        "tools_used": tool_activity,
+        "meta": meta
+    }
 
 class SkillCreate(BaseModel):
     name: str

@@ -65,67 +65,18 @@ class ConversationOrchestrator:
         self.permission_manager = permission_manager
         self.tool_router = tool_router
 
-    async def process_request(self, session_id: int, user_id: int, messages: List[Dict[str, Any]], event_bus: EventBus):
-        if not messages or not user_id or not session_id:
-            return
-
-        last_msg = messages[-1]["content"]
-        
-        # Save User Message to DB
-        save_message(session_id, "user", last_msg)
-        
-        # Send initial loading status
-        await event_bus.publish("status", "Analyzing your request...")
-        
-        # Extract facts in background
-        asyncio.create_task(self.memory_manager.extract_and_save_facts(user_id, last_msg))
-        
-        # Retrieve RAG Memory
-        rag_context = await self.memory_manager.search_memory(user_id, last_msg)
-        
-        # Classify & Route
-        await event_bus.publish("status", "Routing to the best model...")
-        classification = classify_request(messages)
-        route = get_routing_decision(classification)
-        
-        await event_bus.publish("meta", {
-            "route": route,
-            "memory_injected": len(rag_context) > 0
-        })
-        
-        # Execute
-        full_response = ""
-        if route["route"] == "tool":
-            skill_name = route.get("skill")
-            
-            # Send contextual status based on skill type
-            status_map = {
-                "FileReaderSkill": "📁 Reading file...",
-                "DirectoryListerSkill": "📂 Listing directory...",
-                "FileWriterSkill": "✏️ Preparing file write...",
-                "TerminalSkill": "⚙️ Preparing command...",
-                "SystemSkill": "🔧 Checking system...",
-                "InternetSkill": "🌐 Searching the web...",
-                "ComposioSkill": "🔗 Connecting integration...",
-            }
-            await event_bus.publish("status", "🔐 Checking permissions...")
-            await event_bus.publish("status", status_map.get(skill_name, "Executing tool..."))
-            
-            # Phase 3 Transition: Check if the new tool router can handle it, otherwise fallback to legacy skill executor
-            # Since tools are migrated in Phase 4/5, tool_router will likely skip for now.
-            result = None
-            tool_name = "unknown"
-            if self.tool_router and skill_name in self.tool_router.tools:
-                result, tool_name = await self.tool_router.execute(skill_name, user_id=user_id, task=last_msg)
-            else:
-                result, tool_name = await self.tool_executor.execute(
-                    last_msg, force_skill=skill_name, user_id=user_id
-                )
-            
-    async def _handle_tool_approval(self, user_id: int, operation: str, target: str, event_bus: EventBus) -> bool:
+    async def _handle_tool_approval(self, user_id: int, operation: str, target: str, event_bus: EventBus, headless: bool = False) -> bool:
         """Handles requesting and waiting for user approval."""
         if self.permission_manager.approval_manager.has_session_approval(user_id, operation, target):
             return True
+            
+        if headless:
+            await event_bus.publish("approval_request", {
+                "request_id": "headless_denied",
+                "operation": operation,
+                "target": target
+            })
+            return False
             
         request_id = self.permission_manager.approval_manager.generate_request_id()
         loop = asyncio.get_event_loop()
@@ -150,7 +101,7 @@ class ConversationOrchestrator:
         except asyncio.TimeoutError:
             return False
 
-    async def process_request(self, session_id: int, user_id: int, messages: List[Dict[str, Any]], event_bus: EventBus):
+    async def process_request(self, session_id: int, user_id: int, messages: List[Dict[str, Any]], event_bus: EventBus, headless: bool = False):
         if not messages or not user_id or not session_id:
             return
 
@@ -254,7 +205,7 @@ class ConversationOrchestrator:
                                 operation = parts[1] if len(parts) > 1 else "unknown"
                                 target = parts[2] if len(parts) > 2 else "unknown"
                                 
-                                approved = await self._handle_tool_approval(user_id, operation, target, event_bus)
+                                approved = await self._handle_tool_approval(user_id, operation, target, event_bus, headless)
                                 
                                 if approved:
                                     # Specific execution post-approval (like FileWriterTool's perform_write)

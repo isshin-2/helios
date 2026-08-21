@@ -5,3 +5,8 @@ db/*.db
 .vscode/
 .idea/
 *.db
+
+experiments/
+markdown_skills/
+venv/
+*.log

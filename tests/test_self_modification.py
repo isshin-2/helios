@@ -765,3 +765,125 @@ time.sleep(100)
     # The proc should be dead
     assert proc.poll() is not None
     # We can't trivially check if the child is dead without psutil, but the kill_process_tree should have run without errors.
+
+import pytest
+from tools.self_modification import SelfModificationTool, SelfModificationInput
+from core.tool_router import ToolRouter
+from providers.base import BaseProvider
+from health.monitor import SystemMonitor
+
+class TestSelfModificationTool:
+    def setup_method(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.helios_dir = os.path.join(self.temp_dir, "helios")
+        self.experiments_dir = os.path.join(self.helios_dir, "experiments")
+        
+        os.makedirs(self.helios_dir)
+        os.makedirs(self.experiments_dir)
+        
+        self.db_path = os.path.join(self.temp_dir, "test.db")
+        self.patcher4 = patch("db.DB_PATH", self.db_path)
+        self.patcher4.start()
+        
+        db.init_db()
+        db.migrate_db()
+        
+        self.pm = PermissionManager()
+        self.pm._resolved_protected_paths = [
+            (Path(self.helios_dir) / "core").resolve(strict=False),
+        ]
+        
+        self.patcher1 = patch("skills.self_modification.workspace.EXPERIMENTS_DIR", self.experiments_dir)
+        self.patcher2 = patch("skills.self_modification.workspace.HELIOS_DIR", self.helios_dir)
+        self.patcher3 = patch("skills.self_modification.validator.HELIOS_DIR", self.helios_dir)
+        self.patcher4 = patch("skills.self_modification.workspace.subprocess.run")
+        
+        self.patcher1.start()
+        self.patcher2.start()
+        self.patcher3.start()
+        self.mock_run = self.patcher4.start()
+        self.mock_run.return_value.returncode = 0
+        
+        self.tool = SelfModificationTool(self.pm)
+
+    def teardown_method(self):
+        self.patcher1.stop()
+        self.patcher2.stop()
+        self.patcher3.stop()
+        self.patcher4.stop()
+        shutil.rmtree(self.temp_dir)
+
+    @pytest.mark.asyncio
+    async def test_tool_actions(self):
+        # Create experiment
+        res, name = await self.tool.execute(0, action="create_experiment", objective="test objective")
+        assert "created" in res
+        assert name == "SelfModificationTool"
+        
+        # Extract experiment ID from result
+        import re
+        match = re.search(r"Experiment \*\*(change_.*?)\*\*", res)
+        assert match
+        exp_id = match.group(1)
+        
+        # List experiments
+        res, _ = await self.tool.execute(0, action="list_experiments")
+        assert exp_id in res
+        
+        # Write file
+        res, _ = await self.tool.execute(0, action="write_file", experiment_id=exp_id, target_path="skills/test.py", content="print(1)")
+        assert "written" in res.lower()
+        
+        # Show experiment
+        res, _ = await self.tool.execute(0, action="show_experiment", experiment_id=exp_id)
+        assert "skills/test.py" in res
+        
+        # Evaluate
+        res, _ = await self.tool.execute(0, action="evaluate", experiment_id=exp_id)
+        assert "✅" in res or "❌" in res or "Classification" in res or "Evaluation halted" in res
+        
+        # Discard (create a new one to discard, as the first is READY_FOR_REVIEW)
+        res, _ = await self.tool.execute(0, action="create_experiment", objective="discard test")
+        match2 = re.search(r"Experiment \*\*(change_.*?)\*\*", res)
+        exp_id2 = match2.group(1)
+        res, _ = await self.tool.execute(0, action="discard", experiment_id=exp_id2)
+        assert "discarded" in res.lower()
+
+    @pytest.mark.asyncio
+    async def test_invalid_combinations(self):
+        # Missing experiment_id for show
+        res, _ = await self.tool.execute(0, action="show_experiment")
+        assert "Invalid arguments:" in res
+        
+        # Missing objective
+        res, _ = await self.tool.execute(0, action="create_experiment")
+        assert "Invalid arguments:" in res
+        
+        # Missing target_path for copy
+        res, _ = await self.tool.execute(0, action="copy_file", experiment_id="exp")
+        assert "Invalid arguments:" in res
+        
+        # Missing content for write
+        res, _ = await self.tool.execute(0, action="write_file", experiment_id="exp", target_path="test.py")
+        assert "Invalid arguments:" in res
+
+    def test_tool_router_integration(self):
+        provider = MagicMock(spec=BaseProvider)
+        monitor = SystemMonitor(provider)
+        router = ToolRouter(provider, monitor, self.pm)
+        
+        # Check discovery
+        assert "SelfModificationTool" in router.tools
+        tool = router.tools["SelfModificationTool"]
+        assert isinstance(tool, SelfModificationTool)
+        
+        # Check schema
+        schemas = router.get_tool_schemas()
+        # Find self modification schema
+        schema = next((s for s in schemas if s["function"]["name"] == "SelfModificationTool"), None)
+        assert schema is not None
+        props = schema["function"]["parameters"]["properties"]
+        assert "action" in props
+        assert "experiment_id" in props
+        
+
