@@ -12,76 +12,106 @@
         align-items: center;
     }
     
-    .black-hole-container {
-        position: relative;
+    @property --angle {
+        syntax: '<angle>';
+        initial-value: 0deg;
+        inherits: false;
+    }
+    
+    .siri-gradient {
         width: 100%;
         height: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        background: conic-gradient(
+            from var(--angle), 
+            #ea4326, #ff893d, #ea4326, #3296fa, #2a5298, #ff2a85, #ea4326
+        );
+        animation: rotateGradient 4s linear infinite;
+    }
+    
+    @keyframes rotateGradient {
+        0% { --angle: 0deg; }
+        100% { --angle: 360deg; }
+    }
+
+    .black-hole-container {
+        position: relative;
+        width: 240px;
+        height: 240px;
         animation: float 6s ease-in-out infinite alternate;
     }
     
-    /* Glowing animations */
-    .glow-ring {
+    /* Ring Animations */
+    .ring-back {
+        transform-origin: 120px 120px;
+        animation: spinRingBack 15s linear infinite;
+    }
+    .ring-front {
+        transform-origin: 120px 120px;
+        animation: spinRingFront 12s linear infinite;
+    }
+    
+    @keyframes spinRingBack {
+        0% { transform: rotate(15deg); }
+        100% { transform: rotate(375deg); }
+    }
+    @keyframes spinRingFront {
+        0% { transform: rotate(15deg); }
+        100% { transform: rotate(375deg); }
+    }
+    
+    @keyframes float {
+        0% { transform: translateY(-5px); }
+        100% { transform: translateY(5px); }
+    }
+    
+    .glow-pulse {
         animation: pulseGlow 3s ease-in-out infinite alternate;
     }
     
-    .core-ring {
-        animation: pulseCore 2s ease-in-out infinite alternate;
-    }
-    
-    .event-horizon {
-        animation: horizonPulse 4s ease-in-out infinite alternate;
-    }
-
-    @keyframes float {
-        0% { transform: translateY(-5px) rotate(0deg); }
-        100% { transform: translateY(5px) rotate(2deg); }
-    }
-    
     @keyframes pulseGlow {
-        0% { filter: blur(3px) brightness(1); stroke-width: 10px; }
-        100% { filter: blur(6px) brightness(1.5); stroke-width: 14px; }
-    }
-    
-    @keyframes pulseCore {
-        0% { filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8)); opacity: 0.8; }
-        100% { filter: drop-shadow(0 0 15px rgba(100, 200, 255, 1)); opacity: 1; }
-    }
-    
-    @keyframes horizonPulse {
-        0% { stroke: rgba(0, 150, 255, 0.4); stroke-width: 4px; }
-        100% { stroke: rgba(100, 220, 255, 0.8); stroke-width: 8px; }
+        0% { filter: blur(4px); stroke-width: 8px; }
+        100% { filter: blur(8px); stroke-width: 14px; }
     }
 </style>
 </head>
 <body>
     <div class="black-hole-container">
-        <svg viewBox="0 0 240 240" width="240" height="240">
-            <g transform="rotate(15 120 120)">
-                <!-- Back Accretion Disk (Behind Black Hole) -->
-                <path d="M 20,120 A 100,30 0 0,1 220,120" stroke="rgba(0, 100, 255, 0.4)" stroke-width="8" fill="none" filter="blur(3px)" />
-                <path d="M 20,120 A 100,30 0 0,1 220,120" stroke="rgba(150, 220, 255, 0.6)" stroke-width="2" fill="none" />
-                
-                <!-- The Black Hole (Event Horizon) -->
-                <!-- Dark shadow behind to give depth -->
-                <circle cx="120" cy="120" r="45" fill="rgba(0, 20, 40, 0.5)" filter="blur(10px)" />
-                <!-- Black core -->
-                <circle cx="120" cy="120" r="42" fill="#020205" />
-                <!-- Glowing event horizon edge -->
-                <circle cx="120" cy="120" r="42" stroke="rgba(0, 150, 255, 0.5)" stroke-width="4" fill="none" class="event-horizon" filter="blur(2px)" />
-                <circle cx="120" cy="120" r="42" stroke="rgba(200, 240, 255, 0.8)" stroke-width="1.5" fill="none" />
-                
-                <!-- Front Accretion Disk (In front of Black Hole) -->
-                <!-- Outer blue glow -->
-                <path d="M 20,120 A 100,30 0 0,0 220,120" stroke="rgba(0, 150, 255, 0.7)" stroke-width="12" fill="none" class="glow-ring" />
-                <!-- Bright core ring -->
-                <path d="M 20,120 A 100,30 0 0,0 220,120" stroke="rgba(255, 255, 255, 0.95)" stroke-width="3" fill="none" class="core-ring" />
-                
-                <!-- Inner secondary ring (front only) -->
-                <path d="M 40,120 A 80,20 0 0,0 200,120" stroke="rgba(50, 200, 255, 0.8)" stroke-width="2" fill="none" filter="blur(1px)" />
-            </g>
+        <!-- SVG Masking the CSS Conic Gradient -->
+        <svg viewBox="0 0 240 240" width="100%" height="100%">
+            <defs>
+                <mask id="blackHoleMask">
+                    <!-- Everything white is visible, black is hidden -->
+                    
+                    <!-- Back Accretion Disk Rings -->
+                    <g class="ring-back">
+                        <!-- Outer blur ring -->
+                        <ellipse cx="120" cy="120" rx="90" ry="25" stroke="rgba(255,255,255,0.7)" stroke-width="10" fill="none" filter="blur(6px)" />
+                        <!-- Inner sharp ring -->
+                        <ellipse cx="120" cy="120" rx="90" ry="25" stroke="white" stroke-width="2" fill="none" />
+                        <ellipse cx="120" cy="120" rx="75" ry="15" stroke="rgba(255,255,255,0.9)" stroke-width="3" fill="none" />
+                    </g>
+                    
+                    <!-- The Black Hole (Event Horizon) -->
+                    <!-- This hides the back rings! -->
+                    <circle cx="120" cy="120" r="42" fill="black" />
+                    
+                    <!-- Event Horizon Edge Glow -->
+                    <circle cx="120" cy="120" r="42" stroke="white" stroke-width="3" fill="none" filter="blur(2px)" />
+                    <circle cx="120" cy="120" r="42" stroke="white" stroke-width="1" fill="none" />
+                    
+                    <!-- Front Accretion Disk Rings (Only drawing the bottom half so it overlays the black hole) -->
+                    <g class="ring-front">
+                        <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="rgba(255,255,255,0.8)" stroke-width="12" fill="none" class="glow-pulse" />
+                        <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="white" stroke-width="3" fill="none" />
+                        <path d="M 45,120 A 75,15 0 0,0 195,120" stroke="rgba(255,255,255,0.9)" stroke-width="2" fill="none" />
+                    </g>
+                </mask>
+            </defs>
+            
+            <!-- This foreignObject holds the CSS gradient and is masked by the SVG! -->
+            <foreignObject width="240" height="240" mask="url(#blackHoleMask)">
+                <div xmlns="http://www.w3.org/1999/xhtml" class="siri-gradient"></div>
+            </foreignObject>
         </svg>
     </div>
 </body>
