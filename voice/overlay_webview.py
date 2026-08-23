@@ -23,22 +23,35 @@ def main():
         
     window_title = 'HELIOS Listening'
     
-    # Critical fix for Windows WebView2 transparent window bug (black screen):
-    # This forces the underlying Edge engine to use a fully transparent background.
-    os.environ['WEBVIEW2_DEFAULT_BACKGROUND_COLOR'] = '00000000'
-    
-    # Create a perfectly transparent, frameless floating window
+    # We use a Magenta background and set it as the transparent color key via win32gui
+    # We must set transparent=False here so pywebview actually paints the window magenta!
     window = webview.create_window(
         window_title, 
         html=html_content, 
-        transparent=True,
+        transparent=False,
+        background_color='#FF00FF', # Magenta
         frameless=True, 
-        width=w, 
-        height=h, 
-        x=x, 
-        y=y,
+        width=250, 
+        height=250, 
+        x=x + 25, # Adjust position to account for smaller width
+        y=y + 25, 
         on_top=True
     )
+    
+    def apply_transparency():
+        import time
+        import win32gui
+        import win32con
+        time.sleep(0.5) # Wait for window to render
+        hwnd = win32gui.FindWindowEx(0, 0, None, window_title)
+        if hwnd:
+            style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+            win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style | win32con.WS_EX_LAYERED)
+            # Magenta in COLORREF is 0x00FF00FF (BBGGRR)
+            win32gui.SetLayeredWindowAttributes(hwnd, 0x00FF00FF, 0, win32con.LWA_COLORKEY)
+
+    import threading
+    threading.Thread(target=apply_transparency, daemon=True).start()
     
     webview.start()
 
