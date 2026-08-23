@@ -23,12 +23,15 @@ def main():
         
     window_title = 'HELIOS Listening'
     
-    # We use a solid dark background for the widget to completely avoid Windows WebView2 transparency bugs.
+    # Critical fix for Windows WebView2 transparent window bug (black screen):
+    # This forces the underlying Edge engine to use a fully transparent background.
+    os.environ['WEBVIEW2_DEFAULT_BACKGROUND_COLOR'] = '00000000'
+    
+    # Create a perfectly transparent, frameless floating window
     window = webview.create_window(
         window_title, 
         html=html_content, 
-        transparent=False,
-        background_color='#1a1a1a', # Dark grey to match body
+        transparent=True,
         frameless=True, 
         width=w, 
         height=h, 

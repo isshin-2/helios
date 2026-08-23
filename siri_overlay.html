@@ -5,103 +5,84 @@
 <style>
     body, html {
         margin: 0; padding: 0; width: 100%; height: 100%;
-        background-color: transparent; overflow: hidden;
-    }
-    #siri-overlay {
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        border-radius: 40px; /* Squircle */
-        opacity: 1;
-        -webkit-mask-image: 
-            linear-gradient(to bottom, 
-                rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 15px, rgba(0,0,0,0) 80px, 
-                rgba(0,0,0,0) calc(100% - 80px), rgba(0,0,0,0.8) calc(100% - 15px), rgba(0,0,0,1) 100%),
-            linear-gradient(to right, 
-                rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 15px, rgba(0,0,0,0) 80px, 
-                rgba(0,0,0,0) calc(100% - 80px), rgba(0,0,0,0.8) calc(100% - 15px), rgba(0,0,0,1) 100%);
-        mask-image: 
-            linear-gradient(to bottom, 
-                rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 15px, rgba(0,0,0,0) 80px, 
-                rgba(0,0,0,0) calc(100% - 80px), rgba(0,0,0,0.8) calc(100% - 15px), rgba(0,0,0,1) 100%),
-            linear-gradient(to right, 
-                rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 15px, rgba(0,0,0,0) 80px, 
-                rgba(0,0,0,0) calc(100% - 80px), rgba(0,0,0,0.8) calc(100% - 15px), rgba(0,0,0,1) 100%);
-    }
-    .siri-gradient {
-        position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-        background: conic-gradient(from 0deg, #ff2a85, #8a2be2, #00d2ff, #ff8c00, #ff2a85);
-        filter: blur(20px); animation: rotateGradient 4s linear infinite;
-    }
-    @keyframes rotateGradient {
-        0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); }
-    }
-    
-    /* HELIOS Animated Logo CSS */
-    .helios-logo-container {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        background-color: transparent !important; 
+        overflow: hidden;
         display: flex;
-        flex-direction: column;
-        align-items: center;
         justify-content: center;
-        z-index: 10;
+        align-items: center;
     }
     
-    .helios-ring {
-        transform-origin: center;
-        animation: spinRing 10s linear infinite;
+    .black-hole-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        animation: float 6s ease-in-out infinite alternate;
     }
     
-    .helios-core {
+    /* Glowing animations */
+    .glow-ring {
+        animation: pulseGlow 3s ease-in-out infinite alternate;
+    }
+    
+    .core-ring {
         animation: pulseCore 2s ease-in-out infinite alternate;
     }
     
-    .helios-text {
-        margin-top: 15px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        font-size: 22px;
-        font-weight: 800;
-        letter-spacing: 5px;
-        background: linear-gradient(90deg, #ff2a85, #8a2be2, #00d2ff);
-        background-size: 200% auto;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        animation: gradientShift 4s linear infinite;
+    .event-horizon {
+        animation: horizonPulse 4s ease-in-out infinite alternate;
+    }
+
+    @keyframes float {
+        0% { transform: translateY(-5px) rotate(0deg); }
+        100% { transform: translateY(5px) rotate(2deg); }
     }
     
-    @keyframes spinRing {
-        100% { transform: rotate(360deg); }
+    @keyframes pulseGlow {
+        0% { filter: blur(3px) brightness(1); stroke-width: 10px; }
+        100% { filter: blur(6px) brightness(1.5); stroke-width: 14px; }
     }
     
     @keyframes pulseCore {
-        0% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(255,255,255,0.5)); }
-        100% { transform: scale(1.15); filter: drop-shadow(0 0 15px rgba(255,255,255,0.9)); }
+        0% { filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8)); opacity: 0.8; }
+        100% { filter: drop-shadow(0 0 15px rgba(100, 200, 255, 1)); opacity: 1; }
     }
     
-    @keyframes gradientShift {
-        0% { background-position: 0% center; }
-        100% { background-position: 200% center; }
+    @keyframes horizonPulse {
+        0% { stroke: rgba(0, 150, 255, 0.4); stroke-width: 4px; }
+        100% { stroke: rgba(100, 220, 255, 0.8); stroke-width: 8px; }
     }
 </style>
 </head>
-<body style="background-color: #1a1a1a; border-radius: 40px;">
-    <!-- The glowing border overlay with the transparent mask -->
-    <div id="siri-overlay">
-        <div class="siri-gradient"></div>
-    </div>
-    
-    <!-- Animated HELIOS Logo (Outside the mask so it's visible!) -->
-    <div class="helios-logo-container">
-        <svg viewBox="0 0 100 100" width="70" height="70">
-            <!-- Outer rotating dashed ring -->
-            <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-dasharray="10 8" fill="none" class="helios-ring" />
-            <!-- Inner solid ring -->
-            <circle cx="50" cy="50" r="32" stroke="rgba(255,255,255,0.2)" stroke-width="1" fill="none" />
-            <!-- Pulsing core / sun -->
-            <circle cx="50" cy="50" r="16" fill="white" class="helios-core" />
+<body>
+    <div class="black-hole-container">
+        <svg viewBox="0 0 240 240" width="240" height="240">
+            <g transform="rotate(15 120 120)">
+                <!-- Back Accretion Disk (Behind Black Hole) -->
+                <path d="M 20,120 A 100,30 0 0,1 220,120" stroke="rgba(0, 100, 255, 0.4)" stroke-width="8" fill="none" filter="blur(3px)" />
+                <path d="M 20,120 A 100,30 0 0,1 220,120" stroke="rgba(150, 220, 255, 0.6)" stroke-width="2" fill="none" />
+                
+                <!-- The Black Hole (Event Horizon) -->
+                <!-- Dark shadow behind to give depth -->
+                <circle cx="120" cy="120" r="45" fill="rgba(0, 20, 40, 0.5)" filter="blur(10px)" />
+                <!-- Black core -->
+                <circle cx="120" cy="120" r="42" fill="#020205" />
+                <!-- Glowing event horizon edge -->
+                <circle cx="120" cy="120" r="42" stroke="rgba(0, 150, 255, 0.5)" stroke-width="4" fill="none" class="event-horizon" filter="blur(2px)" />
+                <circle cx="120" cy="120" r="42" stroke="rgba(200, 240, 255, 0.8)" stroke-width="1.5" fill="none" />
+                
+                <!-- Front Accretion Disk (In front of Black Hole) -->
+                <!-- Outer blue glow -->
+                <path d="M 20,120 A 100,30 0 0,0 220,120" stroke="rgba(0, 150, 255, 0.7)" stroke-width="12" fill="none" class="glow-ring" />
+                <!-- Bright core ring -->
+                <path d="M 20,120 A 100,30 0 0,0 220,120" stroke="rgba(255, 255, 255, 0.95)" stroke-width="3" fill="none" class="core-ring" />
+                
+                <!-- Inner secondary ring (front only) -->
+                <path d="M 40,120 A 80,20 0 0,0 200,120" stroke="rgba(50, 200, 255, 0.8)" stroke-width="2" fill="none" filter="blur(1px)" />
+            </g>
         </svg>
-        <div class="helios-text">HELIOS</div>
     </div>
 </body>
 </html>
