@@ -24,11 +24,11 @@ def main():
     window_title = 'HELIOS Listening'
     
     # We use a Magenta background and set it as the transparent color key via win32gui
-    # This forces the corners to be 100% transparent even if WebView2 transparency is broken on the OS.
+    # We must set transparent=False here so pywebview actually paints the window magenta!
     window = webview.create_window(
         window_title, 
         html=html_content, 
-        transparent=True,
+        transparent=False,
         background_color='#FF00FF', # Magenta
         frameless=True, 
         width=w, 
