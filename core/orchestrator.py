@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import logging
 import os
@@ -64,6 +65,32 @@ class ConversationOrchestrator:
         self.memory_manager = memory_manager
         self.permission_manager = permission_manager
         self.tool_router = tool_router
+        self.cancellation_events = {}
+
+    def cancel_current_request(self, session_id: int):
+        if session_id in self.cancellation_events:
+            self.cancellation_events[session_id].set()
+
+    async def _handle_user_input(self, question: str, event_bus: EventBus) -> str:
+        request_id = self.permission_manager.approval_manager.generate_request_id()
+        import asyncio
+        loop = asyncio.get_event_loop()
+        future = loop.create_future()
+        self.permission_manager.approval_manager.register_pending(request_id, future)
+        
+        await event_bus.publish("input_request", {
+            "request_id": request_id,
+            "question": question
+        })
+        
+        try:
+            # Wait a long time for the user to answer
+            response = await asyncio.wait_for(future, timeout=300.0)
+            return response.get("text", "")
+        except asyncio.TimeoutError:
+            return "User did not respond in time."
+        except Exception as e:
+            return f"Error waiting for input: {e}"
 
     async def _handle_tool_approval(self, user_id: int, operation: str, target: str, event_bus: EventBus, headless: bool = False) -> bool:
         """Handles requesting and waiting for user approval."""
@@ -104,6 +131,11 @@ class ConversationOrchestrator:
     async def process_request(self, session_id: int, user_id: int, messages: List[Dict[str, Any]], event_bus: EventBus, headless: bool = False):
         if not messages or not user_id or not session_id:
             return
+            
+        import asyncio
+        if session_id not in self.cancellation_events:
+            self.cancellation_events[session_id] = asyncio.Event()
+        self.cancellation_events[session_id].clear()
 
         last_msg = messages[-1]["content"]
         
@@ -154,19 +186,48 @@ class ConversationOrchestrator:
                 tool_calls = []
                 content_accum = ""
                 
+                sys.stdout.write(f"\n\n--- LLM GENERATION START (Iteration {iteration}) ---\n")
+                sys.stdout.flush()
+
                 async for chunk in stream:
+                    if self.cancellation_events[session_id].is_set():
+                        await event_bus.publish("chunk", "\n\n[System: Generation stopped by user.]")
+                        full_response += "\n\n[System: Generation stopped by user.]"
+                        break
+                    
                     if "message" in chunk:
                         msg = chunk["message"]
+                        # Support for Ollama's native 'reasoning' field (e.g. DeepSeek-R1)
+                        if "reasoning" in msg and msg["reasoning"]:
+                            reasoning = msg["reasoning"]
+                            content_accum += reasoning
+                            full_response += reasoning
+                            
+                            sys.stdout.write(reasoning)
+                            sys.stdout.flush()
+                            
+                            await event_bus.publish("chunk", reasoning)
+                            
                         if "content" in msg and msg["content"]:
                             content = msg["content"]
                             content_accum += content
                             full_response += content
+                            
+                            # Stream to server terminal for monitoring
+                            sys.stdout.write(content)
+                            sys.stdout.flush()
+                            
                             await event_bus.publish("chunk", content)
                             
                         if "tool_calls" in msg and msg["tool_calls"]:
                             for tc in msg["tool_calls"]:
                                 tool_calls.append(tc)
+                sys.stdout.write("\n--- LLM GENERATION END ---\n")
+                sys.stdout.flush()
                 
+                if self.cancellation_events[session_id].is_set():
+                    break
+
                 if not tool_calls:
                     await event_bus.publish("done", None)
                     break
@@ -240,7 +301,19 @@ class ConversationOrchestrator:
                         "content": json.dumps(structured_result)
                     })
                     
+                    # Ensure tool outputs are saved in the session history and displayed seamlessly
+                    formatted_tool_output = f"\n\n[Tool Executed: {function_name}]\n{res_text}\n\n"
+                    full_response += formatted_tool_output
+                    await event_bus.publish("chunk", formatted_tool_output)
+                    
             except Exception as e:
+                import httpx
+                if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 404:
+                    fallback = config.MODEL_CONFIG.get("fallback")
+                    if fallback and fallback != route["model"]:
+                        logger.warning(f"Model {route['model']} not found. Retrying with fallback {fallback}.")
+                        route["model"] = fallback
+                        continue
                 logger.error(f"Error executing request: {e}")
                 full_response += f"\n\n[System Error: {str(e)}]"
                 await event_bus.publish("chunk", f"\n\n[System Error: {str(e)}]")

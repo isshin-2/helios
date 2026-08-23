@@ -35,7 +35,7 @@ class ToolRouter:
         FILESYSTEM_TOOLS = {
             "FileReaderTool", "DirectoryListerTool",
             "FileWriterTool", "TerminalTool",
-            "SelfModificationTool"
+            "SelfModificationTool", "AskUserTool"
         }
         
         for filename in os.listdir(tools_dir):

@@ -651,8 +651,22 @@
     </style>
 </head>
 <body>
+
+    <!-- Input Modal -->
+    <div id="input-modal" class="modal-overlay" style="display: none; z-index: 2000;">
+        <div class="modal">
+            <h2>HELIOS asks...</h2>
+            <p id="input-question" style="font-weight: bold; margin-bottom: 15px;">Question goes here?</p>
+            <textarea id="input-answer" class="form-input" style="height: 100px; resize: vertical; margin-bottom: 15px;" placeholder="Your answer..."></textarea>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" id="input-submit-btn" style="flex: 1;">Submit Answer</button>
+                <button class="btn btn-secondary" id="input-cancel-btn" style="flex: 1;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Login Modal -->
-    <div id="login-modal" class="modal-overlay">
+    <div id="login-modal" class="modal-overlay" style="display: none;">
         <div class="modal">
             <h2>HELIOS</h2>
             <p>Initialize Neural Link</p>
@@ -774,6 +788,7 @@
                     <div style="font-weight: 600; margin-bottom: 4px;">Wipe Persistent Memory</div>
                     <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Deletes learned facts, RAG embeddings, and preferences.</div>
                     <button class="btn btn-secondary" onclick="confirmDelete('memory')">Delete Memory</button>
+                    <div id="memory-list" style="margin-top: 16px; max-height: 200px; overflow-y: auto; font-size: 13px; border-top: 1px solid var(--border-subtle); padding-top: 12px;"></div>
                 </div>
                 
                 <div style="background: rgba(239, 68, 68, 0.05); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(239, 68, 68, 0.2);">
@@ -866,12 +881,18 @@
         </div>
 
         <div id="chat-container">
-            <div class="message bot-message">
-                I am HELIOS. Awaiting instructions.
+            <div class="message bot-message" style="opacity: 0.7;">
+                Loading HELIOS interface...
             </div>
         </div>
         
         <div id="input-container">
+            <div style="display: flex; justify-content: center; margin-bottom: 8px;">
+                <button id="stop-btn" class="btn btn-secondary" style="display: none; padding: 6px 16px; border-radius: 20px; font-size: 13px; background: var(--bg-card); align-items: center; cursor: pointer;">
+                    <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; margin-right: 6px; fill: currentColor;"><path d="M6 6h12v12H6z"/></svg>
+                    Stop Generating
+                </button>
+            </div>
             <div class="input-wrapper">
                 <textarea id="prompt-input" placeholder="Message HELIOS..."></textarea>
                 <button id="send-btn">
@@ -885,6 +906,7 @@
         const chatContainer = document.getElementById('chat-container');
         const promptInput = document.getElementById('prompt-input');
         const sendBtn = document.getElementById('send-btn');
+        const stopBtn = document.getElementById('stop-btn');
         const sessionsList = document.getElementById('sessions-list');
         const modelIndicator = document.getElementById('model-indicator');
         const modelNameDisplay = document.getElementById('model-name');
@@ -943,8 +965,24 @@
         }
 
         // Privacy Modals & API Calls
-        function openPrivacyModal() {
+        async function openPrivacyModal() {
             document.getElementById('privacy-modal').style.display = 'flex';
+            if (!currentUser) return;
+            const ml = document.getElementById('memory-list');
+            if (ml) {
+                ml.innerHTML = '<span style="color:var(--text-muted)">Loading memory...</span>';
+                try {
+                    const res = await fetch(`/api/users/${currentUser.id}/memory`);
+                    const mems = await res.json();
+                    if (mems.length === 0) {
+                        ml.innerHTML = '<div style="color:var(--text-muted)">No extracted memory found.</div>';
+                    } else {
+                        ml.innerHTML = mems.map(m => `<div style="margin-bottom:6px; line-height: 1.4;">&bull; ${m.fact} <span style="color:var(--text-muted); margin-left: 8px;">(${new Date(m.created_at).toLocaleDateString()})</span></div>`).join('');
+                    }
+                } catch (e) {
+                    ml.innerHTML = '<span style="color:var(--accent-red)">Error loading memory.</span>';
+                }
+            }
         }
 
         function closePrivacyModal() {
@@ -1464,10 +1502,9 @@
             }
         }
 
-        // Login Logic
-        async function login() {
-            const username = document.getElementById('username-input').value.trim();
-            if (!username) return;
+        // Initialize App automatically
+        async function initApp() {
+            const username = "krithik";
             
             const res = await fetch('/api/users', {
                 method: 'POST',
@@ -1476,12 +1513,13 @@
             });
             currentUser = await res.json();
             
-            document.getElementById('login-modal').style.display = 'none';
-            document.getElementById('user-display').innerText = `User: ${currentUser.username}`;
+            document.getElementById('user-display').innerText = `HELIOS`;
             
             await loadSessions();
             await loadSystemAccess();
         }
+
+        window.addEventListener('DOMContentLoaded', initApp);
 
         // Sessions Logic
         async function loadSessions() {
@@ -1596,6 +1634,10 @@
                         if (statusEl) statusEl.innerText = data.message || 'Processing...';
                     }
                 }
+
+                else if (data.type === 'input_request') {
+                    showInputDialog(data);
+                }
                 else if (data.type === 'approval_request') {
                     showApprovalDialog(data);
                 }
@@ -1675,6 +1717,7 @@
                     }
                 }
                 else if (data.type === 'done') {
+                    stopBtn.style.display = 'none';
                     enableInput();
                     modelIndicator.classList.remove('active');
                     if (currentBotContent) {
@@ -1732,6 +1775,7 @@
                 </div>
             `;
             chatContainer.appendChild(loadingCardElement);
+            stopBtn.style.display = 'flex';
             chatContainer.scrollTop = chatContainer.scrollHeight;
 
             if (tipInterval) clearInterval(tipInterval);
@@ -1794,6 +1838,15 @@
             }
         }
         
+        
+        stopBtn.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN && currentSessionId) {
+                ws.send(JSON.stringify({ type: 'stop', session_id: currentSessionId }));
+                stopBtn.style.display = 'none';
+                if (loadingCardElement) loadingCardElement.remove();
+            }
+        });
+
         sendBtn.addEventListener('click', sendPrompt);
         promptInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPrompt(); }

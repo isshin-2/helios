@@ -65,7 +65,10 @@ class UserCreate(BaseModel):
 async def create_or_get_user(user: UserCreate):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username FROM users WHERE username = ?", (user.username,))
+    
+    # Make username case-insensitive
+    username_lower = user.username.lower()
+    cursor.execute("SELECT id, username FROM users WHERE LOWER(username) = ?", (username_lower,))
     row = cursor.fetchone()
     if row:
         conn.close()
@@ -74,7 +77,7 @@ async def create_or_get_user(user: UserCreate):
     # New user — set default system_access
     default_access = json.dumps(DEFAULT_SYSTEM_ACCESS)
     cursor.execute("INSERT INTO users (username, system_access) VALUES (?, ?)",
-                   (user.username, default_access))
+                   (username_lower, default_access))
     user_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -253,6 +256,15 @@ async def delete_history(user_id: int):
     conn.close()
     return {"status": "success", "message": "All chat history deleted."}
 
+@app.get("/api/users/{user_id}/memory")
+async def get_memory(user_id: int):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, fact, created_at FROM memories WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 @app.delete("/api/users/{user_id}/memory")
 async def delete_memory(user_id: int):
     conn = get_db()
@@ -288,6 +300,12 @@ except ImportError:
     voice_assistant = None
     logger.warning("Voice module could not be loaded. Voice features disabled.")
 
+@app.on_event("startup")
+async def startup_event():
+    if voice_assistant:
+        voice_assistant.start()
+        logger.info("Voice assistant auto-started on server startup.")
+
 @app.post("/api/voice/start")
 async def start_voice():
     if not voice_assistant:
@@ -301,6 +319,15 @@ async def stop_voice():
         raise HTTPException(status_code=501, detail="Voice features are not available.")
     voice_assistant.stop()
     return {"status": "success", "message": "Voice assistant stopped."}
+
+@app.post("/api/voice/trigger")
+async def trigger_voice():
+    if not voice_assistant:
+        raise HTTPException(status_code=501, detail="Voice features are not available.")
+    if not voice_assistant.is_running:
+        raise HTTPException(status_code=400, detail="Voice assistant is not running. Please start it first.")
+    voice_assistant.trigger()
+    return {"status": "success", "message": "Voice assistant triggered for one command."}
 
 # ─── SELF-MODIFICATION ENDPOINTS ────────────────────────────────────────────
 
@@ -420,6 +447,8 @@ async def websocket_endpoint(websocket: WebSocket):
     event_bus.subscribe("status", lambda d: asyncio.create_task(ws_sender({"type": "status", "text": d})))
     event_bus.subscribe("chunk", lambda d: asyncio.create_task(ws_sender({"type": "chunk", "content": d})))
     event_bus.subscribe("meta", lambda d: asyncio.create_task(ws_sender({"type": "meta", **d})))
+
+    event_bus.subscribe("input_request", lambda d: asyncio.create_task(ws_sender({"type": "input_request", **d})))
     event_bus.subscribe("approval_request", lambda d: asyncio.create_task(ws_sender({"type": "approval_request", **d})))
     event_bus.subscribe("done", lambda d: asyncio.create_task(ws_sender({"type": "done"})))
     
@@ -428,6 +457,24 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_text()
             request_data = json.loads(data)
             
+            # Handle stop generation requests
+            if request_data.get("type") == "stop":
+                session_id = request_data.get("session_id")
+                if session_id:
+                    orchestrator.cancel_current_request(session_id)
+                continue
+            
+
+            # Handle input responses
+            if request_data.get("type") == "input_response":
+                request_id = request_data.get("request_id")
+                text = request_data.get("text", "")
+                if request_id:
+                    permission_manager.approval_manager.resolve_pending(
+                        request_id, {"text": text}
+                    )
+                continue
+
             # Handle approval responses
             if request_data.get("type") == "approval_response":
                 request_id = request_data.get("request_id")

@@ -11,30 +11,30 @@ OLLAMA_PATH = "/Applications/Ollama.app/Contents/Resources/ollama"
 
 # ─── Models ────────────────────────────────────────────────
 MODEL_CONFIG = {
-    "qwen3:4b": {
-        "roles": ["fast", "system"],
+    "phi3:mini": {
+        "roles": ["system"],
         "priority": 1,
         "fallback": None
     },
-    "qwen3:8b": {
-        "roles": ["general", "tool_use", "conversation"],
+    "qwen2.5:7b": {
+        "roles": ["general", "tool_use", "conversation", "fast"],
         "priority": 1,
-        "fallback": "qwen3:4b"
+        "fallback": "phi3:mini"
     },
     "deepseek-r1:7b": {
         "roles": ["reasoning", "research"],
         "priority": 1,
-        "fallback": "qwen3:8b"
+        "fallback": "llama3.1:8b"
     },
     "qwen2.5-coder:7b": {
         "roles": ["coding"],
         "priority": 1,
-        "fallback": "qwen3:8b"
+        "fallback": "llama3.1:8b"
     },
     "llava:latest": {
         "roles": ["vision"],
         "priority": 1,
-        "fallback": "qwen3:8b"
+        "fallback": "llama3.1:8b"
     },
     "nomic-embed-text": {
         "roles": ["embedding", "rag"],
@@ -54,12 +54,12 @@ MODEL_CONFIG = {
     "llama3.1:8b": {
         "roles": ["experimental_tool_model"],
         "priority": 0,
-        "fallback": "qwen3:8b"
+        "fallback": "phi3:mini"
     },
-    "hermes3:8b": {
-        "roles": ["experimental_tool_model"],
+    "deepseek-coder-v2:16b": {
+        "roles": ["heavy_coding"],
         "priority": 0,
-        "fallback": "qwen3:8b"
+        "fallback": "qwen2.5-coder:7b"
     }
 }
 

@@ -40,8 +40,13 @@ class OllamaProvider(BaseProvider):
         
         if stream:
             async def stream_generator():
+                import logging
+                logging.getLogger("ollama_debug").info(f"Ollama Payload: {json.dumps(payload)}")
                 async with httpx.AsyncClient() as client:
                     async with client.stream("POST", f"{self.base_url}/chat", json=payload, timeout=None) as response:
+                        if response.status_code != 200:
+                            body = await response.aread()
+                            logging.getLogger("ollama_debug").error(f"Ollama Error Body: {body}")
                         response.raise_for_status()
                         async for line in response.aiter_lines():
                             if line:

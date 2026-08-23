@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # Config for embedding model
 EMBEDDING_MODEL = "nomic-embed-text"
-FACT_EXTRACTION_MODEL = "qwen3:8b"
+FACT_EXTRACTION_MODEL = "qwen2.5:7b"
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:
     a_arr = np.array(a)
@@ -31,6 +31,7 @@ class MemoryManager:
         prompt = (
             "Extract any key personal facts, preferences, or ongoing project details from the following message. "
             "Only extract factual statements about the user or their work. "
+            "Critically, IGNORE any hypothetical scenarios, ethical dilemmas, 'what-if' questions, or roleplay situations. Do not extract facts about HELIOS itself. "
             "If there are no clear facts to remember, reply with 'NONE'.\n"
             "Format the output as a concise bulleted list of facts.\n\n"
             f"Message: {message}"
