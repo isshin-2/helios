@@ -85,22 +85,23 @@
     }
 </style>
 </head>
-<body>
+<body style="background-color: #1a1a1a; border-radius: 40px;">
+    <!-- The glowing border overlay with the transparent mask -->
     <div id="siri-overlay">
         <div class="siri-gradient"></div>
-        
-        <!-- Animated HELIOS Logo -->
-        <div class="helios-logo-container">
-            <svg viewBox="0 0 100 100" width="70" height="70">
-                <!-- Outer rotating dashed ring -->
-                <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-dasharray="10 8" fill="none" class="helios-ring" />
-                <!-- Inner solid ring -->
-                <circle cx="50" cy="50" r="32" stroke="rgba(255,255,255,0.2)" stroke-width="1" fill="none" />
-                <!-- Pulsing core / sun -->
-                <circle cx="50" cy="50" r="16" fill="white" class="helios-core" />
-            </svg>
-            <div class="helios-text">HELIOS</div>
-        </div>
+    </div>
+    
+    <!-- Animated HELIOS Logo (Outside the mask so it's visible!) -->
+    <div class="helios-logo-container">
+        <svg viewBox="0 0 100 100" width="70" height="70">
+            <!-- Outer rotating dashed ring -->
+            <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-dasharray="10 8" fill="none" class="helios-ring" />
+            <!-- Inner solid ring -->
+            <circle cx="50" cy="50" r="32" stroke="rgba(255,255,255,0.2)" stroke-width="1" fill="none" />
+            <!-- Pulsing core / sun -->
+            <circle cx="50" cy="50" r="16" fill="white" class="helios-core" />
+        </svg>
+        <div class="helios-text">HELIOS</div>
     </div>
 </body>
 </html>
