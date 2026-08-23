@@ -19,8 +19,6 @@
     }
     
     .siri-gradient {
-        width: 100%;
-        height: 100%;
         background: conic-gradient(
             from var(--angle), 
             #ea4326, #ff893d, #ea4326, #3296fa, #2a5298, #ff2a85, #ea4326
@@ -33,6 +31,30 @@
         100% { --angle: 360deg; }
     }
 
+    /* The glowing gradient square border */
+    .widget-container {
+        position: relative;
+        width: 250px;
+        height: 250px;
+        border-radius: 46px; /* Squircle */
+        padding: 3px; /* Border thickness */
+        box-sizing: border-box;
+        box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
+        /* Inherits the .siri-gradient animation via class */
+    }
+    
+    /* The dark inner background of the square */
+    .widget-inner {
+        width: 100%;
+        height: 100%;
+        background-color: #0b0c10; /* Deep space dark */
+        border-radius: 44px; /* Slightly less than container to match curve */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+    }
+
     .black-hole-container {
         position: relative;
         width: 240px;
@@ -41,8 +63,8 @@
     }
     
     @keyframes float {
-        0% { transform: translateY(-5px); }
-        100% { transform: translateY(5px); }
+        0% { transform: translateY(-3px); }
+        100% { transform: translateY(3px); }
     }
     
     /* Traveling Shine Effects */
@@ -55,7 +77,7 @@
         animation: orbitShineFront 3s linear infinite;
     }
     .shine-horizon {
-        stroke-dasharray: 50 213; /* circumference 2*pi*42 = 263 */
+        stroke-dasharray: 50 213;
         animation: orbitHorizon 4s linear infinite reverse;
     }
     
@@ -74,52 +96,44 @@
 </style>
 </head>
 <body>
-    <div class="black-hole-container">
-        <svg viewBox="0 0 240 240" width="100%" height="100%">
-            <defs>
-                <mask id="blackHoleMask">
-                    <!-- Global tilt for the accretion disk -->
-                    <g transform="rotate(15 120 120)">
-                        
-                        <!-- Back Accretion Disk Rings (Stationary) -->
-                        <g>
-                            <!-- Wide blurred glow -->
-                            <ellipse cx="120" cy="120" rx="90" ry="25" stroke="rgba(255,255,255,0.4)" stroke-width="12" fill="none" filter="blur(6px)" />
-                            <!-- Core thin ring -->
-                            <ellipse cx="120" cy="120" rx="90" ry="25" stroke="rgba(255,255,255,0.7)" stroke-width="2" fill="none" />
-                            <!-- Orbiting shine highlight -->
-                            <ellipse cx="120" cy="120" rx="90" ry="25" stroke="white" stroke-width="6" fill="none" class="shine-back" filter="blur(1px)" />
-                        </g>
-                        
-                        <!-- The Black Hole (Event Horizon) -->
-                        <circle cx="120" cy="120" r="42" fill="black" />
-                        
-                        <!-- Event Horizon Edge Glow -->
-                        <circle cx="120" cy="120" r="42" stroke="white" stroke-width="5" fill="none" filter="blur(3px)" />
-                        <circle cx="120" cy="120" r="42" stroke="white" stroke-width="1.5" fill="none" />
-                        <circle cx="120" cy="120" r="42" stroke="white" stroke-width="4" fill="none" class="shine-horizon" filter="blur(1px)" />
-                        
-                        <!-- Front Accretion Disk Rings -->
-                        <g>
-                            <!-- Front outer glow -->
-                            <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="rgba(255,255,255,0.6)" stroke-width="14" fill="none" filter="blur(4px)" />
-                            <!-- Front thin ring -->
-                            <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="rgba(255,255,255,0.9)" stroke-width="2" fill="none" />
-                            <!-- Front inner ring -->
-                            <path d="M 45,120 A 75,15 0 0,0 195,120" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" fill="none" />
-                            
-                            <!-- Orbiting shine highlight -->
-                            <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="white" stroke-width="6" fill="none" class="shine-front" filter="blur(1px)"/>
-                        </g>
-                        
-                    </g>
-                </mask>
-            </defs>
-            
-            <foreignObject width="240" height="240" mask="url(#blackHoleMask)">
-                <div xmlns="http://www.w3.org/1999/xhtml" class="siri-gradient"></div>
-            </foreignObject>
-        </svg>
+    <!-- The outer container has the siri-gradient to create a glowing border -->
+    <div class="widget-container siri-gradient">
+        <div class="widget-inner">
+            <div class="black-hole-container">
+                <svg viewBox="0 0 240 240" width="100%" height="100%">
+                    <defs>
+                        <mask id="blackHoleMask">
+                            <g transform="rotate(15 120 120)">
+                                <!-- Back Rings -->
+                                <g>
+                                    <ellipse cx="120" cy="120" rx="90" ry="25" stroke="rgba(255,255,255,0.4)" stroke-width="12" fill="none" filter="blur(6px)" />
+                                    <ellipse cx="120" cy="120" rx="90" ry="25" stroke="rgba(255,255,255,0.7)" stroke-width="2" fill="none" />
+                                    <ellipse cx="120" cy="120" rx="90" ry="25" stroke="white" stroke-width="6" fill="none" class="shine-back" filter="blur(1px)" />
+                                </g>
+                                
+                                <!-- Event Horizon -->
+                                <circle cx="120" cy="120" r="42" fill="black" />
+                                <circle cx="120" cy="120" r="42" stroke="white" stroke-width="5" fill="none" filter="blur(3px)" />
+                                <circle cx="120" cy="120" r="42" stroke="white" stroke-width="1.5" fill="none" />
+                                <circle cx="120" cy="120" r="42" stroke="white" stroke-width="4" fill="none" class="shine-horizon" filter="blur(1px)" />
+                                
+                                <!-- Front Rings -->
+                                <g>
+                                    <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="rgba(255,255,255,0.6)" stroke-width="14" fill="none" filter="blur(4px)" />
+                                    <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="rgba(255,255,255,0.9)" stroke-width="2" fill="none" />
+                                    <path d="M 45,120 A 75,15 0 0,0 195,120" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" fill="none" />
+                                    <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="white" stroke-width="6" fill="none" class="shine-front" filter="blur(1px)"/>
+                                </g>
+                            </g>
+                        </mask>
+                    </defs>
+                    
+                    <foreignObject width="240" height="240" mask="url(#blackHoleMask)">
+                        <div xmlns="http://www.w3.org/1999/xhtml" class="siri-gradient" style="width: 100%; height: 100%;"></div>
+                    </foreignObject>
+                </svg>
+            </div>
+        </div>
     </div>
 </body>
 </html>
