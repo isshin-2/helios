@@ -13,12 +13,13 @@ from tools.base import BaseTool
 logger = logging.getLogger(__name__)
 
 class ComputerInput(BaseModel):
-    action: str = Field(..., description="Action to perform: 'move', 'click', 'double_click', 'right_click', 'type', 'press', 'hotkey', 'scroll'")
+    action: str = Field(..., description="Action to perform: 'move', 'click', 'double_click', 'right_click', 'type', 'press', 'hotkey', 'scroll', 'open_app'")
     x: Optional[int] = Field(None, description="X coordinate for move/click")
     y: Optional[int] = Field(None, description="Y coordinate for move/click")
     text: Optional[str] = Field(None, description="Text to type")
     keys: Optional[List[str]] = Field(None, description="Keys to press or hotkey combo (e.g. ['ctrl', 'c'])")
     amount: Optional[int] = Field(None, description="Amount to scroll")
+    app_name: Optional[str] = Field(None, description="Name of the app to open (used with 'open_app' action)")
 
 class ComputerControlTool(BaseTool):
     """
@@ -95,6 +96,18 @@ class ComputerControlTool(BaseTool):
                 amount = kwargs.get("amount", 0)
                 pyautogui.scroll(amount)
                 return (f"Scrolled {amount}", self.name)
+                
+            elif action == "open_app":
+                app_name = kwargs.get("app_name", "")
+                if not app_name:
+                    app_name = kwargs.get("text", "") # Fallback if model used text field
+                import time
+                pyautogui.hotkey('win')
+                time.sleep(0.5)
+                pyautogui.write(app_name, interval=0.01)
+                time.sleep(0.5)
+                pyautogui.press('enter')
+                return (f"Opened application: {app_name}", self.name)
                 
             else:
                 return (f"Unknown action: {action}", self.name)
