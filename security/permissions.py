@@ -71,7 +71,7 @@ BLOCKED_COMMANDS = frozenset({
 
 # Commands that are privileged — require approval even when allowed
 PRIVILEGED_COMMANDS = frozenset({
-    "npm", "npx", "pip", "pip3", "pipx",
+    "npm", "npx",
     "git", "node", "python", "python3", "py",
     "cargo", "rustc", "gcc", "g++", "make", "cmake",
 })

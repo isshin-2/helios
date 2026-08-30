@@ -1,0 +1,78 @@
+=== yuhongherald/vllm-optimization ===
+# VLLM demo
+
+In this repository, we explore how to optimize a LLM server to maximize token throughput, using vLLM.
+
+To setup the environment, you can run:
+
+```bash
+pip install uv
+export PATH="$HOME/.local/bin:$PATH"
+uv init
+uv sync
+source .venv/bin/activate
+```
+
+## Setup
+
+Choice of model: [microsoft/Phi-4-mini-instruct](https://huggingface.co/microsoft/Phi-4-mini-instruct)
+
+Hardware:
+- 4 x vCPU cores
+- 16GB RAM
+- 100GB disk space
+- 1 × NVIDIA L4 GPU (24 GB VRAM)
+- Ubuntu 24.04 LTS
+
+Simulated traffic:
+- 250 concurrent users
+- 50 requests per second
+- Input token length around 256 to 512
+- Requests for automated answers
+
+## Results summary
+
+Selected key metrics are shown for quick trend identification
+
+![Results](img/results.png)
+
+Trends:
+- Request throughput increases with quantizing KV cache, use of speculative decoding, and [optimizing KV cache usage](#optimizing-kv-cache-usage).
+- Target model produces significantly fewer accepted tokens with speculative decoding.
+- Generally Inter Token Latency (ITL) decreases with [better KV cache usage](#optimizing-kv-cache-usage). Speculative decoding causes ITL to increase as accepted target tokens will come in more spontaneously.
+
+Experiments with best performance metrics:
+- Experiment 3 has the shortest Inter Token Latency (ITL), as it has the smallest KV cache quantization and smallest KV cache size, which both lead to faster attention steps.
+- Experiment 4 have a very short mean Time To First Token (TTFT). A possible explanation is a perfect balance of params that minimize idle time and kernel launch overhead.
+- Experiment 7 has the best request throughput, showing that it has the best compute efficiency.
+
+The following is a more detailed breakdown of parameters and metrics for each experiment:
+
+| Experiment                           | Expt 1   | Expt 2   | Expt 3   | Expt 4      | Expt 5         | Expt 6         | Expt 7     | Expt 8        |
+|--------------------------------------|----------|----------|----------|------
+
+=== ree2raz/inference-bench ===
+# Inference Bench — LLM Serving Benchmark Suite
+
+**[Dashboard →](https://llm-bench.rituraj.info)** · **[Calculator →](https://llm-cost.rituraj.info)** · **[Blog post →](https://rituraj.info/posts/on-prem-llm-deployment-cto/)**
+
+Reproducible head-to-head benchmarks of **vLLM**, **SGLang**, and **llama.cpp** across FP16, AWQ quantization, reasoning workloads, and **MoE models** on NVIDIA L4 and A100 GPUs (via Modal). 12 engine configs, 4 workload regimes, 125 benchmark runs. Measures throughput, TTFT/TPOT, tail latency, and success rate.
+
+**Headline finding:** _SGLang leads aggregate throughput (+10% over vLLM at c=64). vLLM leads first-token latency (42% faster TTFT at c=1). AWQ quantization on vLLM is a free lunch — 2.5x throughput, 1/3 VRAM. MoE models (Qwen3-30B-A3B) achieve 3-4x faster decode than dense 7B on the same GPU by exploiting the 3.3B active parameter budget._
+
+**Companion artifact:** This benchmark validates the throughput model in the [LLM Deploy Cost Calculator](https://llm-cost.rituraj.info) — same GPU, same model, theoretical vs measured.
+
+## TL;DR — Pick Your Engine
+
+| Use case | Engine | Key number |
+|---|---|---|
+| Interactive chatbot / copilot | **vLLM** | 42% lower TTFT at c=1 (70 ms vs 119 ms) |
+| High-throughput API / batch job | **SGLang** | +10% aggregate throughput at c=64 (914 vs 831 tok/s) |
+| Edge / memory-constrained | **llama.cpp** | 4.4 GB VRAM, fastest single-request E2E latency |
+| Reasoning / thinking models | **vLLM AWQ** | 4.6x faster time-to-answer vs SGLang (145 s vs 664 s at c=4) |
+| MoE models (Qwen3-MoE, DeepSeek) | **vLLM** | Size VRAM on total params, throughput on active params |
+
+**AWQ on vLLM is almost always worth it** — 2.5x throughput, 1/3 VRAM, no meaningful downside if a pre-quantized checkpoint exists.
+
+**What to trust:** Relative rankings between engines on L4 are the durable finding — they reflect architectural differences, not version-specific numbers. A May 2026 v2 sweep (vLLM v0.20.1 + SGLang :latest) confi
+

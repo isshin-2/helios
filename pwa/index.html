@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HELIOS Voice</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0b0c10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+
+        /* Apple Intelligence Siri Gradient Animation */
+        @keyframes rotate-gradient {
+            0% { --gradient-angle: 0deg; }
+            100% { --gradient-angle: 360deg; }
+        }
+        @property --gradient-angle {
+            syntax: "<angle>";
+            initial-value: 0deg;
+            inherits: false;
+        }
+        .siri-gradient {
+            background: conic-gradient(
+                from var(--gradient-angle),
+                #ff2a5f, /* vibrant pink/red */
+                #ff7b00, /* orange */
+                #4169e1, /* royal blue */
+                #ff2a5f  /* back to pink */
+            );
+            animation: rotate-gradient 4s linear infinite;
+        }
+
+        /* Glowing Black Hole SVG */
+        .black-hole-container {
+            width: 240px;
+            height: 240px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.3s ease;
+        }
+        .black-hole-container.listening {
+            transform: scale(1.1);
+        }
+        
+        .glow-layer {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: 50%;
+        }
+
+        @keyframes orbit-front {
+            0% { stroke-dashoffset: 600; }
+            100% { stroke-dashoffset: 0; }
+        }
+        @keyframes orbit-back {
+            0% { stroke-dashoffset: 0; }
+            100% { stroke-dashoffset: 600; }
+        }
+        .shine-front {
+            stroke-dasharray: 100 500;
+            animation: orbit-front 3s linear infinite;
+            stroke-linecap: round;
+        }
+        .shine-back {
+            stroke-dasharray: 100 500;
+            animation: orbit-back 3s linear infinite;
+            stroke-linecap: round;
+        }
+
+        /* Status Text & Button */
+        #status-text {
+            margin-top: 40px;
+            font-size: 1.2rem;
+            font-weight: 500;
+            opacity: 0.8;
+            height: 30px;
+        }
+
+        #subtitle-text {
+            margin-top: 15px;
+            font-size: 1.1rem;
+            font-weight: 400;
+            opacity: 0.9;
+            min-height: 60px;
+            max-width: 80%;
+            text-align: center;
+            line-height: 1.4;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        #mic-btn {
+            margin-top: 20px;
+            padding: 15px 40px;
+            border-radius: 30px;
+            border: none;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1.1rem;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: background-color 0.2s;
+        }
+        #mic-btn:active {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="black-hole-container" id="black-hole">
+        <svg viewBox="0 0 240 240" width="100%" height="100%" style="position: absolute; z-index: 10;">
+            <!-- Outer Ring Glow -->
+            <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="rgba(255,255,255,0.1)" stroke-width="4" fill="none"/>
+            <path d="M 30,120 A 90,25 0 0,1 210,120" stroke="rgba(255,255,255,0.05)" stroke-width="4" fill="none"/>
+            
+            <!-- The Solid Black Event Horizon -->
+            <circle cx="120" cy="120" r="45" fill="black"/>
+        </svg>
+
+        <!-- Siri Gradient Masked to the Accretion Disk Rings -->
+        <svg viewBox="0 0 240 240" width="100%" height="100%" style="position: absolute; z-index: 15;">
+            <defs>
+                <mask id="blackHoleMask">
+                    <!-- Event Horizon Block -->
+                    <rect width="240" height="240" fill="black"/>
+                    <!-- Front ring highlight -->
+                    <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="white" stroke-width="6" fill="none" class="shine-front" filter="blur(1px)"/>
+                    <path d="M 30,120 A 90,25 0 0,0 210,120" stroke="rgba(255,255,255,0.7)" stroke-width="2" fill="none" class="shine-front"/>
+                    <!-- Back ring highlight -->
+                    <path d="M 30,120 A 90,25 0 0,1 210,120" stroke="white" stroke-width="4" fill="none" class="shine-back" filter="blur(1px)"/>
+                    <circle cx="120" cy="120" r="45" fill="black"/>
+                </mask>
+            </defs>
+            <foreignObject width="240" height="240" mask="url(#blackHoleMask)">
+                <div xmlns="http://www.w3.org/1999/xhtml" class="siri-gradient glow-layer" id="siri-ring-color" style="display: none;"></div>
+            </foreignObject>
+        </svg>
+    </div>
+
+    <div id="status-text">Tap to Wake HELIOS</div>
+    <div id="subtitle-text"></div>
+    <button id="mic-btn">Start Listening</button>
+    
+    <a href="/" style="text-decoration: none; margin-top: 20px;">
+        <button style="padding: 10px 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: rgba(255,255,255,0.7); font-size: 0.9rem; cursor: pointer;">
+            ← Back to Chat
+        </button>
+    </a>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://127.0.0.1:8000' 
+            : window.location.origin; // Dynamically uses Tailscale IP if accessed remotely
+            
+        const statusText = document.getElementById('status-text');
+        const subtitleText = document.getElementById('subtitle-text');
+        const micBtn = document.getElementById('mic-btn');
+        const blackHole = document.getElementById('black-hole');
+        const siriRing = document.getElementById('siri-ring-color');
+
+        let recognition;
+        
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true; // Enable interim results for live subtitles
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                statusText.innerText = "Listening...";
+                subtitleText.innerText = "";
+                blackHole.classList.add('listening');
+                siriRing.style.display = 'block';
+                micBtn.classList.add('hidden');
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                subtitleText.innerText = finalTranscript || interimTranscript;
+                
+                if (finalTranscript) {
+                    statusText.innerText = "Thinking...";
+                    blackHole.classList.remove('listening');
+                    sendToHelios(finalTranscript);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                statusText.innerText = "Error listening: " + event.error;
+                resetUI();
+            };
+
+            recognition.onend = () => {
+                if(statusText.innerText === "Listening...") {
+                    statusText.innerText = "Didn't catch that.";
+                    resetUI();
+                }
+            };
+        } else {
+            statusText.innerText = "Speech recognition not supported on this browser.";
+            micBtn.classList.add('hidden');
+        }
+
+        micBtn.addEventListener('click', () => {
+            if (recognition) {
+                recognition.start();
+            }
+        });
+
+        function resetUI() {
+            blackHole.classList.remove('listening');
+            siriRing.style.display = 'none';
+            micBtn.classList.remove('hidden');
+            setTimeout(() => { 
+                if(statusText.innerText.includes("Didn't") || statusText.innerText.includes("Error")) {
+                    statusText.innerText = "Tap to Wake HELIOS"; 
+                    subtitleText.innerText = "";
+                }
+            }, 2000);
+        }
+
+        async function sendToHelios(text) {
+            try {
+                // Ensure session exists
+                let sessionId = localStorage.getItem('helios_session');
+                const userId = 1;
+
+                if (!sessionId) {
+                    const sessRes = await fetch(`${API_BASE}/api/users/${userId}/sessions`, { 
+                        method: 'POST',
+                        headers: { 'Bypass-Tunnel-Reminder': 'true' }
+                    });
+                    if (sessRes.ok) {
+                        const sessData = await sessRes.json();
+                        sessionId = sessData.id;
+                        localStorage.setItem('helios_session', sessionId);
+                    }
+                }
+
+                // Send headless chat
+                const res = await fetch(`${API_BASE}/api/chat/headless`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Bypass-Tunnel-Reminder': 'true'
+                    },
+                    body: JSON.stringify({
+                        message: text,
+                        user_id: userId,
+                        session_id: sessionId
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const reply = data.response.replace(/[*_#`\[\]]/g, ''); // Clean markdown
+                    statusText.innerText = "HELIOS";
+                    subtitleText.innerText = reply;
+                    speak(reply);
+                } else {
+                    statusText.innerText = "Server Error";
+                    resetUI();
+                }
+            } catch (err) {
+                console.error(err);
+                statusText.innerText = "Connection Failed";
+                resetUI();
+            }
+        }
+
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                
+                // Keep animation running while speaking
+                siriRing.style.display = 'block';
+                
+                utterance.onend = () => {
+                    statusText.innerText = "Tap to Wake HELIOS";
+                    subtitleText.innerText = "";
+                    resetUI();
+                };
+                utterance.onerror = () => {
+                    resetUI();
+                };
+                window.speechSynthesis.speak(utterance);
+            } else {
+                statusText.innerText = text; // Fallback to displaying text
+                resetUI();
+            }
+        }
+    </script>
+</body>
+</html>

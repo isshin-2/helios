@@ -1,20 +1,48 @@
 import sys
 import asyncio
+import json
 import logging
 import os
 from typing import List, Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 
-from config import CONTEXT_SIZES, SYSTEM_PROMPTS
+from config import CONTEXT_SIZES, SYSTEM_PROMPTS, is_budget_mode_active
 from router.classifier import classify_request
 from router.rules import get_routing_decision
 from db import get_db
 from core.events import EventBus
+from core.mcp_client import MCPManager
 
 logger = logging.getLogger(__name__)
 
-def save_message(session_id: int, role: str, content: str):
+# Thread pool for non-blocking DB writes
+_db_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="db_writer")
+
+# ─── Skills Cache ────────────────────────────────────────────────────────────
+# Loaded once at import time so we never hit the filesystem during a request.
+_skills_cache: Dict[str, str] = {}
+
+def _load_skills_cache():
+    skills_dir = "markdown_skills"
+    if not os.path.exists(skills_dir):
+        return
+    for filename in os.listdir(skills_dir):
+        if filename.endswith(".md"):
+            keyword = filename[:-3].lower()
+            with open(os.path.join(skills_dir, filename), "r", encoding="utf-8") as f:
+                _skills_cache[keyword] = f.read()
+
+_load_skills_cache()
+
+def save_message(session_id: int, role: str, content: Any):
+    """Save a message to the database (blocking, run in executor)."""
     conn = get_db()
     cursor = conn.cursor()
+    
+    # Handle multimodal lists (e.g. vision array)
+    if isinstance(content, list):
+        content = json.dumps(content)
+        
     cursor.execute(
         "INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)",
         (session_id, role, content)
@@ -34,17 +62,14 @@ def inject_system_prompt(messages: List[Dict[str, Any]], category: str, rag_cont
         context_str = "\n".join([f"- {c}" for c in rag_context])
         prompt += f"\n\nHere are some relevant facts you remember about the user:\n{context_str}\n"
         
-    # 2. Markdown Skills Injection
-    last_msg = messages[-1].get("content", "").lower()
-    skills_dir = "markdown_skills"
-    if os.path.exists(skills_dir):
-        for filename in os.listdir(skills_dir):
-            if filename.endswith(".md"):
-                keyword = filename[:-3].lower()
-                if keyword in last_msg:
-                    with open(os.path.join(skills_dir, filename), "r", encoding="utf-8") as f:
-                        skill_content = f.read()
-                        prompt += f"\n\n<skill name=\"{keyword}\">\n{skill_content}\n</skill>\n"
+    # 2. Markdown Skills Injection (from cache - zero filesystem I/O)
+    raw_content = messages[-1].get("content", "")
+    if isinstance(raw_content, list):
+        raw_content = next((item.get("text", "") for item in raw_content if item.get("type") == "text"), str(raw_content))
+    last_msg = raw_content.lower()
+    for keyword, skill_content in _skills_cache.items():
+        if keyword in last_msg:
+            prompt += f"\n\n<skill name=\"{keyword}\">\n{skill_content}\n</skill>\n"
 
         
     if messages[0].get("role") == "system":
@@ -66,6 +91,10 @@ class ConversationOrchestrator:
         self.permission_manager = permission_manager
         self.tool_router = tool_router
         self.cancellation_events = {}
+        self.mcp_manager = MCPManager()
+        # You would initialize actual MCP servers here, e.g., 
+        # asyncio.create_task(self.mcp_manager.connect_server("sqlite", "python", ["-m", "mcp_sqlite"]))
+
 
     def cancel_current_request(self, session_id: int):
         if session_id in self.cancellation_events:
@@ -73,7 +102,6 @@ class ConversationOrchestrator:
 
     async def _handle_user_input(self, question: str, event_bus: EventBus) -> str:
         request_id = self.permission_manager.approval_manager.generate_request_id()
-        import asyncio
         loop = asyncio.get_event_loop()
         future = loop.create_future()
         self.permission_manager.approval_manager.register_pending(request_id, future)
@@ -132,30 +160,51 @@ class ConversationOrchestrator:
         if not messages or not user_id or not session_id:
             return
             
-        import asyncio
         if session_id not in self.cancellation_events:
             self.cancellation_events[session_id] = asyncio.Event()
         self.cancellation_events[session_id].clear()
 
-        last_msg = messages[-1]["content"]
+        # Extract text content (handle vision arrays)
+        last_msg_raw = messages[-1]["content"]
+        last_msg = last_msg_raw
+        if isinstance(last_msg_raw, list):
+            last_msg = next((item.get("text", "") for item in last_msg_raw if item.get("type") == "text"), str(last_msg_raw))
         
-        # Save User Message to DB
-        save_message(session_id, "user", last_msg)
+        # Save User Message to DB (non-blocking - runs in thread pool)
+        # Note: We save the *raw* content here so the UI can render images if needed
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(_db_executor, save_message, session_id, "user", last_msg_raw)
         
         # Send initial loading status
         await event_bus.publish("status", "Analyzing your request...")
         
-        # Extract facts in background
-        asyncio.create_task(self.memory_manager.extract_and_save_facts(user_id, last_msg))
+        # Extract facts in background (fire-and-forget) — disabled under memory pressure
+        if not is_budget_mode_active():
+            asyncio.create_task(self.memory_manager.extract_and_save_facts(user_id, last_msg))
         
-        # Retrieve RAG Memory
-        rag_context = await self.memory_manager.search_memory(user_id, last_msg)
+        # ─── CONCURRENT PIPELINE ─────────────────────────────────────────
+        from outer.classifier import RoutingEngine
+        # Instantiate routing engine dynamically or pass down; for now instantiate locally
+        routing_engine = RoutingEngine(semantic_cache_db=None) 
         
-        # Classify & Route
-        await event_bus.publish("status", "Routing to the best model...")
-        classification = classify_request(messages)
-        route = get_routing_decision(classification)
+        rag_context, route_tuple = await asyncio.gather(
+            self.memory_manager.search_memory(user_id, last_msg),
+            routing_engine.route_request(last_msg_raw)
+        )
         
+        route_type, route_metadata = route_tuple
+        
+        # Construct compatibility 'route' dictionary for the rest of orchestrator
+        route = {
+            "route": route_type,
+            "category": "general",
+            "context_size": 4096,
+            "model": route_metadata.get("model", route_metadata.get("model_chain", ["phi3:mini"])[0])
+        }
+        
+        if route_type == "cloud":
+            route["category"] = "cloud"
+            
         await event_bus.publish("meta", {
             "route": route,
             "memory_injected": len(rag_context) > 0
@@ -171,17 +220,49 @@ class ConversationOrchestrator:
         if self.tool_router:
             allowed_tools = self.tool_router.get_tool_schemas()
             
+        mcp_tools = await self.mcp_manager.list_all_tools()
+        if mcp_tools:
+            allowed_tools.extend(mcp_tools)
+            
         while iteration < MAX_TOOL_ITERATIONS:
             await event_bus.publish("status", "🧠 Generating response...")
             
             try:
-                stream = await self.model_manager.execute_request(
-                    target_model=route["model"],
-                    messages=messages,
-                    context_size=route["context_size"],
-                    stream=True,
-                    tools=allowed_tools if allowed_tools else None
-                )
+                if route.get("route") == "cloud":
+                    from models.gemini_client import GeminiClient
+                    gemini = GeminiClient()
+                    
+                    async def adapted_gemini_stream():
+                        try:
+                            async for chunk in gemini.stream_chat(
+                                messages=messages,
+                                tools=allowed_tools if allowed_tools else None,
+                                model=route.get("model", "gemini-2.5-flash")
+                            ):
+                                if chunk["type"] == "text":
+                                    yield {"message": {"content": chunk["content"]}}
+                                elif chunk["type"] == "tool_call":
+                                    # Convert Gemini function call format to standard Ollama format
+                                    yield {"message": {"tool_calls": [{
+                                        "function": {
+                                            "name": chunk["content"]["name"],
+                                            "arguments": chunk["content"].get("args", {})
+                                        }
+                                    }]}}
+                                elif chunk["type"] == "error":
+                                    yield {"message": {"content": f"\n\n[System: {chunk['content']}]"}}
+                        finally:
+                            await gemini.close()
+                            
+                    stream = adapted_gemini_stream()
+                else:
+                    stream = await self.model_manager.execute_request(
+                        target_model=route["model"],
+                        messages=messages,
+                        context_size=route["context_size"],
+                        stream=True,
+                        tools=allowed_tools if allowed_tools else None
+                    )
                 
                 tool_calls = []
                 content_accum = ""
@@ -203,8 +284,12 @@ class ConversationOrchestrator:
                             content_accum += reasoning
                             full_response += reasoning
                             
-                            sys.stdout.write(reasoning)
-                            sys.stdout.flush()
+                            try:
+                                sys.stdout.write(reasoning)
+                                sys.stdout.flush()
+                            except UnicodeEncodeError:
+                                sys.stdout.write(reasoning.encode('ascii', 'replace').decode('ascii'))
+                                sys.stdout.flush()
                             
                             await event_bus.publish("chunk", reasoning)
                             
@@ -214,8 +299,12 @@ class ConversationOrchestrator:
                             full_response += content
                             
                             # Stream to server terminal for monitoring
-                            sys.stdout.write(content)
-                            sys.stdout.flush()
+                            try:
+                                sys.stdout.write(content)
+                                sys.stdout.flush()
+                            except UnicodeEncodeError:
+                                sys.stdout.write(content.encode('ascii', 'replace').decode('ascii'))
+                                sys.stdout.flush()
                             
                             await event_bus.publish("chunk", content)
                             
@@ -248,7 +337,25 @@ class ConversationOrchestrator:
                         "result": ""
                     }
                     
-                    if not self.tool_router or function_name not in self.tool_router.tools:
+                    if "__" in function_name:
+                        # MCP Tool Path - ALWAYS require approval for zero-trust
+                        try:
+                            server_name, _ = function_name.split("__", 1)
+                            approved = await self._handle_tool_approval(user_id, "mcp_tool_execution", function_name, event_bus, headless)
+                            
+                            if approved:
+                                res_text = await self.mcp_manager.call_tool(function_name, arguments)
+                                structured_result["status"] = "success"
+                                structured_result["result"] = res_text
+                            else:
+                                structured_result["status"] = "permission_denied"
+                                structured_result["result"] = "User denied the operation."
+                        except Exception as e:
+                            logger.error(f"MCP Tool {function_name} failed: {e}")
+                            structured_result["status"] = "error"
+                            structured_result["result"] = str(e)
+                    
+                    elif not self.tool_router or function_name not in self.tool_router.tools:
                         structured_result["status"] = "unavailable"
                         structured_result["result"] = "Tool not found or not permitted."
                     else:
@@ -295,7 +402,6 @@ class ConversationOrchestrator:
                             structured_result["result"] = str(e)
                             
                     # Append result to messages for the next LLM iteration
-                    import json
                     messages.append({
                         "role": "tool",
                         "content": json.dumps(structured_result)
@@ -315,6 +421,9 @@ class ConversationOrchestrator:
                         route["model"] = fallback
                         continue
                 logger.error(f"Error executing request: {e}")
+                import traceback
+                tb_str = traceback.format_exc()
+                logger.error(tb_str)
                 full_response += f"\n\n[System Error: {str(e)}]"
                 await event_bus.publish("chunk", f"\n\n[System Error: {str(e)}]")
                 await event_bus.publish("done", None)
@@ -327,6 +436,7 @@ class ConversationOrchestrator:
                 await event_bus.publish("chunk", warning)
                 await event_bus.publish("done", None)
                 
-        # Save Assistant Message to DB
+        # Save Assistant Message to DB (non-blocking)
         if full_response:
-            save_message(session_id, "assistant", full_response)
+            loop = asyncio.get_running_loop()
+            loop.run_in_executor(_db_executor, save_message, session_id, "assistant", full_response)

@@ -2,12 +2,23 @@
 AI Router — Configuration
 All settings for the local AI model router system.
 """
+import psutil
 
-# ─── Network ───────────────────────────────────────────────
+# ─── Network & Providers ──────────────────────────────────
+# Choose "ollama" or "vllm" (for vLLM, LM Studio, SGLang, etc. running locally)
+LLM_PROVIDER = "ollama"
 OLLAMA_HOST = "http://127.0.0.1:11434"
-MAC_IP = "100.75.42.67"
-MAC_USER = "krithik"
-OLLAMA_PATH = "/Applications/Ollama.app/Contents/Resources/ollama"
+
+# vLLM / LM Studio / SGLang Backend Settings (100% Local)
+VLLM_API_BASE = "http://127.0.0.1:8000/v1"
+VLLM_API_KEY = "sk-helios"
+
+# Cloud Providers (Dynamic Escalation)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+
+# Model specific configurations
+VISION_MODEL = "llava:latest"
+
 
 # ─── Models ────────────────────────────────────────────────
 MODEL_CONFIG = {
@@ -80,10 +91,10 @@ KEEP_ALIVE = {
 # Fallback logic is now unified inside MODEL_CONFIG
 
 # ─── RAM Management ───────────────────────────────────────
-RAM_TOTAL_MB = 16384          # Mac mini 16 GB
-RAM_MIN_FREE_MB = 2048        # Keep at least 2 GB free
-RAM_CRITICAL_MB = 1024        # Below this, force-unload everything
-MODEL_CONTEXT_BUFFER_MB = 1024 # Estimated VRAM padding for context and runtime state
+RAM_TOTAL_MB = 8192            # Windows Budget PC 8 GB
+RAM_MIN_FREE_MB = 1024         # Keep at least 1 GB free for OS + browser (reduced for budget hardware)
+RAM_CRITICAL_MB = 512          # Below this, force-unload everything
+MODEL_CONTEXT_BUFFER_MB = 512  # Reduced padding for 4K context cap
 
 # ─── Timeouts (seconds) ───────────────────────────────────
 REQUEST_TIMEOUT = 120
@@ -108,3 +119,25 @@ SYSTEM_PROMPTS = {
     "ui": load_prompt("ui.md", "You are HELIOS, a UI designer."),
     "agent": load_prompt("agent.md", "You are HELIOS, an autonomous agent."),
 }
+
+# Voice Settings
+VOICE_ENABLED = True
+VOICE_BACKEND = "kokoro"
+VOICE_NAME = "am_michael"
+VOICE_SPEED = 1.0
+
+# ─── Dynamic Budget Mode & Circuit Breaker ────────────────
+CIRCUIT_BREAKER_TRIPPED = False
+BUDGET_MAX_CONTEXT = 4096
+
+def is_budget_mode_active() -> bool:
+    """
+    Returns True if free system RAM drops below 2 GB,
+    unless the circuit breaker has been tripped by a failed
+    eviction pipeline (in which case we revert to standard mode
+    to prevent infinite retry loops).
+    """
+    if CIRCUIT_BREAKER_TRIPPED:
+        return False
+    free_ram_mb = psutil.virtual_memory().available / (1024 * 1024)
+    return free_ram_mb < 2048

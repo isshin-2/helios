@@ -1,0 +1,16 @@
+{
+    "name": "HELIOS Voice",
+    "short_name": "HELIOS",
+    "description": "Cross-device HELIOS AI Voice Assistant",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#0b0c10",
+    "theme_color": "#0b0c10",
+    "icons": [
+        {
+            "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><circle cx='120' cy='120' r='120' fill='%230b0c10'/><circle cx='120' cy='120' r='60' fill='black'/><path d='M30,120 A90,25 0 0,0 210,120' stroke='deepskyblue' stroke-width='6' fill='none'/><path d='M30,120 A90,25 0 0,1 210,120' stroke='fuchsia' stroke-width='6' fill='none'/></svg>",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        }
+    ]
+}

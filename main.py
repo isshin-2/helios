@@ -8,8 +8,9 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
 
-from config import OLLAMA_HOST, SYSTEM_PROMPTS, CONTEXT_SIZES
+from config import OLLAMA_HOST, SYSTEM_PROMPTS, CONTEXT_SIZES, LLM_PROVIDER
 from providers.ollama import OllamaProvider
+from providers.vllm import VLLMProvider
 from health.monitor import SystemMonitor
 from router.classifier import classify_request
 from router.rules import get_routing_decision
@@ -24,10 +25,40 @@ from core.tool_router import ToolRouter
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="HELIOS AI Router")
+from contextlib import asynccontextmanager
 
-# Initialize core components
-provider = OllamaProvider(host=OLLAMA_HOST)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if VOICE_ENABLED:
+        voice_input.start()
+        logger.info("Voice input auto-started on server startup.")
+    
+    import threading
+    threading.Thread(target=voice_manager.tts.initialize, daemon=True).start()
+    logger.info("Eagerly loading Kokoro TTS in background...")
+    
+    yield
+    
+    logger.info("Shutting down HELIOS AI Router...")
+    await provider.close()
+    
+    from core.orchestrator import _db_executor
+    _db_executor.shutdown(wait=True)
+    
+    if voice_input.is_running:
+        voice_input.stop()
+    logger.info("Shutdown complete.")
+
+app = FastAPI(title="HELIOS AI Router", lifespan=lifespan)
+
+# Initialize core components based on configuration
+if LLM_PROVIDER == "vllm":
+    provider = VLLMProvider()
+    logger.info("Initialized VLLM provider for local vLLM/LMStudio")
+else:
+    provider = OllamaProvider(host=OLLAMA_HOST)
+    logger.info("Initialized Ollama provider")
+
 monitor = SystemMonitor(provider=provider)
 manager = ModelManager(provider=provider, monitor=monitor)
 permission_manager = PermissionManager()
@@ -41,6 +72,10 @@ orchestrator = ConversationOrchestrator(
 # Serve static files for the web UI
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Mount the new Mobile Voice PWA
+if os.path.exists("pwa"):
+    app.mount("/pwa", StaticFiles(directory="pwa", html=True), name="pwa")
 
 
 
@@ -142,6 +177,10 @@ async def chat_headless(req: HeadlessRequest):
             await super().publish(event_type, data)
             
     bus = CaptureEventBus()
+    if VOICE_ENABLED:
+        bus.subscribe("chunk", voice_manager._on_chunk)
+        bus.subscribe("done", voice_manager._on_done)
+        bus.subscribe("status", voice_manager._on_status)
     
     # Process through the standard pipeline
     await orchestrator.process_request(req.session_id, req.user_id, messages, bus, headless=True)
@@ -293,41 +332,25 @@ async def delete_all_data(user_id: int):
 
 # ─── VOICE ENDPOINTS (PHASE 9) ──────────────────────────────────────────────
 
-try:
-    from voice.assistant import VoiceAssistant
-    voice_assistant = VoiceAssistant()
-except ImportError:
-    voice_assistant = None
-    logger.warning("Voice module could not be loaded. Voice features disabled.")
+from core.audio.voice_manager import VoiceManager
+from core.audio.stt.google import VoiceInput
+from config import VOICE_ENABLED
 
-@app.on_event("startup")
-async def startup_event():
-    if voice_assistant:
-        voice_assistant.start()
-        logger.info("Voice assistant auto-started on server startup.")
+voice_manager = VoiceManager()
+voice_input = VoiceInput(voice_manager)
+
+
 
 @app.post("/api/voice/start")
 async def start_voice():
-    if not voice_assistant:
-        raise HTTPException(status_code=501, detail="Voice features are not available.")
-    voice_assistant.start()
+    voice_input.start()
     return {"status": "success", "message": "Voice assistant started."}
 
 @app.post("/api/voice/stop")
 async def stop_voice():
-    if not voice_assistant:
-        raise HTTPException(status_code=501, detail="Voice features are not available.")
-    voice_assistant.stop()
+    voice_input.stop()
     return {"status": "success", "message": "Voice assistant stopped."}
 
-@app.post("/api/voice/trigger")
-async def trigger_voice():
-    if not voice_assistant:
-        raise HTTPException(status_code=501, detail="Voice features are not available.")
-    if not voice_assistant.is_running:
-        raise HTTPException(status_code=400, detail="Voice assistant is not running. Please start it first.")
-    voice_assistant.trigger()
-    return {"status": "success", "message": "Voice assistant triggered for one command."}
 
 # ─── SELF-MODIFICATION ENDPOINTS ────────────────────────────────────────────
 
@@ -447,6 +470,16 @@ async def websocket_endpoint(websocket: WebSocket):
     event_bus.subscribe("status", lambda d: asyncio.create_task(ws_sender({"type": "status", "text": d})))
     event_bus.subscribe("chunk", lambda d: asyncio.create_task(ws_sender({"type": "chunk", "content": d})))
     event_bus.subscribe("meta", lambda d: asyncio.create_task(ws_sender({"type": "meta", **d})))
+    
+    if getattr(voice_manager, "_on_chunk", None):
+        try:
+            from config import VOICE_ENABLED
+            if VOICE_ENABLED:
+                event_bus.subscribe("chunk", voice_manager._on_chunk)
+                event_bus.subscribe("done", voice_manager._on_done)
+                event_bus.subscribe("status", voice_manager._on_status)
+        except Exception:
+            pass
 
     event_bus.subscribe("input_request", lambda d: asyncio.create_task(ws_sender({"type": "input_request", **d})))
     event_bus.subscribe("approval_request", lambda d: asyncio.create_task(ws_sender({"type": "approval_request", **d})))
@@ -500,6 +533,11 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info("Client disconnected")
         # Clear session approvals on disconnect
         permission_manager.approval_manager.clear_session()
+
+@app.post("/api/chat/cancel/{session_id}")
+async def cancel_chat(session_id: int):
+    orchestrator.cancel_current_request(session_id)
+    return {"status": "cancelled"}
 
 if __name__ == "__main__":
     import uvicorn

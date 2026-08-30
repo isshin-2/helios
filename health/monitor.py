@@ -2,8 +2,9 @@ import asyncio
 import re
 from typing import Dict, Any, Optional, Tuple
 import httpx
+import psutil
 from providers.base import BaseProvider
-from config import MAC_IP, MAC_USER, RAM_TOTAL_MB, RAM_MIN_FREE_MB, RAM_CRITICAL_MB
+from config import RAM_TOTAL_MB, RAM_MIN_FREE_MB, RAM_CRITICAL_MB
 
 class SystemMonitor:
     def __init__(self, provider: BaseProvider):
@@ -44,18 +45,13 @@ class SystemMonitor:
 
     async def get_system_ram(self) -> Tuple[float, float]:
         """
-        Connect via SSH to check actual RAM usage using vm_stat.
+        Use psutil to get actual system RAM.
         Returns (free_mb, total_mb).
         """
-        # For a robust system, we would use asyncssh here, 
-        # but for simplicity we rely on the Ollama API memory reports mainly.
-        # Fallback to estimating free RAM based on Ollama's reported usage.
-        health = await self.get_ollama_health()
-        vram_used = health.get("vram_used_mb", 0)
-        
-        # Rough estimate: assume macOS uses ~4GB
-        estimated_free = RAM_TOTAL_MB - 4000 - vram_used
-        return (max(0, estimated_free), RAM_TOTAL_MB)
+        mem = psutil.virtual_memory()
+        free_mb = mem.available / (1024 * 1024)
+        total_mb = mem.total / (1024 * 1024)
+        return (free_mb, total_mb)
 
     async def get_full_status(self) -> Dict[str, Any]:
         """Compile a full health report."""

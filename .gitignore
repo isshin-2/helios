@@ -1,12 +1,12 @@
-__pycache__/
+﻿__pycache__/
 *.pyc
 .env
 db/*.db
 .vscode/
 .idea/
 *.db
-
 experiments/
 markdown_skills/
 venv/
 *.log
+.models/

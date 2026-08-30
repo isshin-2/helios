@@ -1,0 +1,154 @@
+import json
+import httpx
+import logging
+import asyncio
+from typing import AsyncGenerator, Dict, Any, List, Optional
+import config
+
+logger = logging.getLogger(__name__)
+
+class GeminiClient:
+    """
+    Async client for Google's Gemini API via HTTPX.
+    Uses SSE for low-latency streaming to stay within the 8GB RAM budget without
+    pulling in heavy external SDKs.
+    """
+    
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or config.GEMINI_API_KEY
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+        
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(60.0),
+            headers={"Content-Type": "application/json"}
+        )
+
+    async def close(self):
+        """Gracefully close the HTTP client to prevent resource leaks."""
+        await self._client.aclose()
+
+    def _format_tools(self, mcp_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Translates tools into Gemini's function calling schema.
+        Handles both internal OpenAI-style tools and MCP tools.
+        """
+        function_declarations = []
+        for t in mcp_tools:
+            if "type" in t and t["type"] == "function" and "function" in t:
+                # Built-in tool in OpenAI format
+                func = t["function"]
+                func_decl = {
+                    "name": func.get("name"),
+                    "description": func.get("description", ""),
+                    "parameters": func.get("parameters", {"type": "object", "properties": {}})
+                }
+            else:
+                # MCP tool format
+                func_decl = {
+                    "name": t.get("name"),
+                    "description": t.get("description", ""),
+                    "parameters": t.get("inputSchema", {"type": "object", "properties": {}})
+                }
+            
+            # Gemini is strict about parameters being an object
+            if "type" not in func_decl["parameters"]:
+                func_decl["parameters"]["type"] = "object"
+                
+            function_declarations.append(func_decl)
+            
+        if not function_declarations:
+            return []
+            
+        return [{"function_declarations": function_declarations}]
+
+    def _format_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Converts generic message format (role, content) to Gemini's format.
+        Supports multimodal (text + images) if content is a list.
+        """
+        gemini_messages = []
+        for msg in messages:
+            role = "user" if msg["role"] in ["user", "system"] else "model"
+            content = msg.get("content", "")
+            
+            parts = []
+            if isinstance(content, str):
+                parts.append({"text": content})
+            elif isinstance(content, list):
+                # Handle multimodal arrays (e.g., standard OpenAI vision format)
+                for item in content:
+                    if item.get("type") == "text":
+                        parts.append({"text": item.get("text", "")})
+                    elif item.get("type") == "image_url":
+                        img_url = item.get("image_url", {}).get("url", "")
+                        if img_url.startswith("data:image/"):
+                            # Format: data:image/jpeg;base64,...
+                            header, b64_data = img_url.split(",", 1)
+                            mime = header.split(";")[0].replace("data:", "")
+                            parts.append({
+                                "inlineData": {
+                                    "mimeType": mime,
+                                    "data": b64_data
+                                }
+                            })
+            
+            gemini_messages.append({
+                "role": role,
+                "parts": parts
+            })
+        return gemini_messages
+
+    async def stream_chat(
+        self, 
+        messages: List[Dict[str, Any]], 
+        system_prompt: str = "",
+        tools: Optional[List[Dict[str, Any]]] = None,
+        model: str = "gemini-3.6-flash"
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Streams responses from Gemini via SSE.
+        
+        Concurrency:
+        Yields chunks asynchronously. Can be cancelled safely via asyncio.Task.cancel().
+        """
+        payload = {
+            "contents": self._format_messages(messages),
+        }
+        
+        if system_prompt:
+            payload["systemInstruction"] = {
+                "parts": [{"text": system_prompt}]
+            }
+            
+        if tools:
+            formatted_tools = self._format_tools(tools)
+            if formatted_tools:
+                payload["tools"] = formatted_tools
+
+        url = f"{self.base_url}/{model}:streamGenerateContent?alt=sse&key={self.api_key}"
+
+        try:
+            async with self._client.stream("POST", url, json=payload) as response:
+                if response.status_code != 200:
+                    await response.aread()
+                    logger.error(f"Gemini API Error {response.status_code}: {response.text}")
+                    yield {"type": "error", "content": f"Cloud LLM Error: {response.status_code}"}
+                    return
+                
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        try:
+                            data = json.loads(line[6:])
+                            if "candidates" in data and len(data["candidates"]) > 0:
+                                candidate = data["candidates"][0]
+                                if "content" in candidate and "parts" in candidate["content"]:
+                                    for part in candidate["content"]["parts"]:
+                                        if "text" in part:
+                                            yield {"type": "text", "content": part["text"]}
+                                        if "functionCall" in part:
+                                            yield {"type": "tool_call", "content": part["functionCall"]}
+                        except json.JSONDecodeError:
+                            continue
+        except httpx.TimeoutException as e:
+            logger.error(f"Gemini API Timeout: {e}")
+            yield {"type": "error", "content": "Cloud API connection timed out."}
