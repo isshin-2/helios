@@ -59,7 +59,7 @@ class GeminiClient:
         if not function_declarations:
             return []
             
-        return [{"function_declarations": function_declarations}]
+        return [{"functionDeclarations": function_declarations}]
 
     def _format_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -152,3 +152,68 @@ class GeminiClient:
         except httpx.TimeoutException as e:
             logger.error(f"Gemini API Timeout: {e}")
             yield {"type": "error", "content": "Cloud API connection timed out."}
+
+    async def chat(
+        self, 
+        messages: List[Dict[str, Any]], 
+        system_prompt: str = "",
+        tools: Optional[List[Dict[str, Any]]] = None,
+        model: str = "gemini-3.6-flash",
+        stream: bool = False,
+        **kwargs
+    ) -> Any:
+        """
+        Non-streaming or streaming wrapper for Gemini.
+        """
+        if stream:
+            return self.stream_chat(messages, system_prompt, tools, model)
+            
+        payload = {
+            "contents": self._format_messages(messages),
+        }
+        
+        if system_prompt:
+            payload["systemInstruction"] = {
+                "parts": [{"text": system_prompt}]
+            }
+            
+        if tools:
+            formatted_tools = self._format_tools(tools)
+            if formatted_tools:
+                payload["tools"] = formatted_tools
+
+        url = f"{self.base_url}/{model}:generateContent?key={self.api_key}"
+        
+        try:
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Translate Gemini's format to our standard format
+            message_obj = {"role": "assistant", "content": ""}
+            
+            if "candidates" in data and len(data["candidates"]) > 0:
+                candidate = data["candidates"][0]
+                if "content" in candidate and "parts" in candidate["content"]:
+                    for part in candidate["content"]["parts"]:
+                        if "text" in part:
+                            message_obj["content"] += part["text"]
+                        if "functionCall" in part:
+                            if "tool_calls" not in message_obj:
+                                message_obj["tool_calls"] = []
+                            fc = part["functionCall"]
+                            message_obj["tool_calls"].append({
+                                "type": "function",
+                                "function": {
+                                    "name": fc["name"],
+                                    "arguments": json.dumps(fc.get("args", {}))
+                                }
+                            })
+                            
+            return {"message": message_obj}
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Gemini API Error: {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"Gemini Error: {e}")
+            raise
