@@ -154,21 +154,33 @@ class ModelManager:
             attempted.add(current_model)
             try:
                 logger.info(f"Attempting execution with model: {current_model}")
-                # Ensure RAM is okay
-                await self.ensure_model_loaded(current_model, context_size)
-                
-                # Execute
-                options = {"num_ctx": context_size}
-                
-                # We return the raw response or stream
-                return await self.provider.chat(
-                    model=current_model,
-                    messages=messages,
-                    options=options,
-                    keep_alive=KEEP_ALIVE["default"],
-                    stream=stream,
-                    **kwargs
-                )
+                if current_model.startswith("gemini"):
+                    if not hasattr(self, "gemini"):
+                        from models.gemini_client import GeminiClient
+                        self.gemini = GeminiClient()
+                    
+                    return await self.gemini.chat(
+                        model=current_model,
+                        messages=messages,
+                        stream=stream,
+                        **kwargs
+                    )
+                else:
+                    # Ensure RAM is okay for local models
+                    await self.ensure_model_loaded(current_model, context_size)
+                    
+                    # Execute
+                    options = {"num_ctx": context_size}
+                    
+                    # We return the raw response or stream
+                    return await self.provider.chat(
+                        model=current_model,
+                        messages=messages,
+                        options=options,
+                        keep_alive=KEEP_ALIVE["default"],
+                        stream=stream,
+                        **kwargs
+                    )
                 
             except httpx.RequestError as e:
                 logger.error(f"Request failed for {current_model}: {e}")

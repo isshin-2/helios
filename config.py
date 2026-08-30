@@ -31,7 +31,7 @@ MODEL_CONFIG = {
     "qwen2.5:7b": {
         "roles": ["general", "tool_use", "conversation", "fast"],
         "priority": 1,
-        "fallback": "phi3:mini"
+        "fallback": "gemini-3.6-flash"
     },
     "deepseek-r1:7b": {
         "roles": ["reasoning", "research"],
@@ -57,6 +57,11 @@ MODEL_CONFIG = {
         "roles": ["stt"],
         "priority": 1,
         "fallback": None
+    },
+    "gemini-3.6-flash": {
+        "roles": ["general", "tool_use", "conversation", "vision"],
+        "priority": 2,
+        "fallback": "phi3:mini"
     },
     "piper": {
         "roles": ["tts"],
