@@ -2,6 +2,7 @@
 AI Router — Configuration
 All settings for the local AI model router system.
 """
+import os
 import psutil
 
 # ─── Network & Providers ──────────────────────────────────
