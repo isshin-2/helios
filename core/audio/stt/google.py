@@ -74,11 +74,16 @@ class VoiceInput:
         sample_rate = 16000
         chunk_size = 1024 # 64ms chunks
         
-        stream = pa.open(format=pyaudio.paInt16,
-                         channels=1,
-                         rate=sample_rate,
-                         input=True,
-                         frames_per_buffer=chunk_size)
+        try:
+            stream = pa.open(format=pyaudio.paInt16,
+                             channels=1,
+                             rate=sample_rate,
+                             input=True,
+                             frames_per_buffer=chunk_size)
+        except OSError as e:
+            logger.error(f"Microphone access denied or unavailable: {e}. Check Windows Privacy settings or connected devices.")
+            self.is_running = False
+            return
                          
         vosk_model = None
         vosk_recognizer = None
