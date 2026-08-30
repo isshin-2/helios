@@ -17,7 +17,7 @@ from router.rules import get_routing_decision
 from models.manager import ModelManager
 
 from router.memory import MemoryManager
-from db import get_db
+from db import get_db, init_db
 from security.permissions import PermissionManager, DEFAULT_SYSTEM_ACCESS
 from core.events import EventBus
 from core.orchestrator import ConversationOrchestrator
@@ -29,6 +29,9 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Ensure database is initialized
+    init_db()
+    
     if VOICE_ENABLED:
         voice_input.start()
         logger.info("Voice input auto-started on server startup.")
