@@ -104,8 +104,8 @@ class VoiceInput:
         audio_buffer = []
         silence_counter = 0
         has_spoken = False
-        max_silence_chunks = int((sample_rate / chunk_size) * 0.8) # 0.8s silence
-        max_wait_chunks = int((sample_rate / chunk_size) * 5.0) # 5.0s initial wait
+        max_silence_chunks = int((sample_rate / chunk_size) * 2.0) # Increased to 2.0s for slower speech
+        max_wait_chunks = int((sample_rate / chunk_size) * 8.0) # Increased to 8.0s initial wait
         
         while self.is_running:
             try:
