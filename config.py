@@ -4,6 +4,9 @@ All settings for the local AI model router system.
 """
 import os
 import psutil
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ─── Network & Providers ──────────────────────────────────
 # Choose "ollama" or "vllm" (for vLLM, LM Studio, SGLang, etc. running locally)
