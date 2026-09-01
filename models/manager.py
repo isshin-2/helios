@@ -154,17 +154,56 @@ class ModelManager:
             attempted.add(current_model)
             try:
                 logger.info(f"Attempting execution with model: {current_model}")
-                if current_model.startswith("gemini"):
+                if current_model.startswith("gemini") or current_model == "antigravity":
                     if not hasattr(self, "gemini"):
                         from models.gemini_client import GeminiClient
                         self.gemini = GeminiClient()
                     
-                    return await self.gemini.chat(
+                    raw_stream = await self.gemini.chat(
                         model=current_model,
                         messages=messages,
                         stream=stream,
                         **kwargs
                     )
+                    
+                    if stream:
+                        raw_iter = raw_stream.__aiter__()
+                        try:
+                            first_chunk = await raw_iter.__anext__()
+                        except StopAsyncIteration:
+                            first_chunk = None
+                            
+                        if first_chunk and first_chunk["type"] == "error":
+                            raise RuntimeError(f"Cloud API Error: {first_chunk['content']}")
+
+                        async def adapted_stream():
+                            if first_chunk:
+                                if first_chunk["type"] == "text":
+                                    yield {"message": {"content": first_chunk["content"]}}
+                                elif first_chunk["type"] == "tool_call":
+                                    yield {"message": {"tool_calls": [{
+                                        "function": {
+                                            "name": first_chunk["content"]["name"],
+                                            "arguments": first_chunk["content"].get("args", {})
+                                        }
+                                    }]}}
+                            async for chunk in raw_iter:
+                                if chunk["type"] == "text":
+                                    yield {"message": {"content": chunk["content"]}}
+                                elif chunk["type"] == "tool_call":
+                                    yield {"message": {"tool_calls": [{
+                                        "function": {
+                                            "name": chunk["content"]["name"],
+                                            "arguments": chunk["content"].get("args", {})
+                                        }
+                                    }]}}
+                                elif chunk["type"] == "error":
+                                    yield {"message": {"content": f"\n\n[System: {chunk['content']}]"}}
+                        return adapted_stream()
+                    else:
+                        if isinstance(raw_stream, dict) and "429" in str(raw_stream.get("content", "")):
+                            raise RuntimeError(f"Cloud API Error: {raw_stream['content']}")
+                        return raw_stream
                 else:
                     # Ensure RAM is okay for local models
                     await self.ensure_model_loaded(current_model, context_size)

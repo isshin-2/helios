@@ -186,7 +186,7 @@ async def chat_headless(req: HeadlessRequest):
         bus.subscribe("status", voice_manager._on_status)
     
     # Process through the standard pipeline
-    await orchestrator.process_request(req.session_id, req.user_id, messages, bus, headless=True)
+    await orchestrator.process_request(req.session_id, req.user_id, messages, bus, headless=True, agent_mode=True)
     
     full_response = ""
     tool_activity = []
@@ -525,12 +525,13 @@ async def websocket_endpoint(websocket: WebSocket):
             messages = request_data.get("messages", [])
             user_id = request_data.get("user_id")
             session_id = request_data.get("session_id")
+            agent_mode = request_data.get("agent_mode", False)
             
             if not messages or not user_id or not session_id:
                 continue
                 
             # Delegate all complex logic to the orchestrator
-            await orchestrator.process_request(session_id, user_id, messages, event_bus)
+            await orchestrator.process_request(session_id, user_id, messages, event_bus, agent_mode=agent_mode)
                 
     except WebSocketDisconnect:
         logger.info("Client disconnected")

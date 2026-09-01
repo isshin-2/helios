@@ -14,3 +14,7 @@ psutil
 
 mcp
 httpx_sse
+
+# Agentic Mode Dependencies
+pyautogui
+Pillow

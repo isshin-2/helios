@@ -31,7 +31,7 @@ class ToolRouter:
             return
             
         # Dependencies that different tools might need
-        SYSTEM_TOOLS = {"SystemTool", "ScreenVisionTool"}
+        SYSTEM_TOOLS = {"SystemTool", "ScreenVisionTool", "ComputerControlTool"}
         FILESYSTEM_TOOLS = {
             "FileReaderTool", "DirectoryListerTool",
             "FileWriterTool", "TerminalTool",

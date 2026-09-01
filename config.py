@@ -21,7 +21,7 @@ VLLM_API_KEY = "sk-helios"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # Model specific configurations
-VISION_MODEL = "llava:latest"
+VISION_MODEL = "moondream:latest"
 
 
 # ─── Models ────────────────────────────────────────────────
@@ -31,10 +31,50 @@ MODEL_CONFIG = {
         "priority": 1,
         "fallback": None
     },
+    "qwen2.5-coder:1.5b": {
+        "roles": ["tool_use", "system", "fast"],
+        "priority": 2,
+        "fallback": "phi3:mini"
+    },
     "qwen2.5:7b": {
-        "roles": ["general", "tool_use", "conversation", "fast"],
+        "roles": ["general", "conversation", "fast"],
         "priority": 1,
+        "fallback": "antigravity"
+    },
+    "antigravity": {
+        "roles": ["general", "tool_use", "conversation", "vision"],
+        "priority": 2,
+        "fallback": "gemini-3.7-flash"
+    },
+    "gemini-3.7-flash": {
+        "roles": ["general", "tool_use", "conversation", "vision", "fast"],
+        "priority": 2,
         "fallback": "gemini-3.6-flash"
+    },
+    "gemini-3.6-flash": {
+        "roles": ["general", "tool_use", "conversation", "vision"],
+        "priority": 2,
+        "fallback": "gemini-3.1-pro-preview"
+    },
+    "gemini-3.1-pro-preview": {
+        "roles": ["reasoning", "complex"],
+        "priority": 2,
+        "fallback": "gemini-2.5-pro"
+    },
+    "gemini-2.5-pro": {
+        "roles": ["reasoning", "complex"],
+        "priority": 2,
+        "fallback": "gemini-2.5-flash"
+    },
+    "gemini-2.5-flash": {
+        "roles": ["general", "fast"],
+        "priority": 2,
+        "fallback": "gemini-3.5-flash-lite"
+    },
+    "gemini-3.5-flash-lite": {
+        "roles": ["fast", "fallback"],
+        "priority": 2,
+        "fallback": "phi3:mini"
     },
     "deepseek-r1:7b": {
         "roles": ["reasoning", "research"],
@@ -46,7 +86,7 @@ MODEL_CONFIG = {
         "priority": 1,
         "fallback": "llama3.1:8b"
     },
-    "llava:latest": {
+    "moondream:latest": {
         "roles": ["vision"],
         "priority": 1,
         "fallback": "llama3.1:8b"
@@ -73,7 +113,7 @@ MODEL_CONFIG = {
     },
     "llama3.1:8b": {
         "roles": ["experimental_tool_model"],
-        "priority": 0,
+        "priority":  1,
         "fallback": "phi3:mini"
     },
     "deepseek-coder-v2:16b": {

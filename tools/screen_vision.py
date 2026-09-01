@@ -59,13 +59,27 @@ class ScreenVisionTool(BaseTool):
             from models.gemini_client import GeminiClient
             gc = GeminiClient()
             response_text = ""
-            async for chunk in gc.stream_chat(messages=messages, model="gemini-3.6-flash"):
+            async for chunk in gc.stream_chat(messages=messages, model="antigravity"):
                 if chunk["type"] == "text":
                     response_text += chunk["content"]
                 elif chunk["type"] == "error":
                     return (f"Cloud Vision Error: {chunk['content']}", self.name)
             
-            return (response_text.strip() if response_text else "No response from vision model.", self.name)
+            # Save screenshot for Web UI
+            try:
+                import time
+                import os
+                timestamp = int(time.time())
+                filename = f"screenshot_{timestamp}.jpg"
+                filepath = os.path.join("static", "media", filename)
+                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                screenshot.save(filepath, format="JPEG", quality=80)
+                img_markdown = f"![Screenshot](/static/media/{filename})\n\n"
+            except Exception as e:
+                logger.error(f"Failed to save screenshot for UI: {e}")
+                img_markdown = ""
+                
+            return (img_markdown + (response_text.strip() if response_text else "No response from vision model."), self.name)
         except Exception as e:
             logger.error(f"Vision model error: {e}")
             return (f"Error from vision model: {e}", self.name)

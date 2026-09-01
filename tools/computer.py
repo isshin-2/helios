@@ -26,7 +26,7 @@ class ComputerControlTool(BaseTool):
     Agentic computer control. Allows the AI to interact with the PC by moving the mouse, clicking, and typing.
     """
     
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         pass
         
     @property
@@ -49,7 +49,7 @@ class ComputerControlTool(BaseTool):
         if pyautogui is None:
             return ("Error: pyautogui is not installed.", self.name)
             
-        action = kwargs.get("action")
+        action = str(kwargs.get("action", "")).strip()
         
         try:
             if action == "move":

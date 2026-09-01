@@ -41,7 +41,15 @@ class VoiceInput:
             self.vad = None
             logger.warning("SileroVAD not available.")
 
-    def _show_overlay(self):
+    def _set_overlay_state(self, state: str):
+        try:
+            with open("overlay_state.txt", "w") as f:
+                f.write(state)
+        except Exception as e:
+            pass
+
+    def _show_overlay(self, state="Listening..."):
+        self._set_overlay_state(state)
         if self.overlay_process:
             return
         try:
@@ -104,8 +112,8 @@ class VoiceInput:
         audio_buffer = []
         silence_counter = 0
         has_spoken = False
-        max_silence_chunks = int((sample_rate / chunk_size) * 2.0) # Increased to 2.0s for slower speech
-        max_wait_chunks = int((sample_rate / chunk_size) * 8.0) # Increased to 8.0s initial wait
+        max_silence_chunks = int((sample_rate / chunk_size) * 2.0) # 2.0s for slower speech
+        max_wait_chunks = int((sample_rate / chunk_size) * 5.0) # Decreased to 5.0s initial wait
         
         while self.is_running:
             try:
@@ -214,6 +222,7 @@ class VoiceInput:
     def _process_audio(self, raw_bytes: bytes, sample_rate: int):
         audio_data = sr.AudioData(raw_bytes, sample_rate, 2)
         try:
+            self._set_overlay_state("Processing Audio...")
             logger.info("Sending to Google STT...")
             text = self.recognizer.recognize_google(audio_data)
             logger.info(f"Heard: {text}")
@@ -236,6 +245,7 @@ class VoiceInput:
             self._hide_overlay()
             
     def _send_to_helios(self, text: str):
+        self._set_overlay_state("Thinking...")
         logger.info(f"Sending to HELIOS: {text}")
         def do_post():
             try:

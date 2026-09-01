@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HELIOS</title>
     <meta name="theme-color" content="#0a0e1a">
-    <link rel="apple-touch-icon" href="/static/icon.jpg">
+    <link rel="apple-touch-icon" href="/static/icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
@@ -839,7 +839,7 @@
 
     <div id="sidebar">
         <div class="sidebar-brand" style="display: flex; align-items: center; gap: 12px;">
-            <img src="/static/icon.jpg" alt="HELIOS Icon" style="width: 40px; height: 40px; border-radius: 8px;">
+            <img src="/static/icon.png" alt="HELIOS Icon" style="width: 40px; height: 40px; border-radius: 8px;">
             <div>
                 <h1>HELIOS</h1>
                 <span id="user-display">Not Logged In</span>
@@ -909,7 +909,10 @@
         </div>
         
         <div id="input-container">
-            <div style="display: flex; justify-content: center; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); cursor:pointer;">
+                    <input type="checkbox" id="agent-mode-toggle"> Agent Mode (Automation / Desktop)
+                </label>
                 <button id="stop-btn" class="btn btn-secondary" style="display: none; padding: 6px 16px; border-radius: 20px; font-size: 13px; background: var(--bg-card); align-items: center; cursor: pointer;">
                     <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; margin-right: 6px; fill: currentColor;"><path d="M6 6h12v12H6z"/></svg>
                     Stop Generating
@@ -1728,6 +1731,7 @@
                         let html = currentBotContent.dataset.raw;
                         html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                         html = html.replace(/\n/g, '<br>');
+                        html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%; border-radius: 8px; margin: 8px 0; border: 1px solid var(--border-light);" />');
                         html = html.replace(/&lt;think&gt;/g, '<details class="think-block" open><summary>Reasoning Process</summary><div class="think-content">');
                         html = html.replace(/&lt;\/think&gt;/g, '</div></details>');
                         
@@ -1832,7 +1836,8 @@
             ws.send(JSON.stringify({
                 messages: sendHistory,
                 user_id: currentUser.id,
-                session_id: currentSessionId
+                session_id: currentSessionId,
+                agent_mode: document.getElementById('agent-mode-toggle') ? document.getElementById('agent-mode-toggle').checked : false
             }));
             
             promptInput.value = '';

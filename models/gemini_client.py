@@ -2,7 +2,7 @@ import json
 import httpx
 import logging
 import asyncio
-from typing import AsyncGenerator, Dict, Any, List, Optional
+from typing import AsyncGenerator, Dict, Any, List, Optional, Tuple
 import config
 
 logger = logging.getLogger(__name__)
@@ -61,28 +61,33 @@ class GeminiClient:
             
         return [{"functionDeclarations": function_declarations}]
 
-    def _format_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _format_messages(self, messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], str]:
         """
         Converts generic message format (role, content) to Gemini's format.
-        Supports multimodal (text + images) if content is a list.
+        Extracts the system prompt to be passed separately.
         """
         gemini_messages = []
+        system_prompt = ""
+        
         for msg in messages:
-            role = "user" if msg["role"] in ["user", "system"] else "model"
+            if msg["role"] == "system":
+                system_prompt += msg.get("content", "") + "\n\n"
+                continue
+                
+            role = "user" if msg["role"] in ("user", "tool") else "model"
             content = msg.get("content", "")
             
             parts = []
             if isinstance(content, str):
                 parts.append({"text": content})
             elif isinstance(content, list):
-                # Handle multimodal arrays (e.g., standard OpenAI vision format)
+                # Handle multimodal arrays
                 for item in content:
                     if item.get("type") == "text":
                         parts.append({"text": item.get("text", "")})
                     elif item.get("type") == "image_url":
                         img_url = item.get("image_url", {}).get("url", "")
                         if img_url.startswith("data:image/"):
-                            # Format: data:image/jpeg;base64,...
                             header, b64_data = img_url.split(",", 1)
                             mime = header.split(";")[0].replace("data:", "")
                             parts.append({
@@ -92,11 +97,16 @@ class GeminiClient:
                                 }
                             })
             
-            gemini_messages.append({
-                "role": role,
-                "parts": parts
-            })
-        return gemini_messages
+            # Prevent consecutive messages with the same role by merging them
+            if gemini_messages and gemini_messages[-1]["role"] == role:
+                gemini_messages[-1]["parts"].extend(parts)
+            else:
+                gemini_messages.append({
+                    "role": role,
+                    "parts": parts
+                })
+                
+        return gemini_messages, system_prompt.strip()
 
     async def stream_chat(
         self, 
@@ -107,12 +117,17 @@ class GeminiClient:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Streams responses from Gemini via SSE.
-        
-        Concurrency:
-        Yields chunks asynchronously. Can be cancelled safely via asyncio.Task.cancel().
         """
+        gemini_messages, extracted_system = self._format_messages(messages)
+        
+        if extracted_system:
+            system_prompt = (system_prompt + "\n\n" + extracted_system).strip()
+            
         payload = {
-            "contents": self._format_messages(messages),
+            "contents": gemini_messages,
+            "generationConfig": {
+                "temperature": 0.2
+            }
         }
         
         if system_prompt:
@@ -127,31 +142,48 @@ class GeminiClient:
 
         url = f"{self.base_url}/{model}:streamGenerateContent?alt=sse&key={self.api_key}"
 
-        try:
-            async with self._client.stream("POST", url, json=payload) as response:
-                if response.status_code != 200:
-                    await response.aread()
-                    logger.error(f"Gemini API Error {response.status_code}: {response.text}")
-                    yield {"type": "error", "content": f"Cloud LLM Error: {response.status_code}"}
-                    return
-                
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        try:
-                            data = json.loads(line[6:])
-                            if "candidates" in data and len(data["candidates"]) > 0:
-                                candidate = data["candidates"][0]
-                                if "content" in candidate and "parts" in candidate["content"]:
-                                    for part in candidate["content"]["parts"]:
-                                        if "text" in part:
-                                            yield {"type": "text", "content": part["text"]}
-                                        if "functionCall" in part:
-                                            yield {"type": "tool_call", "content": part["functionCall"]}
-                        except json.JSONDecodeError:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                async with self._client.stream("POST", url, json=payload) as response:
+                    if response.status_code == 429:
+                        if attempt < max_retries - 1:
+                            await response.aread()
+                            logger.warning(f"Gemini API 429 Rate Limit. Retrying in {2 ** attempt} seconds...")
+                            await asyncio.sleep(2 ** attempt)
                             continue
-        except httpx.TimeoutException as e:
-            logger.error(f"Gemini API Timeout: {e}")
-            yield {"type": "error", "content": "Cloud API connection timed out."}
+                    
+                    if response.status_code != 200:
+                        await response.aread()
+                        logger.error(f"Gemini API Error {response.status_code}: {response.text}")
+                        if response.status_code == 429:
+                            yield {"type": "error", "content": "Gemini API 429 Rate Limit Exceeded. You are sending requests too quickly. Please wait 60 seconds before trying again."}
+                        else:
+                            yield {"type": "error", "content": f"Cloud LLM Error: {response.status_code}"}
+                        return
+                    
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            logger.info(f"Gemini raw stream line: {line}")
+                            try:
+                                data = json.loads(line[6:])
+                                if "candidates" in data and len(data["candidates"]) > 0:
+                                    candidate = data["candidates"][0]
+                                    if "content" in candidate and "parts" in candidate["content"]:
+                                        for part in candidate["content"]["parts"]:
+                                            if "text" in part:
+                                                yield {"type": "text", "content": part["text"]}
+                                            if "functionCall" in part:
+                                                yield {"type": "tool_call", "content": part["functionCall"]}
+                                    else:
+                                        logger.warning(f"Gemini returned candidate without content parts: {candidate}")
+                            except json.JSONDecodeError:
+                                continue
+                    return # Exit the function successfully
+            except httpx.TimeoutException as e:
+                logger.error(f"Gemini API Timeout: {e}")
+                yield {"type": "error", "content": "Cloud API connection timed out."}
+                return
 
     async def chat(
         self, 
@@ -168,8 +200,16 @@ class GeminiClient:
         if stream:
             return self.stream_chat(messages, system_prompt, tools, model)
             
+        gemini_messages, extracted_system = self._format_messages(messages)
+        
+        if extracted_system:
+            system_prompt = (system_prompt + "\n\n" + extracted_system).strip()
+            
         payload = {
-            "contents": self._format_messages(messages),
+            "contents": gemini_messages,
+            "generationConfig": {
+                "temperature": 0.2
+            }
         }
         
         if system_prompt:
@@ -184,36 +224,50 @@ class GeminiClient:
 
         url = f"{self.base_url}/{model}:generateContent?key={self.api_key}"
         
-        try:
-            response = await self._client.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            
-            # Translate Gemini's format to our standard format
-            message_obj = {"role": "assistant", "content": ""}
-            
-            if "candidates" in data and len(data["candidates"]) > 0:
-                candidate = data["candidates"][0]
-                if "content" in candidate and "parts" in candidate["content"]:
-                    for part in candidate["content"]["parts"]:
-                        if "text" in part:
-                            message_obj["content"] += part["text"]
-                        if "functionCall" in part:
-                            if "tool_calls" not in message_obj:
-                                message_obj["tool_calls"] = []
-                            fc = part["functionCall"]
-                            message_obj["tool_calls"].append({
-                                "type": "function",
-                                "function": {
-                                    "name": fc["name"],
-                                    "arguments": json.dumps(fc.get("args", {}))
-                                }
-                            })
-                            
-            return {"message": message_obj}
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Gemini API Error: {e.response.text}")
-            raise
-        except Exception as e:
-            logger.error(f"Gemini Error: {e}")
-            raise
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = await self._client.post(url, json=payload)
+                
+                if response.status_code == 429 and attempt < max_retries - 1:
+                    logger.warning(f"Gemini API 429 Rate Limit. Retrying in {2 ** attempt} seconds...")
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                    
+                if response.status_code == 429:
+                    return {"role": "assistant", "content": "Gemini API 429 Rate Limit Exceeded. You are sending requests too quickly. Please wait 60 seconds before trying again."}
+                response.raise_for_status()
+                data = response.json()
+                
+                # Translate Gemini's format to our standard format
+                message_obj = {"role": "assistant", "content": ""}
+                
+                if "candidates" in data and len(data["candidates"]) > 0:
+                    candidate = data["candidates"][0]
+                    if "content" in candidate and "parts" in candidate["content"]:
+                        for part in candidate["content"]["parts"]:
+                            if "text" in part:
+                                message_obj["content"] += part["text"]
+                            if "functionCall" in part:
+                                if "tool_calls" not in message_obj:
+                                    message_obj["tool_calls"] = []
+                                fc = part["functionCall"]
+                                message_obj["tool_calls"].append({
+                                    "type": "function",
+                                    "function": {
+                                        "name": fc["name"],
+                                        "arguments": json.dumps(fc.get("args", {}))
+                                    }
+                                })
+                                
+                return {"message": message_obj}
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code != 429:
+                    logger.error(f"Gemini API Error: {e.response.text}")
+                    raise
+                if attempt == max_retries - 1:
+                    logger.error(f"Gemini API Error (Max Retries Reached): {e.response.text}")
+                    raise
+            except Exception as e:
+                logger.error(f"Gemini Error: {e}")
+                raise

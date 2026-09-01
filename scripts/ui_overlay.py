@@ -49,8 +49,21 @@ def main():
         if hwnd:
             style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
             win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style | win32con.WS_EX_LAYERED)
-            # Magenta in COLORREF is 0x00FF00FF (BBGGRR)
             win32gui.SetLayeredWindowAttributes(hwnd, 0x00FF00FF, 0, win32con.LWA_COLORKEY)
+            
+        state_file = os.path.join(base_dir, 'overlay_state.txt')
+        last_state = ""
+        while True:
+            time.sleep(0.1)
+            try:
+                if os.path.exists(state_file):
+                    with open(state_file, "r") as f:
+                        state = f.read().strip()
+                    if state != last_state:
+                        window.evaluate_js(f"document.getElementById('status').innerText = '{state}';")
+                        last_state = state
+            except Exception:
+                pass
 
     import threading
     threading.Thread(target=apply_transparency, daemon=True).start()

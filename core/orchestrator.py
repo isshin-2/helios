@@ -1,4 +1,18 @@
 import sys
+def safe_print(text):
+    import sys
+    try:
+        if hasattr(sys.stdout, "buffer"):
+            sys.stdout.buffer.write(text.encode('utf-8'))
+        else:
+            sys.stdout.write(text)
+        sys.stdout.flush()
+    except Exception:
+        pass
+
+
+
+
 import asyncio
 import json
 import logging
@@ -120,9 +134,12 @@ class ConversationOrchestrator:
         except Exception as e:
             return f"Error waiting for input: {e}"
 
-    async def _handle_tool_approval(self, user_id: int, operation: str, target: str, event_bus: EventBus, headless: bool = False) -> bool:
+    async def _handle_tool_approval(self, user_id: int, operation: str, target: str, event_bus: EventBus, headless: bool = False, agent_mode: bool = False) -> bool:
         """Handles requesting and waiting for user approval."""
         if self.permission_manager.approval_manager.has_session_approval(user_id, operation, target):
+            return True
+            
+        if agent_mode:
             return True
             
         if headless:
@@ -156,7 +173,7 @@ class ConversationOrchestrator:
         except asyncio.TimeoutError:
             return False
 
-    async def process_request(self, session_id: int, user_id: int, messages: List[Dict[str, Any]], event_bus: EventBus, headless: bool = False):
+    async def process_request(self, session_id: int, user_id: int, messages: List[Dict[str, Any]], event_bus: EventBus, headless: bool = False, agent_mode: bool = False):
         if not messages or not user_id or not session_id:
             return
             
@@ -205,6 +222,9 @@ class ConversationOrchestrator:
         if route_type == "cloud":
             route["category"] = "cloud"
             
+        if agent_mode:
+            route["category"] = "agent"
+            
         await event_bus.publish("meta", {
             "route": route,
             "memory_injected": len(rag_context) > 0
@@ -228,47 +248,18 @@ class ConversationOrchestrator:
             await event_bus.publish("status", "🧠 Generating response...")
             
             try:
-                if route.get("route") == "cloud":
-                    from models.gemini_client import GeminiClient
-                    gemini = GeminiClient()
-                    
-                    async def adapted_gemini_stream():
-                        try:
-                            async for chunk in gemini.stream_chat(
-                                messages=messages,
-                                tools=allowed_tools if allowed_tools else None,
-                                model=route.get("model", "gemini-2.5-flash")
-                            ):
-                                if chunk["type"] == "text":
-                                    yield {"message": {"content": chunk["content"]}}
-                                elif chunk["type"] == "tool_call":
-                                    # Convert Gemini function call format to standard Ollama format
-                                    yield {"message": {"tool_calls": [{
-                                        "function": {
-                                            "name": chunk["content"]["name"],
-                                            "arguments": chunk["content"].get("args", {})
-                                        }
-                                    }]}}
-                                elif chunk["type"] == "error":
-                                    yield {"message": {"content": f"\n\n[System: {chunk['content']}]"}}
-                        finally:
-                            await gemini.close()
-                            
-                    stream = adapted_gemini_stream()
-                else:
-                    stream = await self.model_manager.execute_request(
-                        target_model=route["model"],
-                        messages=messages,
-                        context_size=route["context_size"],
-                        stream=True,
-                        tools=allowed_tools if allowed_tools else None
-                    )
+                stream = await self.model_manager.execute_request(
+                    target_model=route["model"],
+                    messages=messages,
+                    context_size=route["context_size"],
+                    stream=True,
+                    tools=allowed_tools if allowed_tools else None
+                )
                 
                 tool_calls = []
                 content_accum = ""
                 
-                sys.stdout.write(f"\n\n--- LLM GENERATION START (Iteration {iteration}) ---\n")
-                sys.stdout.flush()
+                safe_print(f"\n\n--- LLM GENERATION START (Iteration {iteration}) ---\n")
 
                 async for chunk in stream:
                     if self.cancellation_events[session_id].is_set():
@@ -285,11 +276,9 @@ class ConversationOrchestrator:
                             full_response += reasoning
                             
                             try:
-                                sys.stdout.write(reasoning)
-                                sys.stdout.flush()
+                                safe_print(reasoning)
                             except UnicodeEncodeError:
-                                sys.stdout.write(reasoning.encode('ascii', 'replace').decode('ascii'))
-                                sys.stdout.flush()
+                                safe_print(reasoning.encode('ascii', 'replace').decode('ascii'))
                             
                             await event_bus.publish("chunk", reasoning)
                             
@@ -300,19 +289,16 @@ class ConversationOrchestrator:
                             
                             # Stream to server terminal for monitoring
                             try:
-                                sys.stdout.write(content)
-                                sys.stdout.flush()
+                                safe_print(content)
                             except UnicodeEncodeError:
-                                sys.stdout.write(content.encode('ascii', 'replace').decode('ascii'))
-                                sys.stdout.flush()
+                                safe_print(content.encode('ascii', 'replace').decode('ascii'))
                             
                             await event_bus.publish("chunk", content)
                             
                         if "tool_calls" in msg and msg["tool_calls"]:
                             for tc in msg["tool_calls"]:
                                 tool_calls.append(tc)
-                sys.stdout.write("\n--- LLM GENERATION END ---\n")
-                sys.stdout.flush()
+                safe_print("\n--- LLM GENERATION END ---\n")
                 
                 if self.cancellation_events[session_id].is_set():
                     break
@@ -329,7 +315,7 @@ class ConversationOrchestrator:
                     function_name = call.get("function", {}).get("name")
                     arguments = call.get("function", {}).get("arguments", {})
                     
-                    await event_bus.publish("status", f"🔧 Running tool {function_name}...")
+                    await event_bus.publish("status", f"[System] Running tool {function_name}...")
                     
                     structured_result = {
                         "tool": function_name,
@@ -341,7 +327,7 @@ class ConversationOrchestrator:
                         # MCP Tool Path - ALWAYS require approval for zero-trust
                         try:
                             server_name, _ = function_name.split("__", 1)
-                            approved = await self._handle_tool_approval(user_id, "mcp_tool_execution", function_name, event_bus, headless)
+                            approved = await self._handle_tool_approval(user_id, "mcp_tool_execution", function_name, event_bus, headless, agent_mode)
                             
                             if approved:
                                 res_text = await self.mcp_manager.call_tool(function_name, arguments)
@@ -373,7 +359,7 @@ class ConversationOrchestrator:
                                 operation = parts[1] if len(parts) > 1 else "unknown"
                                 target = parts[2] if len(parts) > 2 else "unknown"
                                 
-                                approved = await self._handle_tool_approval(user_id, operation, target, event_bus, headless)
+                                approved = await self._handle_tool_approval(user_id, operation, target, event_bus, headless, agent_mode)
                                 
                                 if approved:
                                     # Specific execution post-approval (like FileWriterTool's perform_write)
