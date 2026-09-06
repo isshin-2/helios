@@ -15,7 +15,7 @@ def print_header():
         'BOLD': '\033[1m'
     }
     
-    logo = f"""
+    logo = rf"""
 {colors['CYAN']}{colors['BOLD']}
   _  _   ___   _       ___   ___    ___  
  | || | | __| | |     |_ _| / _ \  / __| 
