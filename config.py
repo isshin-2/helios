@@ -1,5 +1,5 @@
 """
-AI Router — Configuration
+AI Router � Configuration
 All settings for the local AI model router system.
 """
 import os
@@ -8,7 +8,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ─── Network & Providers ──────────────────────────────────
+# --- Identity & Personality -------------------------------
+BOT_NAME = os.environ.get("BOT_NAME", "HELIOS")
+WAKE_WORD = os.environ.get("WAKE_WORD", "helios").lower()
+PERSONALITY = os.environ.get("PERSONALITY", "helpful, professional, and concise")
+
+# --- Network & Providers ----------------------------------
 # Choose "ollama" or "vllm" (for vLLM, LM Studio, SGLang, etc. running locally)
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
@@ -24,131 +29,63 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 # Model specific configurations
 VISION_MODEL = os.environ.get("VISION_MODEL", "qwen2.5vl:3b")
 
-
-# ─── Models ────────────────────────────────────────────────
 MODEL_CONFIG = {
-    "llama3.2:3b": {
-        "roles": ["system", "general", "conversation", "fast"],
-        "priority": 1,
-        "fallback": "gemini-3.5-flash-lite"
-    },
-    "qwen2.5-coder:3b": {
-        "roles": ["tool_use", "coding", "agent"],
-        "priority": 2,
-        "fallback": "llama3.2:3b"
-    },
-    "antigravity": {
-        "roles": ["general", "tool_use", "conversation", "vision"],
-        "priority": 2,
-        "fallback": "gemini-3.7-flash"
-    },
-    "gemini-3.7-flash": {
-        "roles": ["general", "tool_use", "conversation", "vision", "fast"],
-        "priority": 2,
-        "fallback": "gemini-3.6-flash"
-    },
-    "gemini-3.6-flash": {
-        "roles": ["general", "tool_use", "conversation", "vision"],
-        "priority": 2,
-        "fallback": "gemini-3.1-pro-preview"
-    },
-    "gemini-3.1-pro-preview": {
-        "roles": ["reasoning", "complex"],
-        "priority": 2,
-        "fallback": "gemini-2.5-pro"
-    },
-    "gemini-2.5-pro": {
-        "roles": ["reasoning", "complex"],
-        "priority": 2,
-        "fallback": "gemini-2.5-flash"
-    },
-    "gemini-2.5-flash": {
-        "roles": ["general", "fast"],
-        "priority": 2,
-        "fallback": "gemini-3.5-flash-lite"
-    },
-    "gemini-3.5-flash-lite": {
-        "roles": ["fast", "fallback"],
-        "priority": 2,
-        "fallback": "llama3.2:3b"
-    },
-    "qwen2.5vl:3b": {
-        "roles": ["vision"],
-        "priority": 1,
-        "fallback": "moondream:latest"
-    },
-    "moondream:latest": {
-        "roles": ["vision"],
-        "priority": 2,
-        "fallback": "llama3.2:3b"
-    },
-    "nomic-embed-text": {
-        "roles": ["embedding", "rag"],
-        "priority": 1,
-        "fallback": None
-    },
-    "faster-whisper": {
-        "roles": ["stt"],
-        "priority": 1,
-        "fallback": None
-    },
-    "piper": {
-        "roles": ["tts"],
-        "priority": 1,
-        "fallback": None
-    }
+    # Tiny, hyper-fast models (<3B params)
+    "qwen2.5:1.5b": {"type": "base", "max_tokens": 1024, "cloud_fallback": "gemini-3.5-flash-lite"},
+    "deepseek-coder:1.3b": {"type": "coding", "max_tokens": 1500, "cloud_fallback": "gemini-3.5-flash-lite"},
+    
+    # Capable edge models (3B-8B params) - Core Workhorses
+    "llama3.2:3b": {"type": "base", "max_tokens": 2048, "cloud_fallback": "gemini-3.5-flash-lite"},
+    "phi3.5:3.8b": {"type": "reasoning", "max_tokens": 4096, "cloud_fallback": "gemini-3.5-flash-lite"},
+    "qwen2.5-coder:7b": {"type": "coding", "max_tokens": 4096, "cloud_fallback": "gemini-3.7-flash"},
+    
+    # Vision models
+    "llava:7b": {"type": "vision", "max_tokens": 1024, "cloud_fallback": "gemini-3.7-flash"},
+    "qwen2.5vl:3b": {"type": "vision", "max_tokens": 1024, "cloud_fallback": "gemini-3.7-flash"},
+    
+    # Heavy Duty / Reasoning Models (Fallback to Cloud if RAM is tight)
+    "deepseek-r1:8b": {"type": "reasoning", "max_tokens": 8192, "cloud_fallback": "deepseek-reasoner"},
+    "qwen2.5:14b": {"type": "general", "max_tokens": 4096, "cloud_fallback": "google/gemini-pro-1.5"},
+    "llama3.1:8b": {"type": "general", "max_tokens": 4096, "cloud_fallback": "anthropic/claude-3-haiku"},
 }
 
-# ─── Context Sizes (tokens) ───────────────────────────────
-CONTEXT_SIZES = {
-    "simple": 2048,
-    "medium": 4096,
-    "complex": 8192,
-}
-
-# ─── Keep Alive Durations ─────────────────────────────────
-KEEP_ALIVE = {
-    "default": "1h",
-    "reuse_likely": "2h",
-    "unload_now": 0,
-}
-
-# Fallback logic is now unified inside MODEL_CONFIG
-
-# ─── RAM Management ───────────────────────────────────────
+# --- RAM Management ---------------------------------------
 RAM_TOTAL_MB = 8192            # Windows Budget PC 8 GB
 RAM_MIN_FREE_MB = 1024         # Keep at least 1 GB free for OS + browser (reduced for budget hardware)
 RAM_CRITICAL_MB = 512          # Below this, force-unload everything
 MODEL_CONTEXT_BUFFER_MB = 512  # Reduced padding for 4K context cap
 
-# ─── Timeouts (seconds) ───────────────────────────────────
+# --- Timeouts (seconds) -----------------------------------
 REQUEST_TIMEOUT = 120
 HEALTH_CHECK_TIMEOUT = 5
 MODEL_LOAD_TIMEOUT = 60
 
-import os
-
-# ─── System Prompt Templates ──────────────────────────────
+# --- System Prompt Templates ------------------------------
 def load_prompt(filename, default):
     filepath = os.path.join(os.path.dirname(__file__), "prompts", filename)
+    content = default
     if os.path.exists(filepath):
         with open(filepath, "r", encoding="utf-8") as f:
-            return f.read().strip()
-    return default
+            content = f.read().strip()
+            
+    # Inject personality and identity
+    content = content.replace("HELIOS", BOT_NAME)
+    
+    # Add personality trait block to the end of the system prompt if not present
+    personality_block = f"\n\n[PERSONALITY TRAIT: {PERSONALITY}]"
+    if personality_block not in content:
+        content += personality_block
+        
+    return content
 
 SYSTEM_PROMPTS = {
-    "coding": load_prompt("coding.md", "You are HELIOS, an expert programming assistant."),
-    "general": load_prompt("general.md", "You are HELIOS, an advanced AI assistant."),
-    "reasoning": load_prompt("reasoning.md", "You are HELIOS, an expert engineer and problem solver."),
-    "vision": load_prompt("vision.md", "You are HELIOS, a visual analysis assistant."),
-    "ui": load_prompt("ui.md", "You are HELIOS, a UI designer."),
-    "agent": load_prompt("agent.md", "You are HELIOS, an autonomous agent."),
+    "coding": load_prompt("coding.md", f"You are {BOT_NAME}, an expert programming assistant."),
+    "general": load_prompt("general.md", f"You are {BOT_NAME}, an advanced AI assistant."),
+    "reasoning": load_prompt("reasoning.md", f"You are {BOT_NAME}, an expert engineer and problem solver."),
+    "vision": load_prompt("vision.md", f"You are {BOT_NAME}, a visual analysis assistant."),
+    "ui": load_prompt("ui.md", f"You are {BOT_NAME}, a UI designer."),
+    "agent": load_prompt("agent.md", f"You are {BOT_NAME}, an autonomous agent."),
 }
-
-# ─── Identity & Personality ───────────────────────────────
-BOT_NAME = os.environ.get("BOT_NAME", "HELIOS")
-WAKE_WORD = os.environ.get("WAKE_WORD", "helios").lower()
-PERSONALITY = os.environ.get("PERSONALITY", "helpful, professional, and concise")
 
 # Voice Settings
 VOICE_ENABLED = os.environ.get("VOICE_ENABLED", "true").lower() == "true"
@@ -156,11 +93,11 @@ VOICE_BACKEND = os.environ.get("VOICE_BACKEND", "kokoro")
 VOICE_NAME = os.environ.get("VOICE_NAME", "am_michael")
 VOICE_SPEED = float(os.environ.get("VOICE_SPEED", "1.0"))
 
-# ─── Set-of-Mark Vision Overlay ───────────────────────────
+# --- Set-of-Mark Vision Overlay ---------------------------
 SOM_ENABLED = True
 SOM_MIN_ELEMENT_THRESHOLD = 3
 
-# ─── Dynamic Budget Mode & Circuit Breaker ────────────────
+# --- Dynamic Budget Mode & Circuit Breaker ----------------
 CIRCUIT_BREAKER_TRIPPED = False
 BUDGET_MAX_CONTEXT = 4096
 
@@ -178,13 +115,20 @@ HYBRID_MODE = False
 HYBRID_REMOTE_URL = "ws://localhost:8001/ws"
 
 def is_budget_mode_active() -> bool:
-    """
-    Returns True if free system RAM drops below 2 GB,
-    unless the circuit breaker has been tripped by a failed
-    eviction pipeline (in which case we revert to standard mode
-    to prevent infinite retry loops).
-    """
-    if CIRCUIT_BREAKER_TRIPPED:
-        return False
-    free_ram_mb = psutil.virtual_memory().available / (1024 * 1024)
-    return free_ram_mb < 2048
+    mem = psutil.virtual_memory()
+    available_mb = mem.available / (1024 * 1024)
+    return available_mb < RAM_MIN_FREE_MB
+
+def check_circuit_breaker() -> bool:
+    global CIRCUIT_BREAKER_TRIPPED
+    mem = psutil.virtual_memory()
+    available_mb = mem.available / (1024 * 1024)
+    if available_mb < RAM_CRITICAL_MB:
+        CIRCUIT_BREAKER_TRIPPED = True
+        return True
+    CIRCUIT_BREAKER_TRIPPED = False
+    return False
+
+def reset_circuit_breaker():
+    global CIRCUIT_BREAKER_TRIPPED
+    CIRCUIT_BREAKER_TRIPPED = False

@@ -112,7 +112,24 @@ def main():
     print("\n--- 5. Personalization ---")
     bot_name = get_input("Assistant Name", env_vars.get("BOT_NAME", "HELIOS"))
     wake_word = get_input("Wake Word (for voice activation)", env_vars.get("WAKE_WORD", "helios")).lower()
-    personality = get_input("Assistant Personality (system prompt trait)", env_vars.get("PERSONALITY", "helpful, professional, and concise"))
+    print("\nAvailable Personalities:")
+    print("1) Default   (Helpful, professional, and concise)")
+    print("2) JARVIS    (Highly efficient, formal, British butler-like)")
+    print("3) Sarcastic (Witty, mildly cynical but ultimately helpful)")
+    print("4) GLaDOS    (Cold, calculating, passive-aggressive)")
+    print("5) Custom    (Type your own traits or paste a Character Card summary)")
+    
+    pers_choice = get_input("Choose a personality [1-5]", "1")
+    if pers_choice == "2":
+        personality = "highly efficient, formal, British butler-like"
+    elif pers_choice == "3":
+        personality = "witty, mildly cynical but ultimately helpful"
+    elif pers_choice == "4":
+        personality = "cold, calculating, passive-aggressive"
+    elif pers_choice == "5":
+        personality = get_input("Enter custom personality traits", env_vars.get("PERSONALITY", "helpful, professional, and concise"))
+    else:
+        personality = "helpful, professional, and concise"
     
     voice_enabled_str = env_vars.get("VOICE_ENABLED", "true").lower()
     voice_enabled = get_input("Enable Voice Output? (true/false)", voice_enabled_str).lower() == "true"
@@ -123,7 +140,30 @@ def main():
     
     if voice_enabled:
         voice_backend = get_input("Voice Backend Engine (e.g. kokoro)", voice_backend)
-        voice_name = get_input("Voice Profile Name (e.g. am_michael)", voice_name)
+        print("\nAvailable Kokoro Voice Profiles:")
+        print("1) am_michael (American Male - Default, Professional)")
+        print("2) af_bella   (American Female - Warm, Friendly)")
+        print("3) af_sarah   (American Female - Crisp, Clear)")
+        print("4) am_adam    (American Male - Deep, Resonant)")
+        print("5) bm_george  (British Male - Formal)")
+        print("6) bf_emma    (British Female - Calm)")
+        print("7) Custom     (Enter a specific profile name)")
+        
+        v_choice = get_input("Choose a voice profile [1-7]", "1")
+        if v_choice == "2":
+            voice_name = "af_bella"
+        elif v_choice == "3":
+            voice_name = "af_sarah"
+        elif v_choice == "4":
+            voice_name = "am_adam"
+        elif v_choice == "5":
+            voice_name = "bm_george"
+        elif v_choice == "6":
+            voice_name = "bf_emma"
+        elif v_choice == "7":
+            voice_name = get_input("Enter Voice Profile Name", voice_name)
+        else:
+            voice_name = "am_michael"
         voice_speed = get_input("Voice Speed multiplier", voice_speed)
 
     print("\n\033[96mSaving Configuration...\033[0m")
