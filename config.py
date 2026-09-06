@@ -30,7 +30,7 @@ MODEL_CONFIG = {
     "llama3.2:3b": {
         "roles": ["system", "general", "conversation", "fast"],
         "priority": 1,
-        "fallback": None
+        "fallback": "gemini-3.5-flash-lite"
     },
     "qwen2.5-coder:3b": {
         "roles": ["tool_use", "coding", "agent"],
