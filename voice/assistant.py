@@ -107,7 +107,7 @@ class VoiceAssistant:
                     
                     try:
                         with microphone as source:
-                            command_audio = recognizer.listen(source, timeout=5, phrase_time_limit=15)
+                            command_audio = recognizer.listen(source, timeout=5)
                             
                         # 3. Google STT for command
                         command_text = recognizer.recognize_google(command_audio)

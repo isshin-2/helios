@@ -42,7 +42,7 @@ class RoutingEngine:
                     "keep_alive": 0
                 })
 
-    async def route_request(self, query: str) -> Tuple[str, Any]:
+    async def route_request(self, query: str, agent_mode: bool = False) -> Tuple[str, Any]:
         """
         Determines the execution path for a given query.
         
@@ -86,4 +86,6 @@ class RoutingEngine:
             return "cloud", {"model": "gemini-3.6-flash"}
             
         # 4. Local Budget Route
+        if agent_mode:
+            return "local", {"model_chain": ["qwen2.5-coder:3b", "phi3:mini"]}
         return "local", {"model_chain": self.local_chain}

@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  helios-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"    # HELIOS API
+      - "8001:8001"    # WebSocket relay
+      - "11434:11434"  # Ollama API
+    volumes:
+      - ollama_data:/root/.ollama
+      - helios_db:/app/helios.db
+    environment:
+      - HYBRID_MODE=false
+      - LLM_PROVIDER=ollama
+    deploy:
+      resources:
+        limits:
+          memory: 16g
+        reservations:
+          memory: 8g
+
+volumes:
+  ollama_data:
+  helios_db:

@@ -13,9 +13,10 @@ from tools.base import BaseTool
 logger = logging.getLogger(__name__)
 
 class ComputerInput(BaseModel):
-    action: str = Field(..., description="Action to perform: 'move', 'click', 'double_click', 'right_click', 'type', 'press', 'hotkey', 'scroll', 'open_app'")
+    action: str = Field(..., description="Action to perform: 'move', 'click', 'double_click', 'right_click', 'type', 'press', 'hotkey', 'scroll', 'open_app', 'click_element'")
     x: Optional[int] = Field(None, description="X coordinate for move/click")
     y: Optional[int] = Field(None, description="Y coordinate for move/click")
+    element_id: Optional[int] = Field(None, description="ID of the UI element to click (from screen_vision SoM overlay)")
     text: Optional[str] = Field(None, description="Text to type")
     keys: Optional[List[str]] = Field(None, description="Keys to press or hotkey combo (e.g. ['ctrl', 'c'])")
     amount: Optional[int] = Field(None, description="Amount to scroll")
@@ -68,6 +69,18 @@ class ComputerControlTool(BaseTool):
                     pyautogui.click()
                     return ("Clicked at current mouse position", self.name)
                     
+            elif action == "click_element":
+                element_id = kwargs.get("element_id")
+                if element_id is None:
+                    return ("Error: element_id is required for click_element action.", self.name)
+                from tools.screen_vision import ScreenVisionTool
+                emap = getattr(ScreenVisionTool, '_last_element_map', {})
+                if element_id not in emap:
+                    return (f"Error: Element {element_id} not found. Run screen_vision first.", self.name)
+                cx, cy = emap[element_id].centroid
+                pyautogui.click(x=cx, y=cy)
+                return (f"Clicked element [{element_id}] '{emap[element_id].name}' at ({cx}, {cy}).", self.name)
+                
             elif action == "double_click":
                 pyautogui.doubleClick()
                 return ("Double clicked", self.name)

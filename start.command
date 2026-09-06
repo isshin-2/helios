@@ -42,9 +42,8 @@ echo "=========================================="
 echo "🌐 Starting Uvicorn Server..."
 echo "=========================================="
 
-# Initialize database
-echo "Initializing SQLite Database..."
-python -c "import db; db.init_db()"
+# Run Interactive Setup (Runs once if .setup_complete missing)
+python setup.py
 
 # Start the server on port 8000
 python -m uvicorn main:app --host 0.0.0.0 --port 8000

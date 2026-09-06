@@ -32,10 +32,12 @@ class ToolRouter:
             
         # Dependencies that different tools might need
         SYSTEM_TOOLS = {"SystemTool", "ScreenVisionTool", "ComputerControlTool"}
+        MEMORY_TOOLS = {"CoreMemoryAppendTool", "ArchivalMemorySearchTool"}
         FILESYSTEM_TOOLS = {
             "FileReaderTool", "DirectoryListerTool",
-            "FileWriterTool", "TerminalTool",
-            "SelfModificationTool", "AskUserTool"
+            "FileWriterTool", "TerminalTool", "StatefulShellTool",
+            "SelfModificationTool", "AskUserTool",
+            "RepoMapTool", "FilePatchTool", "FilePatcherTool"
         }
         
         for filename in os.listdir(tools_dir):
@@ -51,6 +53,13 @@ class ToolRouter:
                                 tool_instance = obj(self.provider, self.monitor)
                             elif name in FILESYSTEM_TOOLS:
                                 tool_instance = obj(self.permission_manager)
+                            elif name in MEMORY_TOOLS:
+                                # We need memory manager here. Assuming it is available in ToolRouter via some import or initialization.
+                                # For now, we will pass self.memory_manager which we will create below.
+                                if not hasattr(self, 'memory_manager'):
+                                    from router.memory import MemoryManager
+                                    self.memory_manager = MemoryManager(self.provider)
+                                tool_instance = obj(self.memory_manager)
                             elif name == "SubAgentTool":
                                 tool_instance = obj(self.provider, self)
                             else:

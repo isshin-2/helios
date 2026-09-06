@@ -106,13 +106,29 @@ class VoiceManager:
             return
             
         # Clean up the sentence
-        clean_sentence = re.sub(r'```.*?```', ' [Code] ', sentence, flags=re.DOTALL)
+        clean_sentence = re.sub(r'```.*?```', '', sentence, flags=re.DOTALL)
         clean_sentence = re.sub(r'```', '', clean_sentence)
+        
+        # Mute raw system logs and orchestrated metadata tags
+        clean_sentence = re.sub(r'\[Tool Executed:.*?\]', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'\[System Error.*?\]', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'\[System Warning.*?\]', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'INPUT_REQUIRED::', '', clean_sentence, flags=re.IGNORECASE)
+        
+        # Mute internal placeholder tags and debug metadata
+        clean_sentence = re.sub(r'\[Code\]', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'\[Link\]', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'\[STREAM-INTERRUPT\].*', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'\[VISION ENFORCEMENT\].*', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'\[TELEMETRY\].*', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'\[BLANK_AUDIO\]', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'APPROVAL_REQUIRED::.*', '', clean_sentence, flags=re.IGNORECASE)
+        
         # Convert interactive buttons into spoken options
         clean_sentence = re.sub(r'<button>(.*?)</button>', r'Option: \1.', clean_sentence, flags=re.IGNORECASE)
         clean_sentence = re.sub(r'<[^>]+>', '', clean_sentence) # Remove stray HTML tags
         clean_sentence = re.sub(r'[*_#~]', '', clean_sentence)
-        clean_sentence = re.sub(r'http[s]?://\S+', ' [Link] ', clean_sentence)
+        clean_sentence = re.sub(r'http[s]?://\S+', '', clean_sentence)
         if emoji:
             clean_sentence = emoji.replace_emoji(clean_sentence, replace='')
             

@@ -10,36 +10,32 @@ load_dotenv()
 
 # ─── Network & Providers ──────────────────────────────────
 # Choose "ollama" or "vllm" (for vLLM, LM Studio, SGLang, etc. running locally)
-LLM_PROVIDER = "ollama"
-OLLAMA_HOST = "http://127.0.0.1:11434"
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
 # vLLM / LM Studio / SGLang Backend Settings (100% Local)
-VLLM_API_BASE = "http://127.0.0.1:8000/v1"
+VLLM_API_BASE = os.environ.get("VLLM_API_BASE", "http://127.0.0.1:8000/v1")
 VLLM_API_KEY = "sk-helios"
 
 # Cloud Providers (Dynamic Escalation)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # Model specific configurations
-VISION_MODEL = "moondream:latest"
+VISION_MODEL = os.environ.get("VISION_MODEL", "qwen2.5vl:3b")
 
 
 # ─── Models ────────────────────────────────────────────────
 MODEL_CONFIG = {
-    "phi3:mini": {
-        "roles": ["system"],
+    "llama3.2:3b": {
+        "roles": ["system", "general", "conversation", "fast"],
         "priority": 1,
         "fallback": None
     },
-    "qwen2.5-coder:1.5b": {
-        "roles": ["tool_use", "system", "fast"],
+    "qwen2.5-coder:3b": {
+        "roles": ["tool_use", "coding", "agent"],
         "priority": 2,
-        "fallback": "phi3:mini"
-    },
-    "qwen2.5:7b": {
-        "roles": ["general", "conversation", "fast"],
-        "priority": 1,
-        "fallback": "antigravity"
+        "fallback": "llama3.2:3b"
     },
     "antigravity": {
         "roles": ["general", "tool_use", "conversation", "vision"],
@@ -74,22 +70,17 @@ MODEL_CONFIG = {
     "gemini-3.5-flash-lite": {
         "roles": ["fast", "fallback"],
         "priority": 2,
-        "fallback": "phi3:mini"
+        "fallback": "llama3.2:3b"
     },
-    "deepseek-r1:7b": {
-        "roles": ["reasoning", "research"],
+    "qwen2.5vl:3b": {
+        "roles": ["vision"],
         "priority": 1,
-        "fallback": "llama3.1:8b"
-    },
-    "qwen2.5-coder:7b": {
-        "roles": ["coding"],
-        "priority": 1,
-        "fallback": "llama3.1:8b"
+        "fallback": "moondream:latest"
     },
     "moondream:latest": {
         "roles": ["vision"],
-        "priority": 1,
-        "fallback": "llama3.1:8b"
+        "priority": 2,
+        "fallback": "llama3.2:3b"
     },
     "nomic-embed-text": {
         "roles": ["embedding", "rag"],
@@ -101,25 +92,10 @@ MODEL_CONFIG = {
         "priority": 1,
         "fallback": None
     },
-    "gemini-3.6-flash": {
-        "roles": ["general", "tool_use", "conversation", "vision"],
-        "priority": 2,
-        "fallback": "phi3:mini"
-    },
     "piper": {
         "roles": ["tts"],
         "priority": 1,
         "fallback": None
-    },
-    "llama3.1:8b": {
-        "roles": ["experimental_tool_model"],
-        "priority":  1,
-        "fallback": "phi3:mini"
-    },
-    "deepseek-coder-v2:16b": {
-        "roles": ["heavy_coding"],
-        "priority": 0,
-        "fallback": "qwen2.5-coder:7b"
     }
 }
 
@@ -175,9 +151,26 @@ VOICE_BACKEND = "kokoro"
 VOICE_NAME = "am_michael"
 VOICE_SPEED = 1.0
 
+# ─── Set-of-Mark Vision Overlay ───────────────────────────
+SOM_ENABLED = True
+SOM_MIN_ELEMENT_THRESHOLD = 3
+
 # ─── Dynamic Budget Mode & Circuit Breaker ────────────────
 CIRCUIT_BREAKER_TRIPPED = False
 BUDGET_MAX_CONTEXT = 4096
+
+# --- Audio / STT Settings ---
+STT_BACKEND = "whisper"  # "whisper" or "google"
+WHISPER_MODEL_PATH = ".models/whisper/ggml-base.en.bin"
+WHISPER_FALLBACK_MODEL_PATH = ".models/whisper/ggml-tiny.en.bin"
+RMS_BARGE_IN_THRESHOLD = 1500
+
+# --- Vision Settings ---
+FALLBACK_VISION_MODEL = "moondream:latest"
+
+# --- Hybrid / Thin-Client Settings ---
+HYBRID_MODE = False
+HYBRID_REMOTE_URL = "ws://localhost:8001/ws"
 
 def is_budget_mode_active() -> bool:
     """

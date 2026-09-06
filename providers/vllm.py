@@ -38,6 +38,18 @@ class VLLMProvider(BaseProvider):
         if "tools" in kwargs and kwargs["tools"]:
             # Basic mapping from Ollama tools to OpenAI tools (usually identical JSON schema)
             payload["tools"] = kwargs["tools"]
+            
+        if "format" in kwargs:
+            # If format is a dict (JSON Schema), pass it to response_format
+            if isinstance(kwargs["format"], dict):
+                payload["response_format"] = {
+                    "type": "json_schema", 
+                    "json_schema": {"name": "response", "schema": kwargs["format"], "strict": True}
+                }
+            else:
+                payload["response_format"] = {"type": "json_object"}
+        elif kwargs.get("json_mode"):
+            payload["response_format"] = {"type": "json_object"}
         
         if stream:
             async def stream_generator():

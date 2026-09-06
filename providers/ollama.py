@@ -60,6 +60,11 @@ class OllamaProvider(BaseProvider):
             
         if "tools" in kwargs and kwargs["tools"]:
             payload["tools"] = kwargs["tools"]
+            
+        if "format" in kwargs:
+            payload["format"] = kwargs["format"]
+        elif kwargs.get("json_mode"):
+            payload["format"] = "json"
         
         if stream:
             logger.debug(f"Ollama Payload: {json.dumps(payload)}")

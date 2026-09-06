@@ -27,6 +27,12 @@ class VoiceInput:
         self._http_client = httpx.Client(timeout=httpx.Timeout(connect=5.0, read=300.0, write=60.0, pool=None))
         self.recognizer = sr.Recognizer()
         
+        from config import STT_BACKEND
+        self.whisper_stt = None
+        if STT_BACKEND == 'whisper':
+            from core.audio.stt.whisper_local import WhisperLocalSTT
+            self.whisper_stt = WhisperLocalSTT()
+            
         self.overlay_process = None
         
         # We need to hide overlay when AI finishes
@@ -121,6 +127,12 @@ class VoiceInput:
                 
                 # Check for Barge-in when AI is speaking
                 if hasattr(self.voice_manager, 'is_currently_speaking') and self.voice_manager.is_currently_speaking():
+                    import audioop
+                    from config import RMS_BARGE_IN_THRESHOLD
+                    rms = audioop.rms(raw_data, 2)
+                    if rms < RMS_BARGE_IN_THRESHOLD:
+                        continue  # Background noise, skip barge-in check
+                        
                     if vosk_recognizer:
                         if vosk_recognizer.AcceptWaveform(raw_data):
                             res = json.loads(vosk_recognizer.Result())
@@ -223,10 +235,15 @@ class VoiceInput:
         audio_data = sr.AudioData(raw_bytes, sample_rate, 2)
         try:
             self._set_overlay_state("Processing Audio...")
-            logger.info("Sending to Google STT...")
-            text = self.recognizer.recognize_google(audio_data)
+            
+            if self.whisper_stt and self.whisper_stt.is_loaded():
+                text = self.whisper_stt.transcribe(audio_data)
+            else:
+                logger.info("Sending to Google STT...")
+                text = self.recognizer.recognize_google(audio_data)
+                
             logger.info(f"Heard: {text}")
-            print(f"\n[🗣️ You]: {text}\n")
+            print(f"\n[You]: {text}\n")
             
             if text.strip():
                 cleaned = text.lower().strip()
@@ -287,3 +304,4 @@ class VoiceInput:
                 self._hide_overlay()
                 
         threading.Thread(target=do_post, daemon=True).start()
+

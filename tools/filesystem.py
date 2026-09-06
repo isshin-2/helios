@@ -15,7 +15,8 @@ from security.permissions import (
 )
 
 class FileReaderInput(BaseModel):
-    file_path: str = Field(description="The absolute or relative path to the file to read.")
+    file_path: Optional[str] = Field(None, description="The absolute or relative path to the file to read.")
+    file: Optional[str] = Field(None, description="Alias for file_path.")
 
 class FileReaderTool(BaseTool):
     def __init__(self, permission_manager: PermissionManager):
@@ -39,7 +40,7 @@ class FileReaderTool(BaseTool):
 
     async def execute(self, user_id: int, **kwargs) -> Tuple[str, str]:
         working_directory = kwargs.get("working_directory", HELIOS_DIR)
-        file_path = kwargs.get("file_path")
+        file_path = kwargs.get("file_path") or kwargs.get("file")
         
         if not file_path and "prompt" in kwargs:
             file_path = self._extract_path(kwargs["prompt"])
@@ -129,7 +130,8 @@ class FileReaderTool(BaseTool):
         return None
 
 class FileWriterInput(BaseModel):
-    file_path: str = Field(description="The absolute or relative path to the file to write.")
+    file_path: Optional[str] = Field(None, description="The absolute or relative path to the file to write.")
+    file: Optional[str] = Field(None, description="Alias for file_path.")
     content: str = Field(description="The text content to write to the file.")
 
 class FileWriterTool(BaseTool):
@@ -154,7 +156,7 @@ class FileWriterTool(BaseTool):
 
     async def execute(self, user_id: int, **kwargs) -> Tuple[str, str]:
         working_directory = kwargs.get("working_directory", HELIOS_DIR)
-        file_path = kwargs.get("file_path")
+        file_path = kwargs.get("file_path") or kwargs.get("file")
         content = kwargs.get("content", "")
         
         if not file_path and "prompt" in kwargs:
@@ -205,9 +207,80 @@ class FileWriterTool(BaseTool):
             )
             return (f"Failed to write file: {e}", self.name)
 
+class FilePatcherInput(BaseModel):
+    file_path: str = Field(description="The path to the file to patch.")
+    search_block: str = Field(description="The exact block of code to search for, including indentation.")
+    replace_block: str = Field(description="The new block of code to replace the search block with.")
 
-class DirectoryListerInput(BaseModel):
-    directory_path: str = Field(description="The path to the directory to list.")
+class FilePatcherTool(BaseTool):
+    def __init__(self, permission_manager: PermissionManager):
+        self.permission_manager = permission_manager
+
+    @property
+    def name(self) -> str:
+        return "FilePatcherTool"
+
+    @property
+    def description(self) -> str:
+        return "Applies an Aider-style SEARCH/REPLACE block to safely modify a specific part of a file without rewriting it."
+
+    @property
+    def input_schema(self) -> type[BaseModel]:
+        return FilePatcherInput
+
+    @property
+    def requires_permission(self) -> bool:
+        return True
+
+    async def execute(self, user_id: int, **kwargs) -> Tuple[str, str]:
+        working_directory = kwargs.get("working_directory", HELIOS_DIR)
+        file_path = kwargs.get("file_path")
+        search_block = kwargs.get("search_block", "")
+        replace_block = kwargs.get("replace_block", "")
+        
+        if not file_path or not search_block:
+            return ("Error: Missing file_path or search_block.", self.name)
+            
+        path = Path(file_path)
+        if not path.is_absolute():
+            path = Path(working_directory) / path
+        resolved_str = str(path.resolve())
+
+        perm = self.permission_manager.can_write_file(user_id, resolved_str)
+        if not perm.allowed:
+            return (f"**Permission denied**: {perm.reason}", self.name)
+
+        safe_path: Path = perm.resolved_path or Path(resolved_str)
+        if not safe_path.exists() or not safe_path.is_file():
+            return (f"File not found: `{safe_path}`", self.name)
+            
+        try:
+            content = safe_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            content = safe_path.read_text(encoding="latin-1")
+            
+        if search_block not in content:
+            # Fallback to loose matching if exact match fails
+            if search_block.strip() in content:
+                content = content.replace(search_block.strip(), replace_block.strip())
+            else:
+                return ("Error: SEARCH block not found in the file. Ensure exact matching including whitespace.", self.name)
+        else:
+            content = content.replace(search_block, replace_block)
+            
+        try:
+            with open(safe_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            self.permission_manager.log_operation(
+                user_id, self.name, 'patch_file',
+                str(safe_path), 'APPROVED', 'SUCCESS'
+            )
+            return (f"Successfully patched {safe_path.name}", self.name)
+        except Exception as e:
+            return (f"Failed to patch file: {e}", self.name)
+
+    directory_path: Optional[str] = Field(None, description="The path to the directory to list.")
+    directory: Optional[str] = Field(None, description="Alias for directory_path.")
 
 class DirectoryListerTool(BaseTool):
     def __init__(self, permission_manager: PermissionManager):
@@ -231,8 +304,7 @@ class DirectoryListerTool(BaseTool):
 
     async def execute(self, user_id: int, **kwargs) -> Tuple[str, str]:
         working_directory = kwargs.get("working_directory", HELIOS_DIR)
-        directory_path = kwargs.get("directory_path")
-        
+        directory_path = kwargs.get("directory_path") or kwargs.get("directory")
         if not directory_path and "prompt" in kwargs:
             match = re.search(r"(?:list files|show files in|ls|dir)\s+(['\"]?)([^\s'\"]+)\1", kwargs["prompt"], re.IGNORECASE)
             if match:

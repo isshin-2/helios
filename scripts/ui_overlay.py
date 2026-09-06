@@ -25,32 +25,21 @@ def main():
         
     window_title = 'HELIOS Listening'
     
-    # We use a Magenta background and set it as the transparent color key via win32gui
-    # We must set transparent=False here so pywebview actually paints the window magenta!
+    # Use native pywebview transparency
     window = webview.create_window(
         window_title, 
         html=html_content, 
-        transparent=False,
-        background_color='#FF00FF', # Magenta
+        transparent=True,
         frameless=True, 
         width=250, 
         height=250, 
-        x=x + 25, # Adjust position to account for smaller width
+        x=x + 25, 
         y=y + 25, 
         on_top=True
     )
     
-    def apply_transparency():
+    def state_updater():
         import time
-        import win32gui
-        import win32con
-        time.sleep(0.5) # Wait for window to render
-        hwnd = win32gui.FindWindowEx(0, 0, None, window_title)
-        if hwnd:
-            style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
-            win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style | win32con.WS_EX_LAYERED)
-            win32gui.SetLayeredWindowAttributes(hwnd, 0x00FF00FF, 0, win32con.LWA_COLORKEY)
-            
         state_file = os.path.join(base_dir, 'overlay_state.txt')
         last_state = ""
         while True:
@@ -66,7 +55,7 @@ def main():
                 pass
 
     import threading
-    threading.Thread(target=apply_transparency, daemon=True).start()
+    threading.Thread(target=state_updater, daemon=True).start()
     
     webview.start()
 

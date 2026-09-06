@@ -206,7 +206,7 @@ class ConversationOrchestrator:
         
         rag_context, route_tuple = await asyncio.gather(
             self.memory_manager.search_memory(user_id, last_msg),
-            routing_engine.route_request(last_msg_raw)
+            routing_engine.route_request(last_msg_raw, agent_mode=agent_mode)
         )
         
         route_type, route_metadata = route_tuple
@@ -232,7 +232,7 @@ class ConversationOrchestrator:
         
         messages = inject_system_prompt(messages, route.get("category", "general"), rag_context)
         
-        MAX_TOOL_ITERATIONS = 8
+        MAX_TOOL_ITERATIONS = 3
         iteration = 0
         full_response = ""
         
@@ -243,6 +243,9 @@ class ConversationOrchestrator:
         mcp_tools = await self.mcp_manager.list_all_tools()
         if mcp_tools:
             allowed_tools.extend(mcp_tools)
+        
+        # Track whether screen_vision has been called (for vision enforcement)
+        vision_used = False
             
         while iteration < MAX_TOOL_ITERATIONS:
             await event_bus.publish("status", "🧠 Generating response...")
@@ -295,6 +298,12 @@ class ConversationOrchestrator:
                             
                             await event_bus.publish("chunk", content)
                             
+                            # ── STREAM-INTERRUPT: break as soon as a complete ```json ... ``` block lands ──
+                            import re as _re
+                            if _re.search(r'```json\s*\{.*?\}\s*```', content_accum, _re.DOTALL):
+                                safe_print("\n[STREAM-INTERRUPT] Complete JSON tool block detected – stopping generation early.\n")
+                                break
+                            
                         if "tool_calls" in msg and msg["tool_calls"]:
                             for tc in msg["tool_calls"]:
                                 tool_calls.append(tc)
@@ -303,9 +312,68 @@ class ConversationOrchestrator:
                 if self.cancellation_events[session_id].is_set():
                     break
 
+                import re
+                import json
+                
+                # ── TRUNCATE: strip everything after the JSON block so hallucinated text never enters history ──
+                json_block_match = re.search(r'(```json\s*\{.*?\}\s*```)', content_accum, re.DOTALL)
+                if json_block_match and not tool_calls:
+                    # Keep only the JSON block itself in the assistant message
+                    content_accum = json_block_match.group(1)
+                
+                if not tool_calls:
+                    # Fallback for small models outputting JSON blocks instead of native tool calls
+                    json_str = None
+                    json_match = re.search(r'```json\s*(.*?)\s*```', content_accum, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(1)
+                    else:
+                        json_str = content_accum.strip()
+                        
+                    if json_str:
+                        try:
+                            parsed = json.loads(json_str)
+                            if isinstance(parsed, dict):
+                                func_name = parsed.get("function", parsed.get("name"))
+                                args = parsed.get("arguments", {})
+                                
+                                if func_name:
+                                    # Heuristic for hallucinated computer_control actions
+                                    if func_name in ["move", "click", "double_click", "right_click", "type", "press", "hotkey", "scroll", "open_app"]:
+                                        args["action"] = func_name
+                                        func_name = "computer_control"
+                                        
+                                    tool_calls.append({
+                                        "function": {
+                                            "name": func_name,
+                                            "arguments": args
+                                        }
+                                    })
+                        except Exception as e:
+                            pass
+                            
                 if not tool_calls:
                     await event_bus.publish("done", None)
                     break
+                
+                # ── VISION ENFORCEMENT: force screen_vision before spatial computer_control ──
+                SPATIAL_ACTIONS = {"click", "double_click", "right_click", "type", "move", "scroll"}
+                enforced_tool_calls = []
+                for call in tool_calls:
+                    fn = call.get("function", {}).get("name", "")
+                    fn_args = call.get("function", {}).get("arguments", {})
+                    action = fn_args.get("action", "")
+                    
+                    if fn == "computer_control" and action in SPATIAL_ACTIONS and not vision_used:
+                        safe_print("[VISION ENFORCEMENT] Blocked spatial computer_control – injecting screen_vision first.\n")
+                        enforced_tool_calls.append({
+                            "function": {
+                                "name": "screen_vision",
+                                "arguments": {"query": f"Locate elements on screen needed to: {action}. Provide exact pixel coordinates."}
+                            }
+                        })
+                    enforced_tool_calls.append(call)
+                tool_calls = enforced_tool_calls
                     
                 # We have tool calls
                 assistant_msg = {"role": "assistant", "content": content_accum, "tool_calls": tool_calls}
@@ -316,6 +384,10 @@ class ConversationOrchestrator:
                     arguments = call.get("function", {}).get("arguments", {})
                     
                     await event_bus.publish("status", f"[System] Running tool {function_name}...")
+                    
+                    # Track screen_vision usage for enforcement
+                    if function_name == "screen_vision":
+                        vision_used = True
                     
                     structured_result = {
                         "tool": function_name,
@@ -387,14 +459,31 @@ class ConversationOrchestrator:
                                 structured_result["status"] = "error"
                             structured_result["result"] = str(e)
                             
-                    # Append result to messages for the next LLM iteration
+                    res_text_safe = str(structured_result.get("result", ""))
+                    
+                    if res_text_safe.startswith("INPUT_REQUIRED::"):
+                        formatted_tool_output = f"\n\n[Tool Executed: {function_name}]\n{res_text_safe}\n\n"
+                        full_response += formatted_tool_output
+                        await event_bus.publish("chunk", formatted_tool_output)
+                        
+                        messages.append({
+                            "role": "user",
+                            "content": f"SYSTEM/TOOL RESULT from '{function_name}':\n{json.dumps(structured_result)}\n\nIMPORTANT INSTRUCTION: You have requested user input. STOP GENERATING NOW and wait for the user to respond."
+                        })
+                        
+                        # Break out of the orchestration loop to yield to the user
+                        await event_bus.publish("done", None)
+                        break
+                    
+                    # Small models (3B) often fail to understand "role": "tool" and break character.
+                    # Appending as "role": "user" with a strict instruction forces them back into tool-calling mode.
                     messages.append({
-                        "role": "tool",
-                        "content": json.dumps(structured_result)
+                        "role": "user",
+                        "content": f"SYSTEM/TOOL RESULT from '{function_name}':\n{json.dumps(structured_result)}\n\nIMPORTANT INSTRUCTION: The task is NOT complete. Continue using tools (output ONLY a ```json tool call block). Do NOT talk to the user or ask them to do anything manually."
                     })
                     
                     # Ensure tool outputs are saved in the session history and displayed seamlessly
-                    formatted_tool_output = f"\n\n[Tool Executed: {function_name}]\n{res_text}\n\n"
+                    formatted_tool_output = f"\n\n[Tool Executed: {function_name}]\n{res_text_safe}\n\n"
                     full_response += formatted_tool_output
                     await event_bus.publish("chunk", formatted_tool_output)
                     

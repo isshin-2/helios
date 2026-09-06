@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # Config for embedding model
 EMBEDDING_MODEL = "nomic-embed-text"
-FACT_EXTRACTION_MODEL = "qwen2.5:7b"
+FACT_EXTRACTION_MODEL = "llama3.2:3b"
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:
     a_arr = np.array(a)
@@ -94,10 +94,58 @@ class MemoryManager:
                 if sim >= threshold:
                     results.append({"fact": fact, "score": sim})
             
-            # Sort by highest score
             results.sort(key=lambda x: x["score"], reverse=True)
             return [r["fact"] for r in results[:limit]]
             
         except Exception as e:
             logger.error(f"Error searching memory: {e}")
             return []
+
+    # ─── CORE MEMORY (Always in Context) ─────────────────────────────────
+
+    async def get_core_memory(self, user_id: int) -> str:
+        """Retrieves all core memory sections combined into a single string for the prompt."""
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT section, content FROM core_memory WHERE user_id = ?", (user_id,))
+            rows = cursor.fetchall()
+            conn.close()
+            
+            if not rows:
+                return "Core Memory is currently empty."
+                
+            out = ""
+            for row in rows:
+                out += f"### {row['section'].upper()} ###\n{row['content']}\n\n"
+            return out.strip()
+        except Exception as e:
+            logger.error(f"Error retrieving core memory: {e}")
+            return "Error retrieving core memory."
+
+    async def append_core_memory(self, user_id: int, section: str, content: str) -> bool:
+        """Appends to a specific section in core memory. Creates section if missing."""
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT content FROM core_memory WHERE user_id = ? AND section = ?", (user_id, section))
+            row = cursor.fetchone()
+            
+            if row:
+                new_content = row["content"] + "\n" + content
+                cursor.execute(
+                    "UPDATE core_memory SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND section = ?",
+                    (new_content, user_id, section)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO core_memory (user_id, section, content) VALUES (?, ?, ?)",
+                    (user_id, section, content)
+                )
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.error(f"Error appending to core memory: {e}")
+            return False
+

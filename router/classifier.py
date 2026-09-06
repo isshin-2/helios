@@ -202,7 +202,9 @@ def classify_request(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
             "requires_tools": False,
             "requires_reasoning": False,
             "requires_vision": False,
-            "requires_research": False
+            "requires_research": False,
+            "complexity": "low",
+            "escalate_to_cloud": False
         }
         
     last_user_msg = next((m for m in reversed(messages) if m["role"] == "user"), None)
@@ -216,12 +218,30 @@ def classify_request(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     requires_reasoning = intent == "reasoning" or detail == "detailed"
     requires_research = intent == "research"
     
+    # Analyze complexity for cloud escalation
+    # Escalation triggers: explicit deep request, massive prompts, or complex architectural reasoning
+    complexity = "low"
+    escalate_to_cloud = False
+    
+    if "@deep" in prompt.lower() or "@cloud" in prompt.lower():
+        escalate_to_cloud = True
+        complexity = "high"
+    elif requires_reasoning and len(prompt) > 1000:
+        # Long, complex architectural questions exceed local capacity easily
+        escalate_to_cloud = True
+        complexity = "high"
+    elif intent == "research":
+        escalate_to_cloud = True
+        complexity = "high"
+        
     return {
         "intent": intent,
         "detail": detail,
         "requires_tools": requires_tools,
         "requires_reasoning": requires_reasoning,
         "requires_vision": requires_vision,
-        "requires_research": requires_research
+        "requires_research": requires_research,
+        "complexity": complexity,
+        "escalate_to_cloud": escalate_to_cloud
     }
 

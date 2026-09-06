@@ -20,9 +20,8 @@ source venv/bin/activate
 echo "Installing requirements..."
 pip install -r requirements.txt
 
-# Initialize database
-echo "Initializing SQLite Database..."
-python -c "import db; db.init_db()"
+# Run Interactive Setup (Runs once if .setup_complete missing)
+python setup.py
 
 # Start Uvicorn Server
 echo "Starting HELIOS Server..."

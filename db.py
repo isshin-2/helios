@@ -46,7 +46,7 @@ def init_db():
         )
     """)
     
-    # Long Term Memory (RAG)
+    # Long Term Memory (RAG - Archival)
     # We store the embedding as a JSON string of floats
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS memories (
@@ -56,6 +56,20 @@ def init_db():
             embedding TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+    
+    # Core Memory (Always in Context Window)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS core_memory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            section TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            UNIQUE(user_id, section)
         )
     """)
     
