@@ -279,6 +279,7 @@ class FilePatcherTool(BaseTool):
         except Exception as e:
             return (f"Failed to patch file: {e}", self.name)
 
+class DirectoryListerInput(BaseModel):
     directory_path: Optional[str] = Field(None, description="The path to the directory to list.")
     directory: Optional[str] = Field(None, description="Alias for directory_path.")
 
