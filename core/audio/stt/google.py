@@ -27,7 +27,8 @@ class VoiceInput:
         self._http_client = httpx.Client(timeout=httpx.Timeout(connect=5.0, read=300.0, write=60.0, pool=None))
         self.recognizer = sr.Recognizer()
         
-        from config import STT_BACKEND
+        from config import STT_BACKEND, WAKE_WORD
+        self.wake_word = WAKE_WORD
         self.whisper_stt = None
         if STT_BACKEND == 'whisper':
             from core.audio.stt.whisper_local import WhisperLocalSTT
@@ -112,7 +113,7 @@ class VoiceInput:
         except Exception as e:
             logger.error(f"Failed to load Vosk: {e}")
 
-        logger.info("Microphone loop active (Waiting for 'helios'...).")
+        logger.info(f"Microphone loop active (Waiting for '{self.wake_word}'...).")
         
         state = "IDLE" # IDLE or LISTENING
         audio_buffer = []
@@ -141,7 +142,7 @@ class VoiceInput:
                             res = json.loads(vosk_recognizer.PartialResult())
                             text = res.get("partial", "")
                             
-                        if any(w in text for w in ["stop", "wait", "helios"]):
+                        if any(w in text for w in ["stop", "wait", self.wake_word]):
                             logger.info("Barge-in detected! Interrupting.")
                             self.voice_manager.interrupt()
                             
@@ -154,7 +155,7 @@ class VoiceInput:
                                         logger.warning(f"Failed to cancel LLM generation: {e}")
                                 threading.Thread(target=_cancel_call, daemon=True).start()
                                 
-                            if "helios" in text:
+                            if self.wake_word in text:
                                 state = "LISTENING" # Go straight to listening
                                 audio_buffer = []
                                 has_spoken = False
@@ -174,7 +175,7 @@ class VoiceInput:
                     if vosk_recognizer:
                         if vosk_recognizer.AcceptWaveform(raw_data):
                             res = json.loads(vosk_recognizer.Result())
-                            if "helios" in res.get("text", "") or "computer" in res.get("text", ""):
+                            if self.wake_word in res.get("text", "") or "computer" in res.get("text", ""):
                                 logger.info("Wake word detected!")
                                 state = "LISTENING"
                                 audio_buffer = []
@@ -183,7 +184,7 @@ class VoiceInput:
                                 self._show_overlay()
                         else:
                             res = json.loads(vosk_recognizer.PartialResult())
-                            if "helios" in res.get("partial", "") or "computer" in res.get("partial", ""):
+                            if self.wake_word in res.get("partial", "") or "computer" in res.get("partial", ""):
                                 logger.info("Wake word detected (partial)!")
                                 state = "LISTENING"
                                 audio_buffer = []

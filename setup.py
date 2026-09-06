@@ -41,6 +41,14 @@ def get_input(prompt, default="", is_secret=False):
     return input(f"{bold}{prompt}{reset}: ").strip()
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--reset', action='store_true', help='Force setup to run again')
+    args = parser.parse_args()
+    
+    if args.reset and os.path.exists(".setup_complete"):
+        os.remove(".setup_complete")
+
     if os.path.exists(".setup_complete"):
         return
 
@@ -55,33 +63,35 @@ def main():
     print("local  : 100% private, offline execution using local hardware")
     print("online : 100% cloud-based using external APIs (no local GPU required)")
     
-    mode = ""
-    while mode not in ['hybrid', 'local', 'online']:
-        mode = get_input("Select Deployment Mode (hybrid/local/online)", "hybrid").lower()
-
-    provider = "ollama"
-    ollama_host = "http://127.0.0.1:11434"
-    vllm_api_base = "http://127.0.0.1:8000/v1"
-    
-    gemini_key = ""
-    openrouter_key = ""
-    
     # Load existing env for defaults
-    existing_gemini = ""
-    existing_or = ""
+    env_vars = {}
     if os.path.exists(".env"):
         with open(".env", "r") as f:
             for line in f:
-                if line.startswith("GEMINI_API_KEY="):
-                    existing_gemini = line.split("=")[1].strip()
-                elif line.startswith("OPENROUTER_API_KEY="):
-                    existing_or = line.split("=")[1].strip()
+                if "=" in line:
+                    key, val = line.split("=", 1)
+                    env_vars[key.strip()] = val.strip()
+
+    mode = env_vars.get("DEPLOYMENT_MODE", "hybrid")
+    while True:
+        user_mode = get_input("Select Deployment Mode (hybrid/local/online)", mode).lower()
+        if user_mode in ['hybrid', 'local', 'online']:
+            mode = user_mode
+            break
+
+    provider = env_vars.get("LLM_PROVIDER", "ollama")
+    ollama_host = env_vars.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+    vllm_api_base = env_vars.get("VLLM_API_BASE", "http://127.0.0.1:8000/v1")
+    gemini_key = env_vars.get("GEMINI_API_KEY", "")
+    openrouter_key = env_vars.get("OPENROUTER_API_KEY", "")
 
     if mode in ['hybrid', 'local']:
         print("\n--- 2. Local Provider Configuration ---")
-        provider = ""
-        while provider not in ['ollama', 'vllm']:
-            provider = get_input("Select your local LLM Provider (ollama/vllm)", "ollama").lower()
+        while True:
+            user_prov = get_input("Select your local LLM Provider (ollama/vllm)", provider).lower()
+            if user_prov in ['ollama', 'vllm']:
+                provider = user_prov
+                break
         
         if provider == 'ollama':
             ollama_host = get_input("Ollama Host URL", ollama_host)
@@ -92,12 +102,29 @@ def main():
         print("\n--- 3. Cloud Provider Configuration ---")
         if mode == 'hybrid':
             print("HELIOS will seamlessly escalate to these providers when local models struggle.")
-        gemini_key = get_input("Gemini API Key", existing_gemini, is_secret=True)
-        openrouter_key = get_input("OpenRouter API Key", existing_or, is_secret=True)
+        gemini_key = get_input("Gemini API Key", gemini_key, is_secret=True)
+        openrouter_key = get_input("OpenRouter API Key", openrouter_key, is_secret=True)
 
     print("\n--- 4. Vision Model ---")
-    vision_default = "gemini-3.7-flash" if mode == 'online' else "qwen2.5vl:3b"
+    vision_default = env_vars.get("VISION_MODEL", "gemini-3.7-flash" if mode == 'online' else "qwen2.5vl:3b")
     vision_model = get_input("Vision Model (used for Computer Control)", vision_default)
+
+    print("\n--- 5. Personalization ---")
+    bot_name = get_input("Assistant Name", env_vars.get("BOT_NAME", "HELIOS"))
+    wake_word = get_input("Wake Word (for voice activation)", env_vars.get("WAKE_WORD", "helios")).lower()
+    personality = get_input("Assistant Personality (system prompt trait)", env_vars.get("PERSONALITY", "helpful, professional, and concise"))
+    
+    voice_enabled_str = env_vars.get("VOICE_ENABLED", "true").lower()
+    voice_enabled = get_input("Enable Voice Output? (true/false)", voice_enabled_str).lower() == "true"
+    
+    voice_backend = env_vars.get("VOICE_BACKEND", "kokoro")
+    voice_name = env_vars.get("VOICE_NAME", "am_michael")
+    voice_speed = env_vars.get("VOICE_SPEED", "1.0")
+    
+    if voice_enabled:
+        voice_backend = get_input("Voice Backend Engine (e.g. kokoro)", voice_backend)
+        voice_name = get_input("Voice Profile Name (e.g. am_michael)", voice_name)
+        voice_speed = get_input("Voice Speed multiplier", voice_speed)
 
     print("\n\033[96mSaving Configuration...\033[0m")
     
@@ -108,6 +135,13 @@ LLM_PROVIDER={provider}
 OLLAMA_HOST={ollama_host}
 VLLM_API_BASE={vllm_api_base}
 VISION_MODEL={vision_model}
+BOT_NAME={bot_name}
+WAKE_WORD={wake_word}
+PERSONALITY={personality}
+VOICE_ENABLED={str(voice_enabled).lower()}
+VOICE_BACKEND={voice_backend}
+VOICE_NAME={voice_name}
+VOICE_SPEED={voice_speed}
 """
     with open(".env", "w") as f:
         f.write(env_content)
@@ -122,7 +156,7 @@ VISION_MODEL={vision_model}
     with open(".setup_complete", "w") as f:
         f.write("Setup complete.")
         
-    print(f"\n\033[1m\033[92mHELIOS is ready in {mode.upper()} mode.\033[0m Let's go!")
+    print(f"\n\033[1m\033[92m{bot_name} is ready in {mode.upper()} mode.\033[0m Let's go!")
     time.sleep(1)
 
 if __name__ == "__main__":

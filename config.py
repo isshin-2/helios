@@ -145,11 +145,16 @@ SYSTEM_PROMPTS = {
     "agent": load_prompt("agent.md", "You are HELIOS, an autonomous agent."),
 }
 
+# ─── Identity & Personality ───────────────────────────────
+BOT_NAME = os.environ.get("BOT_NAME", "HELIOS")
+WAKE_WORD = os.environ.get("WAKE_WORD", "helios").lower()
+PERSONALITY = os.environ.get("PERSONALITY", "helpful, professional, and concise")
+
 # Voice Settings
-VOICE_ENABLED = True
-VOICE_BACKEND = "kokoro"
-VOICE_NAME = "am_michael"
-VOICE_SPEED = 1.0
+VOICE_ENABLED = os.environ.get("VOICE_ENABLED", "true").lower() == "true"
+VOICE_BACKEND = os.environ.get("VOICE_BACKEND", "kokoro")
+VOICE_NAME = os.environ.get("VOICE_NAME", "am_michael")
+VOICE_SPEED = float(os.environ.get("VOICE_SPEED", "1.0"))
 
 # ─── Set-of-Mark Vision Overlay ───────────────────────────
 SOM_ENABLED = True
