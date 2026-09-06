@@ -25,7 +25,7 @@ def print_header():
 """
     print(logo)
     print(f"{colors['BLUE']}Welcome to the HELIOS AI Router!{colors['RESET']}")
-    print("Let's get your local AI environment configured.\n")
+    print("Let's get your AI environment configured.\n")
 
 def get_input(prompt, default="", is_secret=False):
     bold = '\033[1m'
@@ -50,22 +50,23 @@ def main():
     clear_screen()
     print_header()
 
-    print("--- 1. Provider Configuration ---")
-    provider = ""
-    while provider not in ['ollama', 'vllm']:
-        provider = get_input("Select your local LLM Provider (ollama/vllm)", "ollama").lower()
+    print("--- 1. Operation Mode ---")
+    print("hybrid : Use local models with cloud escalation for complex tasks (Recommended)")
+    print("local  : 100% private, offline execution using local hardware")
+    print("online : 100% cloud-based using external APIs (no local GPU required)")
     
+    mode = ""
+    while mode not in ['hybrid', 'local', 'online']:
+        mode = get_input("Select Deployment Mode (hybrid/local/online)", "hybrid").lower()
+
+    provider = "ollama"
     ollama_host = "http://127.0.0.1:11434"
     vllm_api_base = "http://127.0.0.1:8000/v1"
     
-    if provider == 'ollama':
-        ollama_host = get_input("Ollama Host URL", ollama_host)
-    else:
-        vllm_api_base = get_input("vLLM/LMStudio API Base", vllm_api_base)
-
-    print("\n--- 2. Cloud Fallbacks (Optional) ---")
-    print("HELIOS can escalate complex tasks to cloud providers when local models struggle.")
+    gemini_key = ""
+    openrouter_key = ""
     
+    # Load existing env for defaults
     existing_gemini = ""
     existing_or = ""
     if os.path.exists(".env"):
@@ -76,15 +77,32 @@ def main():
                 elif line.startswith("OPENROUTER_API_KEY="):
                     existing_or = line.split("=")[1].strip()
 
-    gemini_key = get_input("Gemini API Key", existing_gemini, is_secret=True)
-    openrouter_key = get_input("OpenRouter API Key", existing_or, is_secret=True)
+    if mode in ['hybrid', 'local']:
+        print("\n--- 2. Local Provider Configuration ---")
+        provider = ""
+        while provider not in ['ollama', 'vllm']:
+            provider = get_input("Select your local LLM Provider (ollama/vllm)", "ollama").lower()
+        
+        if provider == 'ollama':
+            ollama_host = get_input("Ollama Host URL", ollama_host)
+        else:
+            vllm_api_base = get_input("vLLM/LMStudio API Base", vllm_api_base)
 
-    print("\n--- 3. Vision Model ---")
-    vision_model = get_input("Vision Model (used for Computer Control)", "qwen2.5vl:3b")
+    if mode in ['hybrid', 'online']:
+        print("\n--- 3. Cloud Provider Configuration ---")
+        if mode == 'hybrid':
+            print("HELIOS will seamlessly escalate to these providers when local models struggle.")
+        gemini_key = get_input("Gemini API Key", existing_gemini, is_secret=True)
+        openrouter_key = get_input("OpenRouter API Key", existing_or, is_secret=True)
+
+    print("\n--- 4. Vision Model ---")
+    vision_default = "gemini-3.7-flash" if mode == 'online' else "qwen2.5vl:3b"
+    vision_model = get_input("Vision Model (used for Computer Control)", vision_default)
 
     print("\n\033[96mSaving Configuration...\033[0m")
     
-    env_content = f"""GEMINI_API_KEY={gemini_key}
+    env_content = f"""DEPLOYMENT_MODE={mode}
+GEMINI_API_KEY={gemini_key}
 OPENROUTER_API_KEY={openrouter_key}
 LLM_PROVIDER={provider}
 OLLAMA_HOST={ollama_host}
@@ -104,7 +122,7 @@ VISION_MODEL={vision_model}
     with open(".setup_complete", "w") as f:
         f.write("Setup complete.")
         
-    print("\n\033[1m\033[92mHELIOS is ready.\033[0m Let's go!")
+    print(f"\n\033[1m\033[92mHELIOS is ready in {mode.upper()} mode.\033[0m Let's go!")
     time.sleep(1)
 
 if __name__ == "__main__":
