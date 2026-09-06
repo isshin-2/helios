@@ -1,4 +1,4 @@
-import speech_recognition as sr
+﻿import speech_recognition as sr
 import threading
 import logging
 import json
@@ -122,12 +122,15 @@ class VoiceInput:
         max_silence_chunks = int((sample_rate / chunk_size) * 2.0) # 2.0s for slower speech
         max_wait_chunks = int((sample_rate / chunk_size) * 5.0) # Decreased to 5.0s initial wait
         
+        last_ai_speech_time = 0
+        
         while self.is_running:
             try:
                 raw_data = stream.read(chunk_size, exception_on_overflow=False)
                 
                 # Check for Barge-in when AI is speaking
                 if hasattr(self.voice_manager, 'is_currently_speaking') and self.voice_manager.is_currently_speaking():
+                    last_ai_speech_time = time.time()
                     import audioop
                     from config import RMS_BARGE_IN_THRESHOLD
                     rms = audioop.rms(raw_data, 2)
@@ -171,6 +174,18 @@ class VoiceInput:
                     continue
                     
                 if state == "IDLE":
+                    time_since_speech = time.time() - last_ai_speech_time
+                    is_follow_up_window = 1.0 < time_since_speech < 12.0
+                    
+                    if is_follow_up_window and self.vad and self.vad.is_speech(raw_data, frame_rate=sample_rate, sample_width=2):
+                        logger.info("Continuous conversation mode active! Speech detected without wake word.")
+                        state = "LISTENING"
+                        audio_buffer = [raw_data]
+                        silence_counter = 0
+                        has_spoken = True
+                        self._show_overlay()
+                        continue
+
                     # Feed chunk to Vosk for Wake Word
                     if vosk_recognizer:
                         if vosk_recognizer.AcceptWaveform(raw_data):
@@ -305,4 +320,5 @@ class VoiceInput:
                 self._hide_overlay()
                 
         threading.Thread(target=do_post, daemon=True).start()
+
 
