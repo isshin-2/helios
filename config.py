@@ -141,3 +141,11 @@ CONTEXT_SIZES = {
     "complex": 8192,
 }
 
+
+# ─── Keep Alive Durations ───────────────────────────────
+KEEP_ALIVE = {
+    "default": "1h",
+    "reuse_likely": "2h",
+    "unload_now": 0,
+}
+
