@@ -17,21 +17,26 @@ def print_header():
     
     logo = f"""
 {colors['CYAN']}{colors['BOLD']}
-  _   _   ___   _       ___   ___    ___  
- | | | | | __| | |     |_ _| / _ \  / __| 
- | |_| | | _|  | |__    | | | (_) | \__ \ 
-  \___/  |___| |____|  |___| \___/  |___/ 
+  _  _   ___   _       ___   ___    ___  
+ | || | | __| | |     |_ _| / _ \  / __| 
+ | __ | | _|  | |__    | | | (_) | \__ \ 
+ |_||_| |___| |____|  |___| \___/  |___/ 
 {colors['RESET']}
 """
     print(logo)
     print(f"{colors['BLUE']}Welcome to the HELIOS AI Router!{colors['RESET']}")
     print("Let's get your local AI environment configured.\n")
 
-def get_input(prompt, default=""):
+def get_input(prompt, default="", is_secret=False):
     bold = '\033[1m'
     reset = '\033[0m'
+    
+    display_default = default
+    if default and is_secret:
+        display_default = default[:4] + "*" * (len(default) - 8) + default[-4:] if len(default) > 8 else "***"
+        
     if default:
-        res = input(f"{bold}{prompt}{reset} [{default}]: ").strip()
+        res = input(f"{bold}{prompt}{reset} [{display_default}]: ").strip()
         return res if res else default
     return input(f"{bold}{prompt}{reset}: ").strip()
 
@@ -71,8 +76,8 @@ def main():
                 elif line.startswith("OPENROUTER_API_KEY="):
                     existing_or = line.split("=")[1].strip()
 
-    gemini_key = get_input("Gemini API Key", existing_gemini)
-    openrouter_key = get_input("OpenRouter API Key", existing_or)
+    gemini_key = get_input("Gemini API Key", existing_gemini, is_secret=True)
+    openrouter_key = get_input("OpenRouter API Key", existing_or, is_secret=True)
 
     print("\n--- 3. Vision Model ---")
     vision_model = get_input("Vision Model (used for Computer Control)", "qwen2.5vl:3b")
