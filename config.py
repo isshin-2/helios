@@ -1,5 +1,5 @@
-"""
-AI Router � Configuration
+﻿"""
+AI Router - Configuration
 All settings for the local AI model router system.
 """
 import os
@@ -132,3 +132,12 @@ def check_circuit_breaker() -> bool:
 def reset_circuit_breaker():
     global CIRCUIT_BREAKER_TRIPPED
     CIRCUIT_BREAKER_TRIPPED = False
+
+
+# ─── Context Sizes (tokens) ───────────────────────────────
+CONTEXT_SIZES = {
+    "simple": 2048,
+    "medium": 4096,
+    "complex": 8192,
+}
+
