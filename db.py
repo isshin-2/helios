@@ -161,6 +161,31 @@ def init_db():
             reason TEXT
         )
     """)
+    # Task Checkpoints (Phase 2)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS task_checkpoints (
+            task_id TEXT PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            objective TEXT NOT NULL,
+            state TEXT NOT NULL,
+            serialized_contract TEXT NOT NULL
+        )
+    """)
+    
+    # Episodic Memory (Phase 7)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS episodic_memory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            session_id INTEGER NOT NULL,
+            summary TEXT NOT NULL,
+            embedding TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (session_id) REFERENCES sessions(id)
+        )
+    """)
     
     conn.commit()
     conn.close()

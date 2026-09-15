@@ -31,6 +31,15 @@ def mock_monitor():
     monitor.get_full_status = AsyncMock()
     return monitor
 
+@pytest.fixture(autouse=True)
+def setup_test_config(monkeypatch):
+    import config
+    import models.manager
+    monkeypatch.setattr(config, "RAM_MIN_FREE_MB", 2048)
+    monkeypatch.setattr(config, "MODEL_CONTEXT_BUFFER_MB", 1024)
+    monkeypatch.setattr(models.manager, "RAM_MIN_FREE_MB", 2048)
+    monkeypatch.setattr(models.manager, "MODEL_CONTEXT_BUFFER_MB", 1024)
+
 @pytest.fixture
 def manager(mock_provider, mock_monitor):
     return ModelManager(provider=mock_provider, monitor=mock_monitor)
@@ -221,6 +230,7 @@ async def test_ensure_model_loaded_edge_cases(manager, mock_provider, mock_monit
     
     result = await manager.ensure_model_loaded("target-model", 2048)
     assert result is True
+    manager._loaded_cache.clear()
     
     # Malformed loaded_models from older monitor
     state = {

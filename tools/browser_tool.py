@@ -1,71 +1,78 @@
+"""
+HELIOS — Browser Tool
+Uses Playwright to navigate pages, extract text, and build DOM accessibility trees.
+Replaces the old Selenium backend for faster, more stable execution.
+"""
+
 import json
 import logging
-from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
+from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+from tools.base import BaseTool
+from security.capabilities import Capability
 
-class BrowserTool:
-    def __init__(self):
-        self.driver = None
+try:
+    from playwright.async_api import async_playwright, Page
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
 
-    def _init_driver(self):
-        if self.driver is not None:
-            return
-        options = Options()
-        options.add_argument('--headless')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
+logger = logging.getLogger("helios.tools.browser")
+
+class BrowserToolInput(BaseModel):
+    url: str = Field(description="The URL to navigate to.")
+    extract_dom: bool = Field(default=False, description="If True, returns an accessibility tree instead of raw text.")
+
+class BrowserTool(BaseTool):
+    """Navigates to web pages and extracts content using Playwright."""
+    
+    @property
+    def name(self) -> str:
+        return "browser_tool"
+
+    @property
+    def description(self) -> str:
+        return "Navigate to a URL and extract text content or a DOM accessibility tree."
+
+    @property
+    def input_schema(self) -> type[BaseModel]:
+        return BrowserToolInput
+
+    @property
+    def required_capabilities(self) -> list[Capability]:
+        return [Capability.BROWSER_CONTROL, Capability.NETWORK_ACCESS]
+
+    async def execute(self, user_id: int, url: str, extract_dom: bool = False, **kwargs) -> Tuple[str, str]:
+        if not PLAYWRIGHT_AVAILABLE:
+            return "Error: Playwright is not installed. Run: pip install playwright && playwright install", self.name
+            
         try:
-            service = Service(ChromeDriverManager().install())
-            self.driver = webdriver.Chrome(service=service, options=options)
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                
+                # Navigate and wait for network idle to ensure JS executes
+                await page.goto(url, wait_until="networkidle", timeout=30000)
+                
+                if extract_dom:
+                    # Get basic accessibility snapshot
+                    snapshot = await page.accessibility.snapshot()
+                    content = json.dumps(snapshot, indent=2)
+                else:
+                    # Extract visible text using a robust locator
+                    content = await page.evaluate("""() => {
+                        const text = document.body.innerText;
+                        return text;
+                    }""")
+                    
+                await browser.close()
+                
+                # Truncate if too long (arbitrary safety limit)
+                if len(content) > 15000:
+                    content = content[:15000] + "\n...[truncated]"
+                    
+                return content, self.name
         except Exception as e:
-            logger.error(f"Failed to init browser: {e}")
-
-    def get_page_content(self, url: str) -> str:
-        try:
-            self._init_driver()
-            if not self.driver:
-                return "Error: Could not initialize browser."
-                
-            self.driver.get(url)
-            html = self.driver.page_source
-            soup = BeautifulSoup(html, 'html.parser')
-            
-            # Remove scripts and styles
-            for script in soup(["script", "style"]):
-                script.extract()
-                
-            text = soup.get_text(separator='\n')
-            lines = (line.strip() for line in text.splitlines())
-            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-            text = '\n'.join(chunk for chunk in chunks if chunk)
-            
-            # Truncate if too long to save context
-            if len(text) > 8000:
-                text = text[:8000] + "\n...[truncated]"
-                
-            return text
-        except Exception as e:
-            return f"Failed to load {url}: {str(e)}"
-            
-    def close(self):
-        if self.driver:
-            self.driver.quit()
-            self.driver = None
-
-# For HELIOS tool registry
-def execute_browser_tool(arguments: Dict[str, Any]) -> str:
-    url = arguments.get("url")
-    if not url:
-        return "Error: Missing URL."
-        
-    browser = BrowserTool()
-    content = browser.get_page_content(url)
-    browser.close()
-    return content
-
+            logger.error(f"Browser navigation failed for {url}: {e}")
+            return f"Error loading {url}: {e}", self.name

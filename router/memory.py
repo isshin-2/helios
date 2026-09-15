@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 from db import get_db
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("helios.memory")
 
 # Config for embedding model
 EMBEDDING_MODEL = "nomic-embed-text"
@@ -23,20 +23,27 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
 from providers.base import BaseProvider
 
 class MemoryManager:
+    """
+    HELIOS 5-Layer Hybrid Memory Manager.
+    1. Working Memory (Short-term context, handled via messages)
+    2. Core Memory (System persona and user facts, always in context)
+    3. Task Memory (Handled via Phase 2 checkpoints)
+    4. Episodic Memory (Conversation summaries, searched via vector)
+    5. Archival Memory (Facts, searched via vector)
+    """
     def __init__(self, provider: BaseProvider):
         self.provider = provider
 
+    # ─── ARCHIVAL MEMORY (Facts) ─────────────────────────────────────────
+
     async def extract_and_save_facts(self, user_id: int, message: str):
-        """Asynchronously extracts facts from a user message and saves them to long-term memory."""
         prompt = (
             "Extract any key personal facts, preferences, or ongoing project details from the following message. "
             "Only extract factual statements about the user or their work. "
-            "Critically, IGNORE any hypothetical scenarios, ethical dilemmas, 'what-if' questions, or roleplay situations. Do not extract facts about HELIOS itself. "
             "If there are no clear facts to remember, reply with 'NONE'.\n"
             "Format the output as a concise bulleted list of facts.\n\n"
             f"Message: {message}"
         )
-        
         try:
             response = await self.provider.generate(model=FACT_EXTRACTION_MODEL, prompt=prompt, stream=False)
             output = response.get("response", "").strip()
@@ -44,8 +51,6 @@ class MemoryManager:
             if not output or "NONE" in output.upper():
                 return
                 
-            # We found facts. Let's process them.
-            # We can split by newlines if it's a list, or just save the whole summary as one chunk.
             lines = [line.strip("- *") for line in output.split("\n") if line.strip()]
             for fact in lines:
                 if fact:
@@ -54,12 +59,10 @@ class MemoryManager:
             logger.error(f"Error extracting facts: {e}")
 
     async def save_fact(self, user_id: int, fact: str):
-        """Embeds a fact and saves it to the SQLite database."""
         try:
             embedding = await self.provider.get_embeddings(EMBEDDING_MODEL, fact)
             if not embedding:
                 return
-                
             emb_json = json.dumps(embedding)
             conn = get_db()
             cursor = conn.cursor()
@@ -69,12 +72,10 @@ class MemoryManager:
             )
             conn.commit()
             conn.close()
-            logger.info(f"Saved new memory for user {user_id}: {fact}")
         except Exception as e:
             logger.error(f"Error saving fact: {e}")
 
     async def search_memory(self, user_id: int, query: str, threshold: float = 0.5, limit: int = 3) -> List[str]:
-        """Searches long-term memory for facts relevant to the query."""
         try:
             query_emb = await self.provider.get_embeddings(EMBEDDING_MODEL, query)
             if not query_emb:
@@ -96,7 +97,6 @@ class MemoryManager:
             
             results.sort(key=lambda x: x["score"], reverse=True)
             return [r["fact"] for r in results[:limit]]
-            
         except Exception as e:
             logger.error(f"Error searching memory: {e}")
             return []
@@ -104,7 +104,6 @@ class MemoryManager:
     # ─── CORE MEMORY (Always in Context) ─────────────────────────────────
 
     async def get_core_memory(self, user_id: int) -> str:
-        """Retrieves all core memory sections combined into a single string for the prompt."""
         try:
             conn = get_db()
             cursor = conn.cursor()
@@ -124,7 +123,6 @@ class MemoryManager:
             return "Error retrieving core memory."
 
     async def append_core_memory(self, user_id: int, section: str, content: str) -> bool:
-        """Appends to a specific section in core memory. Creates section if missing."""
         try:
             conn = get_db()
             cursor = conn.cursor()
@@ -149,3 +147,54 @@ class MemoryManager:
             logger.error(f"Error appending to core memory: {e}")
             return False
 
+    # ─── EPISODIC MEMORY (Conversations) ─────────────────────────────────
+
+    async def summarize_and_save_session(self, user_id: int, session_id: int, text_log: str):
+        prompt = (
+            "Summarize the following conversation log into a brief, dense paragraph detailing what was achieved.\n\n"
+            f"{text_log}"
+        )
+        try:
+            response = await self.provider.generate(model=FACT_EXTRACTION_MODEL, prompt=prompt, stream=False)
+            summary = response.get("response", "").strip()
+            
+            if summary:
+                embedding = await self.provider.get_embeddings(EMBEDDING_MODEL, summary)
+                if embedding:
+                    emb_json = json.dumps(embedding)
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO episodic_memory (user_id, session_id, summary, embedding) VALUES (?, ?, ?, ?)",
+                        (user_id, session_id, summary, emb_json)
+                    )
+                    conn.commit()
+                    conn.close()
+        except Exception as e:
+            logger.error(f"Error saving episodic memory: {e}")
+
+    async def search_episodic_memory(self, user_id: int, query: str, threshold: float = 0.5, limit: int = 3) -> List[str]:
+        try:
+            query_emb = await self.provider.get_embeddings(EMBEDDING_MODEL, query)
+            if not query_emb:
+                return []
+                
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT summary, embedding FROM episodic_memory WHERE user_id = ?", (user_id,))
+            rows = cursor.fetchall()
+            conn.close()
+            
+            results = []
+            for row in rows:
+                summary = row["summary"]
+                emb = json.loads(row["embedding"])
+                sim = cosine_similarity(query_emb, emb)
+                if sim >= threshold:
+                    results.append({"summary": summary, "score": sim})
+            
+            results.sort(key=lambda x: x["score"], reverse=True)
+            return [r["summary"] for r in results[:limit]]
+        except Exception as e:
+            logger.error(f"Error searching episodic memory: {e}")
+            return []
