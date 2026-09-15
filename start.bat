@@ -29,3 +29,4 @@ python setup.py
 echo Starting HELIOS Server...
 echo Visit http://localhost:8000 in your browser.
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
+

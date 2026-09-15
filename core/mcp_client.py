@@ -68,7 +68,7 @@ class MCPManager:
                         all_tools.append({
                             "name": combined_name,
                             "description": tool.description or "",
-                            "inputSchema": tool.inputSchema,
+                            "inputSchema": tool.input_schema,
                             "server_name": server_name,
                             "original_name": tool.name
                         })
@@ -95,6 +95,10 @@ class MCPManager:
             
         session = self.servers[server_name]
         try:
+            # Handle empty arguments for manage_accounts
+            if original_name == "manage_accounts" and not arguments.get("operation"):
+                arguments["operation"] = "list"
+                
             logger.info(f"Calling MCP Tool: {server_name}.{original_name} with {arguments}")
             # Request tool call
             result = await session.call_tool(original_name, arguments)
@@ -109,7 +113,8 @@ class MCPManager:
                     else:
                         output += f"[Returned {block.type} data]\n"
             
-            if result.isError:
+            is_error = getattr(result, 'is_error', getattr(result, 'isError', False))
+            if is_error:
                 return f"Tool Execution Error: {output}"
                 
             return output.strip() if output else "Tool execution succeeded with no output."

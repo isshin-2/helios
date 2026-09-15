@@ -12,13 +12,18 @@ from core.events import EventBus
 
 # ─── ROUTER TESTS ───────────────────────────────────────────────────────────
 
-def test_classifier_intent():
+@patch("router.micro_classifier.classify_intent", new_callable=AsyncMock)
+def test_classifier_intent(mock_classify_intent):
+    import asyncio
+    
     # Test simple intent
-    flags = classify_request([{"role": "user", "content": "hi there"}])
+    mock_classify_intent.return_value = "conversation"
+    flags = asyncio.run(classify_request([{"role": "user", "content": "hi there"}]))
     assert flags["intent"] == "conversation"
     
     # Test coding intent
-    flags = classify_request([{"role": "user", "content": "can you write a python script to parse json?"}])
+    mock_classify_intent.return_value = "coding"
+    flags = asyncio.run(classify_request([{"role": "user", "content": "can you write a python script to parse json?"}]))
     assert flags["intent"] == "coding"
     
 def test_routing_decision():
@@ -31,7 +36,7 @@ def test_routing_decision():
     flags = {"intent": "coding", "detail": "detailed", "requires_tools": False, "requires_reasoning": False, "requires_vision": False, "requires_research": False}
     decision = get_routing_decision(flags)
     assert decision["route"] == "coding"
-    assert "coder" in decision["model"]
+    assert "ornith" in decision["model"]
 
 # ─── PERMISSION TESTS ───────────────────────────────────────────────────────
 
@@ -94,12 +99,16 @@ async def test_event_bus():
 
 @pytest.mark.asyncio
 async def test_subagent_tool():
+    import sys
+    sys.modules['needle'] = MagicMock()
+    
     mock_provider = AsyncMock()
-    mock_provider.chat.return_value = {"message": {"content": "42"}}
     
-    tool = SubAgentTool(provider=mock_provider)
-    result_text, tool_name = await tool.execute(user_id=1, task="what is the answer?", budget=5)
-    
-    assert tool_name == "SubAgentTool"
-    assert "42" in result_text
-    mock_provider.chat.assert_called_once()
+    with patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread:
+        mock_to_thread.return_value = {"text": "42"}
+        
+        tool = SubAgentTool(provider=mock_provider)
+        result_text, tool_name = await tool.execute(user_id=1, task="what is the answer?", budget=5)
+        
+        assert tool_name == "SubAgentTool"
+        assert "42" in result_text

@@ -190,7 +190,7 @@ def check_requires_tools(prompt: str) -> bool:
     keywords = ["read", "file", "list", "directory", "run", "execute", "search", "write", "save"]
     return any(kw in prompt_lower for kw in keywords)
 
-def classify_request(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+async def classify_request(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Main entry point for request classification.
     Returns a strictly structured JSON representation of intent.
@@ -210,7 +210,8 @@ def classify_request(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     last_user_msg = next((m for m in reversed(messages) if m["role"] == "user"), None)
     prompt = last_user_msg["content"] if last_user_msg else ""
     
-    intent = classify_category(prompt, messages)
+    from router.micro_classifier import classify_intent
+    intent = await classify_intent(prompt)
     detail = detect_detail_level(prompt)
     
     requires_vision = intent == "vision"

@@ -11,6 +11,8 @@ import os
 from config import OLLAMA_HOST, SYSTEM_PROMPTS, CONTEXT_SIZES, LLM_PROVIDER
 from providers.ollama import OllamaProvider
 from providers.vllm import VLLMProvider
+from providers.openrouter import OpenRouterProvider
+from providers.localai import LocalAIProvider
 from health.monitor import SystemMonitor
 from router.classifier import classify_request
 from router.rules import get_routing_decision
@@ -26,7 +28,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from contextlib import asynccontextmanager
+import subprocess
 
+# ----- VOICE INTERFACE BACKEND -----
+from config import VOICE_ENABLED
+from core.audio.voice_manager import VoiceManager
+from voice.assistant import VoiceAssistant
+
+# Shared voice manager for TTS/Audio playback
+voice_manager = VoiceManager()
+voice_input = VoiceAssistant(api_url="http://localhost:8000")
+# --------------------------------
+
+# Ensure provider is closed cleanly on shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Ensure database is initialized
@@ -37,8 +51,11 @@ async def lifespan(app: FastAPI):
         logger.info("Voice input auto-started on server startup.")
     
     import threading
-    threading.Thread(target=voice_manager.tts.initialize, daemon=True).start()
+    if hasattr(voice_manager.tts, 'initialize'):
+          threading.Thread(target=voice_manager.tts.initialize, daemon=True).start()
     logger.info("Eagerly loading Kokoro TTS in background...")
+    
+    await orchestrator.start()
     
     yield
     
@@ -58,6 +75,12 @@ app = FastAPI(title="HELIOS AI Router", lifespan=lifespan)
 if LLM_PROVIDER == "vllm":
     provider = VLLMProvider()
     logger.info("Initialized VLLM provider for local vLLM/LMStudio")
+elif LLM_PROVIDER == "openrouter":
+    provider = OpenRouterProvider()
+    logger.info("Initialized OpenRouter API provider")
+elif LLM_PROVIDER == "localai":
+    provider = LocalAIProvider()
+    logger.info("Initialized LocalAI provider")
 else:
     provider = OllamaProvider(host=OLLAMA_HOST)
     logger.info("Initialized Ollama provider")
@@ -82,7 +105,7 @@ if os.path.exists("pwa"):
 
 
 
-# ─── API ENDPOINTS ──────────────────────────────────────────────────────────
+# â”€â”€â”€ API ENDPOINTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/")
 async def root():
@@ -112,7 +135,7 @@ async def create_or_get_user(user: UserCreate):
         conn.close()
         return dict(row)
     
-    # New user — set default system_access
+    # New user â€” set default system_access
     default_access = json.dumps(DEFAULT_SYSTEM_ACCESS)
     cursor.execute("INSERT INTO users (username, system_access) VALUES (?, ?)",
                    (username_lower, default_access))
@@ -199,7 +222,7 @@ async def chat_headless(req: HeadlessRequest):
             meta = ev["data"]
         elif ev["type"] == "status" and isinstance(ev["data"], str):
             # Capture tool execution statuses
-            if any(icon in ev["data"] for icon in ["🔧", "📂", "📁", "✏️", "⚙️", "🌐", "🔗"]):
+            if any(icon in ev["data"] for icon in ["ðŸ”§", "ðŸ“‚", "ðŸ“", "âœï¸", "âš™ï¸", "ðŸŒ", "ðŸ”—"]):
                 tool_activity.append(ev["data"])
         elif ev["type"] == "approval_request":
             tool_activity.append(f"Requires Approval: {ev['data']['operation']} on {ev['data']['target']}")
@@ -241,7 +264,7 @@ async def upload_skill(file: UploadFile = File(...)):
         
     return {"status": "success", "message": f"Skill {file.filename} uploaded."}
 
-# ─── SYSTEM ACCESS ENDPOINTS ────────────────────────────────────────────────
+# â”€â”€â”€ SYSTEM ACCESS ENDPOINTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/api/users/{user_id}/system-access")
 async def get_system_access(user_id: int):
@@ -284,7 +307,7 @@ async def validate_path_endpoint(user_id: int, path: str):
 
     return {"status": "valid", "resolved": resolved}
 
-# ─── PRIVACY & DELETION ENDPOINTS (PHASE 8) ─────────────────────────────────
+# â”€â”€â”€ PRIVACY & DELETION ENDPOINTS (PHASE 8) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.delete("/api/users/{user_id}/history")
 async def delete_history(user_id: int):
@@ -333,7 +356,7 @@ async def delete_all_data(user_id: int):
     permission_manager.approval_manager.clear_session()
     return {"status": "success", "message": "All user data, history, memory, and logs deleted."}
 
-# ─── VOICE ENDPOINTS (PHASE 9) ──────────────────────────────────────────────
+# â”€â”€â”€ VOICE ENDPOINTS (PHASE 9) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 from core.audio.voice_manager import VoiceManager
 from core.audio.stt.google import VoiceInput
@@ -355,7 +378,7 @@ async def stop_voice():
     return {"status": "success", "message": "Voice assistant stopped."}
 
 
-# ─── SELF-MODIFICATION ENDPOINTS ────────────────────────────────────────────
+# â”€â”€â”€ SELF-MODIFICATION ENDPOINTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 from skills.self_modification.workspace import ExperimentWorkspace
 from skills.self_modification.models import ExperimentStatus
@@ -407,7 +430,7 @@ async def get_experiment_audit(experiment_id: str):
 async def approve_experiment(experiment_id: str, user_id: int):
     """
     Human-only: Approve an experiment for deployment.
-    The LLM cannot call this endpoint — it requires an authenticated user action.
+    The LLM cannot call this endpoint â€” it requires an authenticated user action.
     """
     success, msg = experiment_workspace.transition_human(
         experiment_id, ExperimentStatus.APPROVED
@@ -450,7 +473,7 @@ async def rollback_experiment(experiment_id: str, user_id: int):
         raise HTTPException(status_code=400, detail=msg)
     return {"status": "success", "message": msg}
 
-# ─── WEBSOCKET ──────────────────────────────────────────────────────────────
+# â”€â”€â”€ WEBSOCKET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 async def send_status(websocket: WebSocket, text: str):
@@ -543,7 +566,111 @@ async def cancel_chat(session_id: int):
     orchestrator.cancel_current_request(session_id)
     return {"status": "cancelled"}
 
+import json
+from pathlib import Path
+
+class SettingsUpdate(BaseModel):
+    personality: Optional[str] = None
+    voice: Optional[str] = None
+
+@app.get("/api/settings/personalities")
+async def get_personalities():
+    import config
+    cards = []
+    pers_dir = Path("personalities")
+    if pers_dir.exists():
+        for file in pers_dir.glob("*.md"):
+            with open(file, "r", encoding="utf-8") as f:
+                cards.append({
+                    "id": file.stem,
+                    "name": file.stem.title(),
+                    "prompt": f.read().strip()
+                })
+        for file in pers_dir.glob("*.json"):
+            with open(file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                cards.append({
+                    "id": file.stem,
+                    "name": data.get("name", file.stem.title()),
+                    "prompt": data.get("description", "") or data.get("system_prompt", "")
+                })
+    return {"personalities": cards, "current": config.PERSONALITY}
+
+@app.get("/api/settings/voices")
+async def get_voices():
+    import config
+    voices = ["am_michael", "am_echo", "am_fenrir", "am_adam", "am_puck", 
+              "af_sky", "af_bella", "af_sarah", "af_nicole", "af_alloy", "af_jessica", "af_heart"]
+    return {"voices": voices, "current": config.VOICE_NAME}
+
+@app.post("/api/settings")
+async def update_settings(settings: SettingsUpdate):
+    import config
+    import os
+    env_path = ".env"
+    
+    if settings.personality:
+        config.PERSONALITY = settings.personality
+        if os.path.exists(env_path):
+            with open(env_path, "r") as f:
+                lines = f.readlines()
+            with open(env_path, "w") as f:
+                found = False
+                for line in lines:
+                    if line.startswith("PERSONALITY="):
+                        f.write(f'PERSONALITY="{settings.personality}"\n')
+                        found = True
+                    else:
+                        f.write(line)
+                if not found:
+                    f.write(f'\nPERSONALITY="{settings.personality}"\n')
+        
+        new_prompts = {
+            "coding": config.load_prompt("coding.md", f"You are {config.BOT_NAME}, an expert programming assistant."),
+            "general": config.load_prompt("general.md", f"You are {config.BOT_NAME}, an advanced AI assistant."),
+            "reasoning": config.load_prompt("reasoning.md", f"You are {config.BOT_NAME}, an expert engineer and problem solver."),
+            "vision": config.load_prompt("vision.md", f"You are {config.BOT_NAME}, a visual analysis assistant."),
+            "ui": config.load_prompt("ui.md", f"You are {config.BOT_NAME}, a UI designer."),
+            "agent": config.load_prompt("agent.md", f"You are {config.BOT_NAME}, an autonomous agent."),
+        }
+        config.SYSTEM_PROMPTS.clear()
+        config.SYSTEM_PROMPTS.update(new_prompts)
+        
+    if settings.voice:
+        config.VOICE_NAME = settings.voice
+        if os.path.exists(env_path):
+            with open(env_path, "r") as f:
+                lines = f.readlines()
+            with open(env_path, "w") as f:
+                found = False
+                for line in lines:
+                    if line.startswith("VOICE_NAME="):
+                        f.write(f'VOICE_NAME="{settings.voice}"\n')
+                        found = True
+                    else:
+                        f.write(line)
+                if not found:
+                    f.write(f'\nVOICE_NAME="{settings.voice}"\n')
+            
+    return {"status": "success"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
+
+
+
+@app.websocket("/sidecar/ws")
+async def sidecar_websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    sidecar_id = "sidecar-" + str(id(websocket))
+    await sidecar_manager.register(sidecar_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await sidecar_manager.handle_message(sidecar_id, data)
+    except Exception:
+        pass
+    finally:
+        sidecar_manager.unregister(sidecar_id)

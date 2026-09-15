@@ -1,4 +1,4 @@
-﻿"""
+"""
 AI Router - Configuration
 All settings for the local AI model router system.
 """
@@ -15,7 +15,7 @@ PERSONALITY = os.environ.get("PERSONALITY", "helpful, professional, and concise"
 
 # --- Network & Providers ----------------------------------
 # Choose "ollama" or "vllm" (for vLLM, LM Studio, SGLang, etc. running locally)
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama")
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "localai")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
 # vLLM / LM Studio / SGLang Backend Settings (100% Local)
@@ -24,29 +24,40 @@ VLLM_API_KEY = "sk-helios"
 
 # Cloud Providers (Dynamic Escalation)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # Model specific configurations
 VISION_MODEL = os.environ.get("VISION_MODEL", "qwen2.5vl:3b")
 
 MODEL_CONFIG = {
-    # Tiny, hyper-fast models (<3B params)
-    "qwen2.5:1.5b": {"type": "base", "max_tokens": 1024, "cloud_fallback": "gemini-3.5-flash-lite"},
-    "deepseek-coder:1.3b": {"type": "coding", "max_tokens": 1500, "cloud_fallback": "gemini-3.5-flash-lite"},
+    # Fast / Background (Low Latency)
+    "phi4:mini": {"type": "fast", "max_tokens": 2048, "cloud_fallback": "groq/openai/gpt-oss-20b"},
+    "llama3.2:3b": {"type": "fast", "max_tokens": 2048, "cloud_fallback": "groq/openai/gpt-oss-20b"},
     
-    # Capable edge models (3B-8B params) - Core Workhorses
-    "llama3.2:3b": {"type": "base", "max_tokens": 2048, "cloud_fallback": "gemini-3.5-flash-lite"},
-    "phi3.5:3.8b": {"type": "reasoning", "max_tokens": 4096, "cloud_fallback": "gemini-3.5-flash-lite"},
-    "qwen2.5-coder:7b": {"type": "coding", "max_tokens": 4096, "cloud_fallback": "gemini-3.7-flash"},
+    # Base / General (Core Workhorses)
+    "qwen3.5:4b": {"type": "general", "max_tokens": 4096, "fallback": "llama3.2:3b", "cloud_fallback": "groq/openai/gpt-oss-20b"},
+    "qwen3.5:9b": {"type": "general", "max_tokens": 4096, "fallback": "qwen3.5:4b", "cloud_fallback": "groq/openai/gpt-oss-20b"},
+    "ministral3:8b": {"type": "general", "max_tokens": 4096, "fallback": "llama3.2:3b", "cloud_fallback": "groq/openai/gpt-oss-20b"},
     
-    # Vision models
-    "llava:7b": {"type": "vision", "max_tokens": 1024, "cloud_fallback": "gemini-3.7-flash"},
-    "qwen2.5vl:3b": {"type": "vision", "max_tokens": 1024, "cloud_fallback": "gemini-3.7-flash"},
+    # Tool Use / System
+    "hermes3:8b": {"type": "tool_use", "max_tokens": 8192, "fallback": "qwen3.5:4b", "cloud_fallback": "google/gemini-3.6-flash"},
     
-    # Heavy Duty / Reasoning Models (Fallback to Cloud if RAM is tight)
-    "deepseek-r1:8b": {"type": "reasoning", "max_tokens": 8192, "cloud_fallback": "deepseek-reasoner"},
-    "qwen2.5:14b": {"type": "general", "max_tokens": 4096, "cloud_fallback": "google/gemini-pro-1.5"},
-    "llama3.1:8b": {"type": "general", "max_tokens": 4096, "cloud_fallback": "anthropic/claude-3-haiku"},
+    # Reasoning
+    "qwen3.6-thinking:9b": {"type": "reasoning", "max_tokens": 8192, "fallback": "qwen3.5:4b", "cloud_fallback": "google/gemini-3.1-pro-preview"},
+    
+    # Coding / Agentic
+    "ornith:9b": {"type": "coding", "max_tokens": 8192, "fallback": "qwen3.5:4b", "cloud_fallback": "google/gemini-3.1-pro-preview"},
+    "gemma4:12b": {"type": "coding", "max_tokens": 16000, "cloud_fallback": "google/gemini-3.1-pro-preview"},
+    
+    # Vision
+    "qwen3-vl:8b": {"type": "vision", "max_tokens": 4096, "cloud_fallback": "google/gemini-3.6-flash"},
+    
+    # Cloud models (Fallbacks)
+    "google/gemini-3.6-flash": {"type": "agent", "max_tokens": 8192, "cloud_fallback": "google/gemini-3.1-pro-preview"},
+    "google/gemini-1.5-pro": {"type": "agent", "max_tokens": 32000, "cloud_fallback": "google/gemini-3.1-pro-preview"},
+    "google/gemini-3.1-pro-preview": {"type": "agent", "max_tokens": 64000, "cloud_fallback": "groq/openai/gpt-oss-20b"},
 }
 
 # --- RAM Management ---------------------------------------

@@ -1,4 +1,4 @@
-﻿__pycache__/
+__pycache__/
 *.pyc
 .env
 db/*.db
@@ -10,3 +10,15 @@ markdown_skills/
 venv/
 *.log
 .models/
+logs/
+static/media/*.jpg
+static/media/*.png
+scratch/
+patch_*.py
+fix*.py
+check_*.py
+revert.py
+rewrite_overlay.py
+input.txt
+.setup_complete
+overlay_state.txt

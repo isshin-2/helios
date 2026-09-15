@@ -18,7 +18,7 @@ from config import VISION_MODEL, LLM_PROVIDER
 logger = logging.getLogger(__name__)
 
 class ScreenVisionInput(BaseModel):
-    query: str = Field(description="The question or task regarding the current screen contents.")
+    query: Optional[str] = Field(default="Describe what you see on the screen in detail.", description="The question or task regarding the current screen contents.")
 
 class ScreenVisionTool(BaseTool):
     name: str = "screen_vision"

@@ -43,12 +43,25 @@ def main():
         import win32gui
         import win32con
         time.sleep(0.5) # Wait for window to render
-        hwnd = win32gui.FindWindowEx(0, 0, None, window_title)
-        if hwnd:
-            style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
-            win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style | win32con.WS_EX_LAYERED)
-            # Magenta in COLORREF is 0x00FF00FF (BBGGRR)
-            win32gui.SetLayeredWindowAttributes(hwnd, 0x00FF00FF, 0, win32con.LWA_COLORKEY)
+        
+        while True:
+            try:
+                hwnd = win32gui.FindWindowEx(0, 0, None, window_title)
+                if hwnd:
+                    # Enforce Topmost
+                    win32gui.SetWindowPos(
+                        hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
+                        win32con.SWP_NOMOVE | win32con.SWP_NOSIZE
+                    )
+                    
+                    # Ensure layered transparent with color key
+                    style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+                    win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style | win32con.WS_EX_LAYERED | win32con.WS_EX_TRANSPARENT)
+                    # Magenta in COLORREF is 0x00FF00FF (BBGGRR)
+                    win32gui.SetLayeredWindowAttributes(hwnd, 0x00FF00FF, 0, win32con.LWA_COLORKEY)
+            except Exception:
+                pass
+            time.sleep(1)
 
     import threading
     threading.Thread(target=apply_transparency, daemon=True).start()

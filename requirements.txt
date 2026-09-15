@@ -9,16 +9,17 @@ kokoro-onnx
 sounddevice
 torch
 torchaudio
-
 psutil
-
 mcp
 httpx_sse
-
 # Agentic Mode Dependencies
 pyautogui
 Pillow
-
 pywhispercpp
 pywinauto
 mss
+openai>=1.0.0
+selenium>=4.27.1
+selenium_stealth>=1.0.6
+beautifulsoup4
+webdriver-manager

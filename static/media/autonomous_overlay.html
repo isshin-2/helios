@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background: transparent;
+      width: 100vw;
+      height: 80px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier New', Consolas, monospace;
+    }
+
+    /* Outer pop/pulse HUD banner */
+    .helios-banner {
+      width: 640px;
+      height: 72px;
+      background: rgba(14, 6, 6, 0.94);
+      border: 4px solid #ff2222;
+      border-radius: 4px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 16px rgba(255, 34, 34, 0.7), inset 0 0 10px rgba(255, 34, 34, 0.35);
+      animation: alertGlow 1.2s ease-in-out infinite alternate;
+      overflow: hidden;
+    }
+
+    /* Sci-fi Corner Marks */
+    .helios-banner::before,
+    .helios-banner::after {
+      content: "";
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      z-index: 10;
+    }
+    .helios-banner::before {
+      top: 0;
+      left: 0;
+      border-top: 3px solid #ffffff;
+      border-left: 3px solid #ffffff;
+    }
+    .helios-banner::after {
+      bottom: 0;
+      right: 0;
+      border-bottom: 3px solid #ffffff;
+      border-right: 3px solid #ffffff;
+    }
+
+    /* Scanlines */
+    .scanlines {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.45) 50%);
+      background-size: 100% 4px;
+      pointer-events: none;
+      z-index: 8;
+    }
+
+    /* Top HUD Info bar */
+    .top-bar {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid rgba(255, 34, 34, 0.4);
+      background: rgba(255, 34, 34, 0.12);
+      z-index: 2;
+    }
+
+    .title {
+      color: #ff3333;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tag {
+      background: #ff2222;
+      color: #000;
+      font-size: 10px;
+      padding: 1px 5px;
+      font-weight: bold;
+      border-radius: 2px;
+    }
+
+    .indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #fff;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      background: #ff2222;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #ff2222;
+      animation: blink 0.6s infinite steps(1);
+    }
+
+    /* Scrolling Warning Tape */
+    .tape-container {
+      height: 38px;
+      background: #ffd000;
+      color: #000;
+      overflow: hidden;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .tape-track {
+      display: flex;
+      width: max-content;
+      animation: scroll 6s linear infinite;
+    }
+
+    .tape-item {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      padding: 0 16px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    @keyframes scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    @keyframes alertGlow {
+      0% {
+        border-color: #ff2222;
+        box-shadow: 0 0 12px rgba(255, 34, 34, 0.5), inset 0 0 6px rgba(255, 34, 34, 0.2);
+      }
+      100% {
+        border-color: #ff6666;
+        box-shadow: 0 0 24px rgba(255, 68, 68, 0.9), inset 0 0 14px rgba(255, 34, 34, 0.45);
+      }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="helios-banner">
+    <div class="scanlines"></div>
+
+    <div class="top-bar">
+      <div class="title">
+        <span class="tag">HELIOS</span>
+        AUTONOMOUS CONTROL ACTIVE
+      </div>
+      <div class="indicator">
+        <div class="dot"></div>
+        ALERT LEVEL: HIGH
+      </div>
+    </div>
+
+    <!-- Scrolling Tape Track (Duplicated strings ensure continuous seamless flow) -->
+    <div class="tape-container">
+      <div class="tape-track">
+        <div class="tape-item">⚠ WARNING: AUTONOMOUS OVERRIDE IN PROGRESS</div>
+        <div class="tape-item">/// SYSTEM CONTROL ENGAGED ///</div>
+        <div class="tape-item">⚠ DO NOT INTERRUPT SYSTEM PROTOCOLS</div>
+        <div class="tape-item">/// LOCKOUT ACTIVE ///</div>
+
+        <div class="tape-item">⚠ WARNING: AUTONOMOUS OVERRIDE IN PROGRESS</div>
+        <div class="tape-item">/// SYSTEM CONTROL ENGAGED ///</div>
+        <div class="tape-item">⚠ DO NOT INTERRUPT SYSTEM PROTOCOLS</div>
+        <div class="tape-item">/// LOCKOUT ACTIVE ///</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -5,7 +5,7 @@ def _get_model_by_role(role: str, default: str) -> str:
     """Helper to get highest priority model matching a role."""
     candidates = []
     for name, cfg in MODEL_CONFIG.items():
-        if role in cfg.get("roles", []) and cfg.get("priority", 0) > 0:
+        if role == cfg.get("type", "") and cfg.get("priority", 0) > 0:
             candidates.append((cfg.get("priority", 1), name))
     
     if candidates:
@@ -30,7 +30,7 @@ def get_routing_decision(classification: Dict[str, Any]) -> Dict[str, Any]:
     
     # 1. Vision
     if requires_vision:
-        model = _get_model_by_role("vision", "llava:latest")
+        model = _get_model_by_role("vision", "qwen3-vl:8b")
         base_response.update({
             "route": "vision",
             "model": model,
@@ -41,7 +41,7 @@ def get_routing_decision(classification: Dict[str, Any]) -> Dict[str, Any]:
         
     # 2. Coding
     if intent == "coding":
-        model = _get_model_by_role("coding", "qwen2.5-coder:7b")
+        model = _get_model_by_role("coding", "ornith:9b")
         base_response.update({
             "route": "coding",
             "model": model,
@@ -52,7 +52,7 @@ def get_routing_decision(classification: Dict[str, Any]) -> Dict[str, Any]:
         
     # 3. Reasoning / Research
     if intent in ("reasoning", "research"):
-        model = _get_model_by_role("reasoning", "deepseek-r1:7b")
+        model = _get_model_by_role("reasoning", "qwen3.6-thinking:9b")
         base_response.update({
             "route": "reasoning",
             "model": model,
@@ -63,7 +63,7 @@ def get_routing_decision(classification: Dict[str, Any]) -> Dict[str, Any]:
         
     # 4. System / Tool Use
     if intent in ("system", "tool_use"):
-        model = _get_model_by_role("tool_use", "qwen3:8b")
+        model = _get_model_by_role("tool_use", "hermes3:8b")
         base_response.update({
             "route": "general",
             "model": model,
@@ -74,7 +74,7 @@ def get_routing_decision(classification: Dict[str, Any]) -> Dict[str, Any]:
 
     # 5. Conversation
     if intent == "conversation":
-        model = _get_model_by_role("fast", "qwen3:4b")
+        model = _get_model_by_role("fast", "phi4:mini")
         base_response.update({
             "route": "general",
             "model": model,
@@ -84,17 +84,17 @@ def get_routing_decision(classification: Dict[str, Any]) -> Dict[str, Any]:
         return base_response
         
     # Default: General
-    model = _get_model_by_role("general", "qwen3:8b")
+    model = _get_model_by_role("general", "ministral3:8b")
     context_size = CONTEXT_SIZES.get("medium", 4096)
     reason = "Standard general request."
     
     # Detail overrides
     if detail == "detailed":
-        model = _get_model_by_role("reasoning", "deepseek-r1:7b")
+        model = _get_model_by_role("reasoning", "qwen3.6-thinking:9b")
         context_size = CONTEXT_SIZES.get("complex", 8192)
         reason += " (Upgraded to reasoning model for high detail)"
     elif detail == "simple":
-        model = _get_model_by_role("fast", "qwen3:4b")
+        model = _get_model_by_role("fast", "phi4:mini")
         context_size = CONTEXT_SIZES.get("simple", 2048)
         reason += " (Downgraded to fast model for simple answer)"
         

@@ -83,7 +83,8 @@ def main():
     ollama_host = env_vars.get("OLLAMA_HOST", "http://127.0.0.1:11434")
     vllm_api_base = env_vars.get("VLLM_API_BASE", "http://127.0.0.1:8000/v1")
     gemini_key = env_vars.get("GEMINI_API_KEY", "")
-    openrouter_key = env_vars.get("OPENROUTER_API_KEY", "")
+    groq_key = env_vars.get("GROQ_API_KEY", "")
+    nvidia_key = env_vars.get("NVIDIA_API_KEY", "")
 
     if mode in ['hybrid', 'local']:
         print("\n--- 2. Local Provider Configuration ---")
@@ -103,10 +104,11 @@ def main():
         if mode == 'hybrid':
             print("HELIOS will seamlessly escalate to these providers when local models struggle.")
         gemini_key = get_input("Gemini API Key", gemini_key, is_secret=True)
-        openrouter_key = get_input("OpenRouter API Key", openrouter_key, is_secret=True)
+        groq_key = get_input("Groq API Key", groq_key, is_secret=True)
+        nvidia_key = get_input("NVIDIA API Key", nvidia_key, is_secret=True)
 
     print("\n--- 4. Vision Model ---")
-    vision_default = env_vars.get("VISION_MODEL", "gemini-3.7-flash" if mode == 'online' else "qwen2.5vl:3b")
+    vision_default = env_vars.get("VISION_MODEL", "gemini-3.6-flash" if mode == 'online' else "qwen2.5vl:3b")
     vision_model = get_input("Vision Model (used for Computer Control)", vision_default)
 
     print("\n--- 5. Personalization ---")
@@ -166,11 +168,23 @@ def main():
             voice_name = "am_michael"
         voice_speed = get_input("Voice Speed multiplier", voice_speed)
 
+    print("\n--- 6. Tool Configurations (Optional) ---")
+    print("These are needed for specific tools. Leave blank if you don't use them.")
+    github_token = get_input("GitHub Personal Access Token (for github tool)", env_vars.get("GITHUB_TOKEN", ""), is_secret=True)
+    bambu_email = get_input("Bambu Cloud Email", env_vars.get("BAMBU_CLOUD_EMAIL", ""))
+    bambu_password = get_input("Bambu Cloud Password", env_vars.get("BAMBU_CLOUD_PASSWORD", ""), is_secret=True)
+    bambu_serial = get_input("Bambu Serial Number", env_vars.get("BAMBU_SERIAL_NUMBER", ""))
+    octoprint_url = get_input("OctoPrint URL (e.g. http://octopi.local)", env_vars.get("OCTOPRINT_URL", ""))
+    octoprint_key = get_input("OctoPrint API Key", env_vars.get("OCTOPRINT_API_KEY", ""), is_secret=True)
+    google_client_id = get_input("Google OAuth Client ID (for Workspace MCP)", env_vars.get("GOOGLE_CLIENT_ID", ""), is_secret=True)
+    google_client_secret = get_input("Google OAuth Client Secret", env_vars.get("GOOGLE_CLIENT_SECRET", ""), is_secret=True)
+
     print("\n\033[96mSaving Configuration...\033[0m")
     
     env_content = f"""DEPLOYMENT_MODE={mode}
 GEMINI_API_KEY={gemini_key}
-OPENROUTER_API_KEY={openrouter_key}
+GROQ_API_KEY={groq_key}
+NVIDIA_API_KEY={nvidia_key}
 LLM_PROVIDER={provider}
 OLLAMA_HOST={ollama_host}
 VLLM_API_BASE={vllm_api_base}
@@ -182,6 +196,14 @@ VOICE_ENABLED={str(voice_enabled).lower()}
 VOICE_BACKEND={voice_backend}
 VOICE_NAME={voice_name}
 VOICE_SPEED={voice_speed}
+GITHUB_TOKEN={github_token}
+BAMBU_CLOUD_EMAIL={bambu_email}
+BAMBU_CLOUD_PASSWORD={bambu_password}
+BAMBU_SERIAL_NUMBER={bambu_serial}
+OCTOPRINT_URL={octoprint_url}
+OCTOPRINT_API_KEY={octoprint_key}
+GOOGLE_CLIENT_ID={google_client_id}
+GOOGLE_CLIENT_SECRET={google_client_secret}
 """
     with open(".env", "w") as f:
         f.write(env_content)
@@ -192,6 +214,55 @@ VOICE_SPEED={voice_speed}
     print("\033[96mInitializing Neural Database...\033[0m")
     import db
     db.init_db()
+
+    # Optional Google Workspace Auth Flow
+    if google_client_id and google_client_secret:
+        do_auth = get_input("\nWould you like to authenticate Google Workspace now? (y/n)", "n").lower()
+        if do_auth == 'y':
+            print("\033[96mStarting OAuth Flow. Please check your browser...\033[0m")
+            import json, threading
+            cmd = "npx.cmd" if os.name == "nt" else "npx"
+            
+            # Ensure the MCP server gets the credentials
+            auth_env = os.environ.copy()
+            auth_env["GOOGLE_CLIENT_ID"] = google_client_id
+            auth_env["GOOGLE_CLIENT_SECRET"] = google_client_secret
+            
+            process = subprocess.Popen(
+                [cmd, "-y", "@aaronsb/google-workspace-mcp"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                text=True, bufsize=1, env=auth_env
+            )
+            def send_req(method, params=None, req_id=1):
+                process.stdin.write(json.dumps({"jsonrpc": "2.0", "id": req_id, "method": method, "params": params or {}}) + "\n")
+                process.stdin.flush()
+            
+            send_req("initialize", {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "setup", "version": "1.0"}}, req_id=1)
+            
+            def auth_loop():
+                for line in process.stdout:
+                    try:
+                        msg = json.loads(line)
+                        if msg.get("id") == 1:
+                            process.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
+                            process.stdin.flush()
+                            send_req("tools/call", {"name": "manage_accounts", "arguments": {"operation": "authenticate"}}, req_id=3)
+                        elif msg.get("id") == 3:
+                            print("\n\033[92mAuthentication Successful! You may close the browser tab.\033[0m")
+                            time.sleep(2)
+                            process.kill()
+                            break
+                    except Exception:
+                        pass
+            
+            t = threading.Thread(target=auth_loop, daemon=True)
+            t.start()
+            print("Waiting for browser authentication (timeout in 3 minutes)...")
+            t.join(timeout=180)
+            try:
+                process.kill()
+            except:
+                pass
     
     with open(".setup_complete", "w") as f:
         f.write("Setup complete.")

@@ -24,7 +24,10 @@ from config import CONTEXT_SIZES, SYSTEM_PROMPTS, is_budget_mode_active
 from router.classifier import classify_request
 from router.rules import get_routing_decision
 from db import get_db
-from core.events import EventBus
+from core.events import EventBus, global_bus
+import core.task_manager as tm
+from core.verification import verification_manager
+from core.agent_manager import agent_manager
 from core.mcp_client import MCPManager
 
 logger = logging.getLogger(__name__)
@@ -106,11 +109,21 @@ class ConversationOrchestrator:
         self.tool_router = tool_router
         self.cancellation_events = {}
         self.mcp_manager = MCPManager()
-        # You would initialize actual MCP servers here, e.g., 
-        # asyncio.create_task(self.mcp_manager.connect_server("sqlite", "python", ["-m", "mcp_sqlite"]))
+
+    async def start(self):
+        import os
+        import asyncio
+        if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"):
+            npx_cmd = "npx.cmd" if os.name == "nt" else "npx"
+            asyncio.create_task(self.mcp_manager.connect_server(
+                "google_workspace",
+                npx_cmd,
+                ["-y", "@aaronsb/google-workspace-mcp"]
+            ))
 
 
     def cancel_current_request(self, session_id: int):
+        global_bus.cancel_session(session_id)
         if session_id in self.cancellation_events:
             self.cancellation_events[session_id].set()
 
@@ -182,6 +195,9 @@ class ConversationOrchestrator:
         self.cancellation_events[session_id].clear()
 
         # Extract text content (handle vision arrays)
+        task = tm.task_manager.create_task(str(session_id), str(messages[-1].get('content', '')), user_id)
+        task.transition(tm.TaskState.RUNNING)
+
         last_msg_raw = messages[-1]["content"]
         last_msg = last_msg_raw
         if isinstance(last_msg_raw, list):
@@ -210,6 +226,14 @@ class ConversationOrchestrator:
         )
         
         route_type, route_metadata = route_tuple
+
+        agent = agent_manager.get_agent(route_type)
+        if agent:
+            result = await agent.execute(last_msg)
+            await event_bus.publish("message", {"role": "assistant", "content": result})
+            self.memory_manager.save_to_memory(user_id, result, "assistant")
+            return
+          
         
         # Construct compatibility 'route' dictionary for the rest of orchestrator
         route = {
@@ -265,7 +289,7 @@ class ConversationOrchestrator:
                 safe_print(f"\n\n--- LLM GENERATION START (Iteration {iteration}) ---\n")
 
                 async for chunk in stream:
-                    if self.cancellation_events[session_id].is_set():
+                    if self.cancellation_events[session_id].is_set() or global_bus.get_token(session_id).is_cancelled:
                         await event_bus.publish("chunk", "\n\n[System: Generation stopped by user.]")
                         full_response += "\n\n[System: Generation stopped by user.]"
                         break
@@ -309,7 +333,7 @@ class ConversationOrchestrator:
                                 tool_calls.append(tc)
                 safe_print("\n--- LLM GENERATION END ---\n")
                 
-                if self.cancellation_events[session_id].is_set():
+                if self.cancellation_events[session_id].is_set() or global_bus.get_token(session_id).is_cancelled:
                     break
 
                 import re
@@ -324,11 +348,17 @@ class ConversationOrchestrator:
                 if not tool_calls:
                     # Fallback for small models outputting JSON blocks instead of native tool calls
                     json_str = None
+                    # Try to find standard ```json ... ``` blocks first
                     json_match = re.search(r'```json\s*(.*?)\s*```', content_accum, re.DOTALL)
                     if json_match:
                         json_str = json_match.group(1)
                     else:
-                        json_str = content_accum.strip()
+                        start_idx = content_accum.find('{')
+                        end_idx = content_accum.rfind('}')
+                        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                            json_str = content_accum[start_idx:end_idx+1]
+                        else:
+                            json_str = content_accum.strip()
                         
                     if json_str:
                         try:
@@ -461,6 +491,24 @@ class ConversationOrchestrator:
                             
                     res_text_safe = str(structured_result.get("result", ""))
                     
+                    # Phase 6 & 7: Verification & Bounded Recovery
+                    is_verified, reject_reason = verification_manager.verify_tool_result(function_name, structured_result)
+                    if not is_verified:
+                        if not verification_manager.record_failure(str(session_id)):
+                            # Limit exceeded
+                            task.transition(tm.TaskState.FAILED, "Max recovery attempts exceeded")
+                            warning = f"\n\n[System Error: Agent exceeded maximum recovery attempts. Last error: {reject_reason}]"
+                            full_response += warning
+                            await event_bus.publish("chunk", warning)
+                            await event_bus.publish("done", None)
+                            break
+                        else:
+                            # Remind LLM to fix it
+                            structured_result["result"] = f"[{reject_reason}] " + res_text_safe
+                    else:
+                        verification_manager.record_success(str(session_id))
+
+                    
                     if res_text_safe.startswith("INPUT_REQUIRED::"):
                         formatted_tool_output = f"\n\n[Tool Executed: {function_name}]\n{res_text_safe}\n\n"
                         full_response += formatted_tool_output
@@ -490,7 +538,8 @@ class ConversationOrchestrator:
             except Exception as e:
                 import httpx
                 if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 404:
-                    fallback = config.MODEL_CONFIG.get("fallback")
+                    model_cfg = config.MODEL_CONFIG.get(route["model"], {})
+                    fallback = model_cfg.get("fallback") or model_cfg.get("cloud_fallback")
                     if fallback and fallback != route["model"]:
                         logger.warning(f"Model {route['model']} not found. Retrying with fallback {fallback}.")
                         route["model"] = fallback
@@ -511,6 +560,9 @@ class ConversationOrchestrator:
                 await event_bus.publish("chunk", warning)
                 await event_bus.publish("done", None)
                 
+        if task.state == tm.TaskState.RUNNING:
+            task.transition(tm.TaskState.COMPLETED, "Loop finished")
+
         # Save Assistant Message to DB (non-blocking)
         if full_response:
             loop = asyncio.get_running_loop()

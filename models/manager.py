@@ -18,11 +18,14 @@ _MODEL_CACHE_TTL = 60.0
 _model_lock = asyncio.Lock()
 
 class ModelManager:
-    def __init__(self, provider: BaseProvider, monitor: SystemMonitor):
+    def __init__(self, provider, monitor):
         self.provider = provider
         self.monitor = monitor
-        # Cache: {model_name: timestamp_when_confirmed_loaded}
-        self._loaded_cache: Dict[str, float] = {}
+        # Initialize a secondary Ollama provider for local models if primary is cloud
+        from providers.ollama import OllamaProvider
+        from config import OLLAMA_HOST
+        self.local_provider = OllamaProvider(host=OLLAMA_HOST)
+        self._loaded_cache = {}
         
     async def ensure_model_loaded(self, target_model: str, required_context: int) -> bool:
         """
@@ -150,20 +153,97 @@ class ModelManager:
         current_model = target_model
         attempted = set()
         
+        # Extract tools from kwargs once — each cloud client needs them separately
+        tools_for_cloud = kwargs.pop("tools", None)
+        
         while current_model:
             attempted.add(current_model)
             try:
                 logger.info(f"Attempting execution with model: {current_model}")
-                if current_model.startswith("gemini") or current_model == "antigravity":
+                from providers.openrouter import OpenRouterProvider
+                if isinstance(self.provider, OpenRouterProvider):
+                    # We return the raw response or stream directly from OpenRouter
+                    return await self.provider.chat(
+                        model=current_model,
+                        messages=messages,
+                        options={"num_ctx": context_size},
+                        stream=stream,
+                        **kwargs
+                    )
+                elif current_model.startswith("groq/"):
+                    if not hasattr(self, "groq"):
+                        from models.openai_client import OpenAICompatibleClient
+                        from config import GROQ_API_KEY
+                        self.groq = OpenAICompatibleClient("https://api.groq.com/openai/v1/chat/completions", GROQ_API_KEY)
+                    
+                    raw_stream = self.groq.stream_chat(
+                        model=current_model.replace("groq/", "", 1),
+                        messages=messages,
+                        tools=tools_for_cloud
+                    )
+                    
+                elif current_model.startswith("nvidia/"):
+                    if not hasattr(self, "nvidia"):
+                        from models.openai_client import OpenAICompatibleClient
+                        from config import NVIDIA_API_KEY
+                        self.nvidia = OpenAICompatibleClient("https://integrate.api.nvidia.com/v1/chat/completions", NVIDIA_API_KEY)
+                    
+                    raw_stream = self.nvidia.stream_chat(
+                        model=current_model.replace("nvidia/", "", 1),
+                        messages=messages,
+                        tools=tools_for_cloud
+                    )
+                    
+                if current_model.startswith("groq/") or current_model.startswith("nvidia/"):
+                    if stream:
+                        raw_iter = raw_stream.__aiter__()
+                        try:
+                            first_chunk = await raw_iter.__anext__()
+                        except StopAsyncIteration:
+                            first_chunk = None
+                            
+                        if first_chunk and first_chunk["type"] == "error":
+                            raise RuntimeError(f"Cloud API Error: {first_chunk['content']}")
+
+                        async def adapted_stream():
+                            if first_chunk:
+                                if first_chunk["type"] == "text":
+                                    yield {"message": {"content": first_chunk["content"]}}
+                                elif first_chunk["type"] == "tool_call":
+                                    yield {"message": {"tool_calls": [{
+                                        "function": {
+                                            "name": first_chunk["content"]["name"],
+                                            "arguments": first_chunk["content"].get("args", {})
+                                        }
+                                    }]}}
+                            async for chunk in raw_iter:
+                                if chunk["type"] == "text":
+                                    yield {"message": {"content": chunk["content"]}}
+                                elif chunk["type"] == "tool_call":
+                                    yield {"message": {"tool_calls": [{
+                                        "function": {
+                                            "name": chunk["content"]["name"],
+                                            "arguments": chunk["content"].get("args", {})
+                                        }
+                                    }]}}
+                                elif chunk["type"] == "error":
+                                    yield {"message": {"content": f"\n\n[System: {chunk['content']}]"}}
+                        return adapted_stream()
+                    else:
+                        if isinstance(raw_stream, dict) and "429" in str(raw_stream.get("content", "")):
+                            raise RuntimeError(f"Cloud API Error: {raw_stream['content']}")
+                        return raw_stream
+                        
+                elif current_model.startswith("google/") or current_model.startswith("gemini") or current_model == "antigravity":
                     if not hasattr(self, "gemini"):
                         from models.gemini_client import GeminiClient
                         self.gemini = GeminiClient()
                     
                     raw_stream = await self.gemini.chat(
-                        model=current_model,
+                        model=current_model.replace("google/", "", 1),
                         messages=messages,
                         stream=stream,
-                        **kwargs
+                        tools=tools_for_cloud
                     )
                     
                     if stream:
@@ -205,18 +285,21 @@ class ModelManager:
                             raise RuntimeError(f"Cloud API Error: {raw_stream['content']}")
                         return raw_stream
                 else:
-                    # Ensure RAM is okay for local models
+                    # Execute local model
                     await self.ensure_model_loaded(current_model, context_size)
-                    
-                    # Execute
                     options = {"num_ctx": context_size}
                     
-                    # We return the raw response or stream
-                    return await self.provider.chat(
+                    target_provider = self.provider
+                    from providers.openrouter import OpenRouterProvider
+                    if isinstance(self.provider, OpenRouterProvider):
+                        # Force local models to use Ollama instead of OpenRouter
+                        target_provider = self.local_provider
+                        
+                    return await target_provider.chat(
                         model=current_model,
                         messages=messages,
                         options=options,
-                        keep_alive=KEEP_ALIVE["default"],
+                        keep_alive="1h",
                         stream=stream,
                         **kwargs
                     )
@@ -228,9 +311,13 @@ class ModelManager:
                 import traceback
                 tb = traceback.format_exc()
                 logger.warning(f"Model {current_model} failed:\n{tb}")
-            
             config_data = MODEL_CONFIG.get(current_model, {})
             next_model = config_data.get("fallback")
+            
+            # Only allow cloud fallbacks if hybrid mode is active
+            if not next_model and getattr(config, "HYBRID_MODE", False):
+                next_model = config_data.get("cloud_fallback")
+
             
             if next_model and next_model not in attempted:
                 logger.warning(f"Falling back to {next_model}...")

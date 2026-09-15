@@ -8,9 +8,10 @@ import re
 from typing import Optional
 import threading
 
+from .localai_audio import LocalAIAudio
 from .tts.kokoro import KokoroTTS
 from .playback import AudioPlayer
-from config import VOICE_ENABLED, VOICE_NAME, VOICE_SPEED
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,12 @@ class VoiceManager:
     Implements sentence-level buffering to stream audio cleanly.
     """
     def __init__(self, event_bus=None):
-        self.tts = KokoroTTS()
+        self.kokoro = KokoroTTS()
+        self.localai = LocalAIAudio()
+        if getattr(config, "VOICE_BACKEND", "kokoro") == "localai":
+            self.tts = self.localai
+        else:
+            self.tts = self.kokoro
         self.player = AudioPlayer()
         self.event_bus = event_bus
         self.is_speaking = False
@@ -47,7 +53,7 @@ class VoiceManager:
 
     def _on_chunk(self, data):
         """Called when a new chunk of text arrives from the LLM."""
-        if not VOICE_ENABLED:
+        if not config.VOICE_ENABLED:
             return
             
         content = data
@@ -59,7 +65,7 @@ class VoiceManager:
         
     def _on_done(self, data):
         """Called when the LLM finishes generating the response."""
-        if not VOICE_ENABLED:
+        if not config.VOICE_ENABLED:
             return
             
         # Flush whatever is left in the buffer
@@ -129,6 +135,10 @@ class VoiceManager:
         clean_sentence = re.sub(r'<[^>]+>', '', clean_sentence) # Remove stray HTML tags
         clean_sentence = re.sub(r'[*_#~]', '', clean_sentence)
         clean_sentence = re.sub(r'http[s]?://\S+', '', clean_sentence)
+        
+        # Mute raw unfenced JSON tool structures
+        clean_sentence = re.sub(r'\{\s*"name"\s*:\s*".*?".*?\}', '', clean_sentence, flags=re.DOTALL | re.IGNORECASE)
+        
         if emoji:
             clean_sentence = emoji.replace_emoji(clean_sentence, replace='')
             
@@ -193,7 +203,7 @@ class VoiceManager:
                     pass
                 
                 # Consume the async generator natively
-                async for samples, sample_rate in self.tts.synthesize(sentence, voice=VOICE_NAME, speed=VOICE_SPEED):
+                async for samples, sample_rate in self.tts.synthesize(sentence, voice=config.VOICE_NAME, speed=config.VOICE_SPEED):
                     if not self.is_speaking:
                         logger.info("TTS Synthesis aborted mid-sentence due to interrupt.")
                         break
@@ -236,3 +246,4 @@ class VoiceManager:
                 self._tts_queue.task_done()
             except asyncio.QueueEmpty:
                 break
+

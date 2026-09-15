@@ -1,8 +1,10 @@
-import os
+﻿import os
 import importlib
 import inspect
 from typing import Tuple, List, Dict, Any
 import logging
+import subprocess
+import sys
 
 from tools.base import BaseTool
 from providers.base import BaseProvider
@@ -22,6 +24,7 @@ class ToolRouter:
         self.monitor = monitor
         self.permission_manager = permission_manager
         self.tools: Dict[str, BaseTool] = {}
+        self.overlay_process = None
         self._load_tools()
 
     def _load_tools(self):
@@ -94,9 +97,38 @@ class ToolRouter:
             
         tool = self.tools[tool_name]
         try:
+            # Show overlay if this is a computer control or vision tool
+            if tool_name in ["computer_control", "screen_vision", "terminal"]:
+                if not self.overlay_process:
+                    script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts', 'autonomous_overlay.py')
+                    self.overlay_process = subprocess.Popen([sys.executable, script_path])
+                    
             # Validate input against schema
             validated_inputs = tool.input_schema(**kwargs)
-            return await tool.execute(user_id=user_id, **validated_inputs.model_dump())
+            import asyncio
+            try:
+                result = await asyncio.wait_for(tool.execute(user_id=user_id, **validated_inputs.model_dump()), timeout=300.0)
+            except asyncio.TimeoutError:
+                return (f"Error: Tool '{tool_name}' timed out after 300 seconds.", tool_name)
+            
+            if tool_name in ["computer_control", "screen_vision", "terminal"]:
+                if self.overlay_process:
+                    try:
+                        self.overlay_process.terminate()
+                    except Exception:
+                        pass
+                    self.overlay_process = None
+                    
+            return result
         except Exception as e:
+            if tool_name in ["computer_control", "screen_vision", "terminal"]:
+                if self.overlay_process:
+                    try:
+                        self.overlay_process.terminate()
+                    except Exception:
+                        pass
+                    self.overlay_process = None
             logger.error(f"Error executing tool {tool_name}: {e}")
             return (f"Error executing tool {tool_name}: {e}", tool_name)
+
+

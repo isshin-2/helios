@@ -24,12 +24,16 @@ class RepoMapTool(BaseTool):
     async def execute(self, user_id: str, directory: str, extensions: Optional[List[str]] = None, **kwargs) -> Tuple[str, str]:
         if extensions is None:
             extensions = ['.py']
-        return await asyncio.to_thread(self._sync_execute, directory, extensions)
-        
-    def _sync_execute(self, directory: str, extensions: List[str]) -> Tuple[str, str]:
+        return await asyncio.to_thread(self._sync_execute, user_id, directory, extensions)
+    def _sync_execute(self, user_id: str, directory: str, extensions: List[str]) -> Tuple[str, str]:
         abs_dir = os.path.abspath(directory)
-        if not abs_dir.startswith(os.path.abspath(HELIOS_DIR)):
-            return "Error", f"Access denied: Path {directory} is outside HELIOS_DIR."
+        
+        # Respect global permission manager instead of hardcoded HELIOS_DIR
+        perm_result = self.permission_manager.can_list_directory(int(user_id), abs_dir)
+        if not getattr(perm_result, "is_allowed", False):
+            return "Error", f"Access denied: Path {directory} is not allowed by system permissions. Reason: {getattr(perm_result, 'reason', 'Unknown')}"
+
+
             
         if not os.path.isdir(abs_dir):
             return "Error", f"Directory {directory} not found."

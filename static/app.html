@@ -1601,7 +1601,7 @@
             sessions.forEach(s => {
                 const div = document.createElement('div');
                 div.className = `nav-item ${s.id === currentSessionId ? 'active' : ''}`;
-                div.innerText = s.title || `Session ${s.id.substring(0,6)}...`;
+                div.innerText = s.title || `Session ${String(s.id).substring(0,6)}...`;
                 div.onclick = () => selectSession(s.id);
                 sessionsList.appendChild(div);
             });
@@ -1628,7 +1628,7 @@
             modelIndicator.style.display = 'none';
             
             Array.from(sessionsList.children).forEach(c => c.classList.remove('active'));
-            const activeEl = Array.from(sessionsList.children).find(c => c.innerText.includes(sessionId) || c.innerText.includes('Session ' + sessionId.substring(0,6)));
+            const activeEl = Array.from(sessionsList.children).find(c => c.innerText.includes(sessionId) || c.innerText.includes('Session ' + String(sessionId).substring(0,6)));
             if (activeEl) activeEl.classList.add('active');
 
             const res = await fetch(`/api/sessions/${sessionId}/messages`);

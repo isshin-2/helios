@@ -70,22 +70,49 @@ class RoutingEngine:
                     return "cache", {"response": cached_response["text"]}
             except Exception as e:
                 logger.warning(f"Cache lookup failed: {e}")
+        import config
+        import os
+        from router.classifier import classify_request
+        from router.rules import get_routing_decision
+        
+        # Check for explicit user tags or deployment mode
+        deployment_mode = os.environ.get("DEPLOYMENT_MODE", "hybrid").lower()
+        force_local = "@local" in query_lower or deployment_mode == "local"
+        force_cloud = "@cloud" in query_lower
+        
+        use_cloud = (bool(config.GEMINI_API_KEY) or bool(config.GROQ_API_KEY) or bool(config.NVIDIA_API_KEY)) and not force_local
 
-        # 3. Complexity Heuristic & Vision
-        # Route multimodal data directly to Gemini
-        if isinstance(query, list):
-            await self.force_evict_local_models()
-            return "cloud", {"model": "gemini-3.6-flash"}
+        if force_cloud:
+            use_cloud = True
             
-        # Simple heuristic: technical terms, long prompts, or coding requests go to Cloud (Gemini)
+        cloud_text_model = "google/gemini-3.6-flash" if use_cloud else "gemini-3.6-flash"
+        cloud_vision_model = "google/gemini-3.6-flash" if use_cloud else "gemini-3.6-flash"
+
+        # Route multimodal data directly to Cloud unless forced local
+        if isinstance(query, list):
+            if not force_local and use_cloud:
+                await self.force_evict_local_models()
+                return "cloud", {"model": cloud_vision_model}
+            
+        # Classify intent to pick the best local model if we stay local
+        classification = await classify_request([{"role": "user", "content": text_query}])
+        local_decision = get_routing_decision(classification)
+        best_local_model = local_decision.get("model", "ministral3:8b")
+            
+        # Simple heuristic: technical terms, long prompts, or coding requests go to Cloud
         coding_keywords = ["write a script", "refactor", "bug", "python", "architect", "code"]
-        if any(kw in query_lower for kw in coding_keywords) or len(query) > 300:
+        if not force_local and use_cloud and (any(kw in query_lower for kw in coding_keywords) or len(query) > 300):
             # Free up local RAM so the host OS isn't choking while we process heavily in the cloud
             await self.force_evict_local_models()
-            # We route to Gemini exclusively now
-            return "cloud", {"model": "gemini-3.6-flash"}
+            return "cloud", {"model": cloud_text_model}
             
-        # 4. Local Budget Route
+        # 4. Agent Mode or Local Budget Route
         if agent_mode:
-            return "local", {"model_chain": ["qwen2.5-coder:3b", "phi3:mini"]}
-        return "local", {"model_chain": self.local_chain}
+            if not force_local and use_cloud:
+                return "cloud", {"model": cloud_text_model}
+            return "local", {"model": "hermes3:8b", "context_size": 8192}
+        
+        if not force_local and use_cloud:
+            return "cloud", {"model": cloud_text_model}
+            
+        return "local", {"model": best_local_model, "context_size": local_decision.get("context_size", 4096)}

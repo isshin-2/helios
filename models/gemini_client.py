@@ -1,67 +1,76 @@
 import json
-import httpx
 import logging
 import asyncio
-from typing import AsyncGenerator, Dict, Any, List, Optional, Tuple
+from typing import AsyncGenerator, Dict, Any, List, Optional
 import config
+from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 
 class GeminiClient:
     """
-    Async client for Google's Gemini API via HTTPX.
-    Uses SSE for low-latency streaming to stay within the 8GB RAM budget without
-    pulling in heavy external SDKs.
+    Async client for Google's Gemini API via the official google-genai SDK.
     """
     
     def __init__(self, api_key: str = None):
         self.api_key = api_key or config.GEMINI_API_KEY
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
-        
-        self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0),
-            headers={"Content-Type": "application/json"}
-        )
+        self.client = genai.Client(api_key=self.api_key)
 
     async def close(self):
-        """Gracefully close the HTTP client to prevent resource leaks."""
-        await self._client.aclose()
+        """No-op for the SDK"""
+        pass
 
     def _format_tools(self, mcp_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Translates tools into Gemini's function calling schema.
         Handles both internal OpenAI-style tools and MCP tools.
         """
+        def clean_schema(schema: Any) -> Any:
+            if isinstance(schema, dict):
+                schema.pop("additionalProperties", None)
+                if "type" in schema and isinstance(schema["type"], list):
+                    types = [t for t in schema["type"] if t != "null"]
+                    schema["type"] = types[0] if types else "string"
+                if "items" in schema and isinstance(schema["items"], list):
+                    if len(schema["items"]) > 0:
+                        schema["items"] = schema["items"][0]
+                    else:
+                        schema["items"] = {"type": "string"}
+                for key, value in list(schema.items()):
+                    schema[key] = clean_schema(value)
+                return schema
+            elif isinstance(schema, list):
+                return [clean_schema(item) for item in schema]
+            return schema
+
         function_declarations = []
         for t in mcp_tools:
             if "type" in t and t["type"] == "function" and "function" in t:
-                # Built-in tool in OpenAI format
                 func = t["function"]
                 func_decl = {
                     "name": func.get("name"),
                     "description": func.get("description", ""),
-                    "parameters": func.get("parameters", {"type": "object", "properties": {}})
+                    "parameters": clean_schema(func.get("parameters", {"type": "object", "properties": {}}))
                 }
             else:
-                # MCP tool format
                 func_decl = {
                     "name": t.get("name"),
                     "description": t.get("description", ""),
-                    "parameters": t.get("inputSchema", {"type": "object", "properties": {}})
+                    "parameters": clean_schema(t.get("inputSchema", {"type": "object", "properties": {}}))
                 }
             
-            # Gemini is strict about parameters being an object
             if "type" not in func_decl["parameters"]:
                 func_decl["parameters"]["type"] = "object"
                 
             function_declarations.append(func_decl)
             
         if not function_declarations:
-            return []
+            return None
             
-        return [{"functionDeclarations": function_declarations}]
+        return [{"function_declarations": function_declarations}]
 
-    def _format_messages(self, messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], str]:
+    def _format_messages(self, messages: List[Dict[str, Any]]):
         """
         Converts generic message format (role, content) to Gemini's format.
         Extracts the system prompt to be passed separately.
@@ -81,7 +90,6 @@ class GeminiClient:
             if isinstance(content, str):
                 parts.append({"text": content})
             elif isinstance(content, list):
-                # Handle multimodal arrays
                 for item in content:
                     if item.get("type") == "text":
                         parts.append({"text": item.get("text", "")})
@@ -90,14 +98,15 @@ class GeminiClient:
                         if img_url.startswith("data:image/"):
                             header, b64_data = img_url.split(",", 1)
                             mime = header.split(";")[0].replace("data:", "")
+                            # google-genai SDK handles inline data like this
+                            # we can pass it as a dict
                             parts.append({
-                                "inlineData": {
-                                    "mimeType": mime,
+                                "inline_data": {
+                                    "mime_type": mime,
                                     "data": b64_data
                                 }
                             })
             
-            # Prevent consecutive messages with the same role by merging them
             if gemini_messages and gemini_messages[-1]["role"] == role:
                 gemini_messages[-1]["parts"].extend(parts)
             else:
@@ -115,75 +124,47 @@ class GeminiClient:
         tools: Optional[List[Dict[str, Any]]] = None,
         model: str = "gemini-3.6-flash"
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """
-        Streams responses from Gemini via SSE.
-        """
+        
         gemini_messages, extracted_system = self._format_messages(messages)
         
         if extracted_system:
             system_prompt = (system_prompt + "\n\n" + extracted_system).strip()
             
-        payload = {
-            "contents": gemini_messages,
-            "generationConfig": {
-                "temperature": 0.2
-            }
+        generation_config = {
+            "temperature": 0.2
         }
-        
         if system_prompt:
-            payload["systemInstruction"] = {
-                "parts": [{"text": system_prompt}]
-            }
-            
+            generation_config["system_instruction"] = system_prompt
         if tools:
             formatted_tools = self._format_tools(tools)
             if formatted_tools:
-                payload["tools"] = formatted_tools
+                generation_config["tools"] = formatted_tools
 
-        url = f"{self.base_url}/{model}:streamGenerateContent?alt=sse&key={self.api_key}"
-
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                async with self._client.stream("POST", url, json=payload) as response:
-                    if response.status_code == 429:
-                        if attempt < max_retries - 1:
-                            await response.aread()
-                            logger.warning(f"Gemini API 429 Rate Limit. Retrying in {2 ** attempt} seconds...")
-                            await asyncio.sleep(2 ** attempt)
-                            continue
-                    
-                    if response.status_code != 200:
-                        await response.aread()
-                        logger.error(f"Gemini API Error {response.status_code}: {response.text}")
-                        if response.status_code == 429:
-                            yield {"type": "error", "content": "Gemini API 429 Rate Limit Exceeded. You are sending requests too quickly. Please wait 60 seconds before trying again."}
-                        else:
-                            yield {"type": "error", "content": f"Cloud LLM Error: {response.status_code}"}
-                        return
-                    
-                    async for line in response.aiter_lines():
-                        if line.startswith("data: "):
-                            logger.info(f"Gemini raw stream line: {line}")
-                            try:
-                                data = json.loads(line[6:])
-                                if "candidates" in data and len(data["candidates"]) > 0:
-                                    candidate = data["candidates"][0]
-                                    if "content" in candidate and "parts" in candidate["content"]:
-                                        for part in candidate["content"]["parts"]:
-                                            if "text" in part:
-                                                yield {"type": "text", "content": part["text"]}
-                                            if "functionCall" in part:
-                                                yield {"type": "tool_call", "content": part["functionCall"]}
-                                    else:
-                                        logger.warning(f"Gemini returned candidate without content parts: {candidate}")
-                            except json.JSONDecodeError:
-                                continue
-                    return # Exit the function successfully
-            except httpx.TimeoutException as e:
-                logger.error(f"Gemini API Timeout: {e}")
-                yield {"type": "error", "content": "Cloud API connection timed out."}
-                return
+        try:
+            # Note: client.aio.models.generate_content_stream for async
+            response = await self.client.aio.models.generate_content_stream(
+                model=model,
+                contents=gemini_messages,
+                config=generation_config
+            )
+            
+            async for chunk in response:
+                if chunk.text:
+                    yield {"type": "text", "content": chunk.text}
+                
+                # Check for function calls
+                if chunk.function_calls:
+                    for fc in chunk.function_calls:
+                        yield {
+                            "type": "tool_call",
+                            "content": {
+                                "name": fc.name,
+                                "arguments": fc.args
+                            }
+                        }
+        except Exception as e:
+            logger.error(f"Gemini API Error: {e}")
+            yield {"type": "error", "content": f"Cloud API Error: {str(e)}"}
 
     async def chat(
         self, 
@@ -194,9 +175,7 @@ class GeminiClient:
         stream: bool = False,
         **kwargs
     ) -> Any:
-        """
-        Non-streaming or streaming wrapper for Gemini.
-        """
+        
         if stream:
             return self.stream_chat(messages, system_prompt, tools, model)
             
@@ -205,69 +184,37 @@ class GeminiClient:
         if extracted_system:
             system_prompt = (system_prompt + "\n\n" + extracted_system).strip()
             
-        payload = {
-            "contents": gemini_messages,
-            "generationConfig": {
-                "temperature": 0.2
-            }
+        generation_config = {
+            "temperature": 0.2
         }
-        
         if system_prompt:
-            payload["systemInstruction"] = {
-                "parts": [{"text": system_prompt}]
-            }
-            
+            generation_config["system_instruction"] = system_prompt
         if tools:
             formatted_tools = self._format_tools(tools)
             if formatted_tools:
-                payload["tools"] = formatted_tools
+                generation_config["tools"] = formatted_tools
 
-        url = f"{self.base_url}/{model}:generateContent?key={self.api_key}"
-        
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = await self._client.post(url, json=payload)
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=model,
+                contents=gemini_messages,
+                config=generation_config
+            )
+            
+            if response.text:
+                return {"type": "text", "content": response.text}
                 
-                if response.status_code == 429 and attempt < max_retries - 1:
-                    logger.warning(f"Gemini API 429 Rate Limit. Retrying in {2 ** attempt} seconds...")
-                    await asyncio.sleep(2 ** attempt)
-                    continue
-                    
-                if response.status_code == 429:
-                    return {"role": "assistant", "content": "Gemini API 429 Rate Limit Exceeded. You are sending requests too quickly. Please wait 60 seconds before trying again."}
-                response.raise_for_status()
-                data = response.json()
+            if response.function_calls:
+                # Return the first tool call
+                fc = response.function_calls[0]
+                return {
+                    "type": "tool_call",
+                    "content": {
+                        "name": fc.name,
+                        "arguments": fc.args
+                    }
+                }
                 
-                # Translate Gemini's format to our standard format
-                message_obj = {"role": "assistant", "content": ""}
-                
-                if "candidates" in data and len(data["candidates"]) > 0:
-                    candidate = data["candidates"][0]
-                    if "content" in candidate and "parts" in candidate["content"]:
-                        for part in candidate["content"]["parts"]:
-                            if "text" in part:
-                                message_obj["content"] += part["text"]
-                            if "functionCall" in part:
-                                if "tool_calls" not in message_obj:
-                                    message_obj["tool_calls"] = []
-                                fc = part["functionCall"]
-                                message_obj["tool_calls"].append({
-                                    "type": "function",
-                                    "function": {
-                                        "name": fc["name"],
-                                        "arguments": json.dumps(fc.get("args", {}))
-                                    }
-                                })
-                                
-                return {"message": message_obj}
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code != 429:
-                    logger.error(f"Gemini API Error: {e.response.text}")
-                    raise
-                if attempt == max_retries - 1:
-                    logger.error(f"Gemini API Error (Max Retries Reached): {e.response.text}")
-                    raise
-            except Exception as e:
-                logger.error(f"Gemini Error: {e}")
-                raise
+        except Exception as e:
+            logger.error(f"Gemini API Error: {e}")
+            raise RuntimeError(f"Cloud API Error: {str(e)}")

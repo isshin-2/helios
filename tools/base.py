@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Tuple
 from pydantic import BaseModel
+from typing import List, Optional
+from security.capabilities import Capability
 
 class BaseTool(ABC):
     """
@@ -28,9 +30,15 @@ class BaseTool(ABC):
         pass
 
     @property
+    def required_capabilities(self) -> List[Capability]:
+        """Granular capabilities required to execute this tool."""
+        return []
+
+    @property
     def requires_permission(self) -> bool:
-        """Whether this tool requires security approval before execution."""
-        return False
+        """Backward compatibility for older tools."""
+        return len(self.required_capabilities) > 0
+
 
     @abstractmethod
     async def execute(self, user_id: int, **kwargs) -> Tuple[str, str]:

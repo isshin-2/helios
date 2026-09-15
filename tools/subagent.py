@@ -48,27 +48,23 @@ class SubAgentTool(BaseTool):
         
     async def _run_agent_loop(self, task: str, user_id: int, budget: int) -> str:
         """The actual agent loop running in the background."""
-        # For Phase 7, we implement a simple single-pass deep reasoning call.
-        # In a more advanced version, this would be a ReAct loop iterating `budget` times.
-        
-        messages = [
-            {"role": "system", "content": "You are a research sub-agent. Solve the task concisely and return the final answer. You operate in a sandbox."},
-            {"role": "user", "content": task}
-        ]
+        import needle
+        import asyncio
         
         try:
-            # We use chat() for messages
-            response = await self.provider.chat(
-                model="deepseek-r1:7b",
-                messages=messages,
-                stream=False
-            )
+            def run_needle():
+                agent = needle.Needle()
+                # Run the 14MB local model directly
+                return agent.run(task)
+                
+            response = await asyncio.to_thread(run_needle)
             
-            result = ""
-            if isinstance(response, dict) and "message" in response:
-                result = response["message"].get("content", "")
+            result = str(response.get("text", response))
             
-            return f"Sub-Agent completed task: '{task}'.\n\nResult:\n{result}"
+            return f"""Sub-Agent completed task: '{task}'.
+
+Result:
+{result}"""
             
         except asyncio.CancelledError:
             logger.info("Sub-agent task was cancelled.")
