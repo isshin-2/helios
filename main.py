@@ -56,6 +56,17 @@ async def lifespan(app: FastAPI):
           threading.Thread(target=voice_manager.tts.initialize, daemon=True).start()
     logger.info("Eagerly loading Kokoro TTS in background...")
     
+    import config
+    import sys
+    import subprocess
+    import os
+    
+    # Launch main desktop app if enabled and not running headless in Docker
+    if getattr(config, "ENABLE_DESKTOP_APP", True) and not os.environ.get("DOCKER_ENV"):
+        logger.info("Spawning HELIOS Desktop App...")
+        # Start in background without blocking
+        subprocess.Popen([sys.executable, "helios_desktop.py"])
+    
     await orchestrator.start()
     
     yield

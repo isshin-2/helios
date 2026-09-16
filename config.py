@@ -33,6 +33,9 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 # If False (e.g. running in Docker), it will fallback to standard terminal output.
 ENABLE_TENSURA_OVERLAY = os.environ.get("ENABLE_TENSURA_OVERLAY", "True").lower() == "true"
 
+# If True, the main HELIOS Tensura-style Desktop App will launch automatically with the server.
+ENABLE_DESKTOP_APP = os.environ.get("ENABLE_DESKTOP_APP", "True").lower() == "true"
+
 # Model specific configurations
 VISION_MODEL = os.environ.get("VISION_MODEL", "qwen2.5vl:3b")
 
