@@ -1,35 +1,68 @@
 ﻿<div align="center">
-  <h1>HELIOS AI Router</h1>
-  <p><strong>Locally-hosted, context-aware AI routing orchestrator for agentic workflows.</strong></p>
-  
-  [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
-  [![Ollama](https://img.shields.io/badge/Powered%20by-Ollama-orange.svg)](https://ollama.com/)
-  [![Memory Optimization](https://img.shields.io/badge/Memory-Highly%20Optimized-success.svg)](#hardware-profiles--model-recommendations)
-  [![Security](https://img.shields.io/badge/Security-Zero%20Trust-red.svg)](#security--sandbox)
-  [![Docker Support](https://img.shields.io/badge/Docker-Supported-blue.svg)](#docker-deployment)
+  <img src="https://img.shields.io/badge/HELIOS-AI_Router-00e5ff?style=for-the-badge" alt="HELIOS AI Router">
+  <br><br>
+  <strong>A magical, locally-hosted AI brain that routes tasks to different models, remembers your preferences, and controls your computer.</strong>
 </div>
 
 <br>
 
+---
+
+# 🚀 How to Setup HELIOS (The "Baby-Proof" Guide)
+
+Don't worry if you aren't a programmer! Just follow these exact steps to get HELIOS running on your computer.
+
+### Step 1: Install the Prerequisites
+Before starting, you need two pieces of software installed on your computer:
+1. **[Python (3.11 or newer)](https://www.python.org/downloads/)**: When installing, **make sure you check the box that says "Add Python.exe to PATH"** at the very bottom of the installer window!
+2. **[Ollama](https://ollama.com/download)**: This is the engine that runs the AI models locally on your computer. Download and install it.
+
+### Step 2: Download the AI Models
+HELIOS needs "brains" to work. Open your computer's **Terminal** (or Command Prompt) and copy-paste these commands one by one, hitting Enter after each:
+`ash
+ollama pull qwen2.5-coder:1.5b
+ollama pull qwen2.5:7b
+ollama pull moondream
+`
+*(Note: These downloads might take a few minutes depending on your internet speed).*
+
+### Step 3: Start HELIOS!
+Now that everything is installed, it's time to turn HELIOS on.
+
+1. Download this entire folder to your computer.
+2. Double-click the start.bat file (if you are on Windows). 
+   * *(If you are on Mac, open a terminal, type chmod +x start.command and then run ./start.command)*
+   * *(If you are on Linux, run ./start.sh)*
+3. Wait for it to finish installing its requirements.
+4. **You're done!** Open your web browser and go to: **[http://localhost:8000](http://localhost:8000)**
+
+---
+
+## 🐳 Alternative: Running in Docker (For Servers)
+If you prefer to run HELIOS in a Docker container (perfect for servers or if you want to skip installing Python locally), you can start it with one command!
+
+Make sure you have [Docker Desktop](https://www.docker.com/products/docker-desktop) installed, then open your terminal in this folder and run:
+`ash
+docker-compose up --build -d
+`
+*Note: When running in Docker, HELIOS runs "headlessly", meaning the animated desktop popups are automatically disabled.*
+
+---
+---
+
+# ⚙️ Advanced Technical Details (For Nerds)
+
 HELIOS operates as a proxy between a user interface and local LLMs (via Ollama) and sandboxed system tools. It routes system calls to specific models based on task requirements while enforcing execution boundaries.
 
----
-
-## Features
-
+### Core Features
 - **Task-Based Routing**: Directs queries to specific local LLMs based on required capability (e.g., deepseek-r1:7b for reasoning, qwen2.5-coder:1.5b for tool execution).
-- **Memory Management**: Offloads inactive models from GPU/CPU VRAM to prevent Out-Of-Memory (OOM) exceptions.
-- **Execution Sandbox**: Implements a Zero-Trust architecture via a PermissionManager. High-risk file operations and terminal commands require explicit API approval.
-- **Pydantic Tooling**: Python-based tool definitions using Pydantic schemas, enabling LLMs to read files, run terminal commands, and automate OS tasks.
+- **Zero-Trust Sandbox**: Implements an execution sandbox via a PermissionManager. High-risk file operations and terminal commands require explicit API approval.
 - **Vector Memory (RAG)**: Uses local SQLite vector embeddings to persist session context, automatically categorizing facts and tool discoveries into long-term memory.
 - **Native GUI Overlays**: Features a dynamic, animated desktop UI overlay ("Tensura Style") for interactive mid-task multiple-choice questions from the AI.
-- **Self-Modification**: Can propose codebase patches. Deployment requires explicit user approval.
 
----
+### Hardware Profiles & Model Recommendations
 
-## Hardware Profiles & Model Recommendations
-
-HELIOS requires specific model configurations to prevent disk swapping or OOM crashes, particularly when running alongside the TTS engine (Kokoro TTS, ~1.5 GB). Configure config.py based on your available RAM.
+Configure config.py based on your available RAM.
 
 | Component | 8GB RAM (Low-End Windows Laptop) | 16GB RAM (Standard Desktop) | 32GB+ RAM (Workstation) |
 |-----------|----------------------------------|-----------------------------|-------------------------|
@@ -37,58 +70,6 @@ HELIOS requires specific model configurations to prevent disk swapping or OOM cr
 | **General Chat** | qwen2.5:7b | qwen2.5:7b | qwen2.5:14b |
 | **Reasoning** | *Not Recommended* | deepseek-r1:7b | deepseek-r1:14b |
 | **Vision** | moondream:latest | llava:latest | llava:13b |
-| **Memory Footprint**| **~3.2 GB** | **~8.5 GB** | **~18.0 GB** |
+| **Memory**| **~3.2 GB** | **~8.5 GB** | **~18.0 GB** |
 
-> **8GB System Constraints:**  
-> Attempting to load 7B/8B models (4.5GB+) alongside Kokoro TTS (1.5GB) on an 8GB machine will trigger severe OS paging. Stick to the 8GB profile (qwen2.5-coder:1.5b + moondream) to maintain stable execution times.
-
----
-
-## Installation
-
-### Standard Deployment (Local)
-
-1. **Requirements**: 
-   - **Python 3.9+** (Must be in system PATH).
-   - **Ollama**: Must be running locally (default port: 11434).
-   - **Python Packages**: pyautogui, Pillow, and pywebview required for UI automation and GUI overlays.
-
-2. **Setup**:
-   Clone the repository and execute the startup script to build the environment and start the server:
-   * **Windows**: start.bat
-   * **macOS**: Run ./start.command in terminal.
-   * **Linux**: ./start.sh
-
-3. **Usage**: Navigate to [http://localhost:8000](http://localhost:8000) in your browser.
-
-### Docker Deployment
-
-HELIOS fully supports containerization for headless environments or strict isolation. When running in Docker, HELIOS automatically disables the native desktop GUI overlays and falls back to standard terminal output.
-
-`ash
-docker-compose up --build -d
-`
-*Note: The docker-compose.yml is pre-configured to mount helios.db for persistent memory and routes OLLAMA_HOST to host.docker.internal to access your host machine's Ollama engine.*
-
----
-
-## Interactive UI Overlays
-
-HELIOS features a highly stylized, transparent, and animated desktop UI overlay for times when the AI needs your explicit confirmation mid-task (e.g. asking a multiple-choice question before executing a dangerous command). 
-
-This is toggled on by default via ENABLE_TENSURA_OVERLAY=True in config.py. If running in Docker (DOCKER_ENV=1), HELIOS gracefully falls back to emitting INPUT_REQUIRED:: signals to the console instead.
-
-You can demo the UI directly by running:
-`ash
-python tests/overlays/demo_tensura_popup.py
-`
-
----
-
-## Security & Sandbox
-
-HELIOS enforces execution boundaries by default:
-- **File System**: Read/Write access is restricted to the HELIOS root directory. 
-- **Permissions**: You can whitelist external directories and specific CLI commands via the **System Specs** panel in the Web UI.
-
-Read the [ARCHITECTURE.md](ARCHITECTURE.md) for technical specifications on the routing and security implementations.
+> **Warning for 8GB Systems:** Attempting to load 7B/8B models (4.5GB+) alongside a TTS engine (1.5GB) on an 8GB machine will trigger severe OS paging. Stick to the 8GB profile to maintain stable execution times.
