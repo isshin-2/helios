@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "status": "complete",
+  "initialized_at": "2026-09-16T17:05:20Z",
+  "hardware_tier": "balanced_cpu_16gb",
+  "analyzer_model": "llama3.2:3b",
+  "analyzer_was_preexisting": true,
+  "models": [
+    "qwen2.5:1.5b",
+    "nomic-embed-text:latest"
+  ]
+}

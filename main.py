@@ -67,6 +67,18 @@ async def lifespan(app: FastAPI):
         # Start in background without blocking
         subprocess.Popen([sys.executable, "helios_desktop.py"])
     
+    # --- First-Start Model Provisioning ---
+    try:
+        from core.events import global_bus
+        from core.model_provisioner import run_first_start_provisioning
+        provision_result = await run_first_start_provisioning(
+            event_bus=global_bus,
+            base_dir=os.path.dirname(os.path.abspath(__file__))
+        )
+        logger.info(f"Provisioning result: {provision_result.get('status', 'unknown')}")
+    except Exception as e:
+        logger.warning(f"Model provisioning skipped or failed: {e}")
+    
     await orchestrator.start()
     
     yield
@@ -507,10 +519,29 @@ async def websocket_endpoint(websocket: WebSocket):
         except (RuntimeError, WebSocketDisconnect, Exception):
             pass # Socket might be closed
             
-    # Subscribe websocket sender to all event types
-    event_bus.subscribe("status", lambda d: asyncio.create_task(ws_sender({"type": "status", "text": d})))
-    event_bus.subscribe("chunk", lambda d: asyncio.create_task(ws_sender({"type": "chunk", "content": d})))
-    event_bus.subscribe("meta", lambda d: asyncio.create_task(ws_sender({"type": "meta", **d})))
+    # Named callbacks for easy unsubscription
+    def on_status(d): asyncio.create_task(ws_sender({"type": "status", "text": d}))
+    def on_chunk(d): asyncio.create_task(ws_sender({"type": "chunk", "content": d}))
+    def on_meta(d): asyncio.create_task(ws_sender({"type": "meta", **d}))
+    def on_input_request(d): asyncio.create_task(ws_sender({"type": "input_request", **d}))
+    def on_approval_request(d): asyncio.create_task(ws_sender({"type": "approval_request", **d}))
+    def on_done(d=None): asyncio.create_task(ws_sender({"type": "done"}))
+    def on_ui_state(d): asyncio.create_task(ws_sender({"type": "ui_state", "state": d}))
+            
+    # Subscribe to request-local event bus
+    event_bus.subscribe("status", on_status)
+    event_bus.subscribe("chunk", on_chunk)
+    event_bus.subscribe("meta", on_meta)
+    event_bus.subscribe("input_request", on_input_request)
+    event_bus.subscribe("approval_request", on_approval_request)
+    event_bus.subscribe("done", on_done)
+
+    # Subscribe to global event bus for background tasks
+    from core.events import global_bus
+    global_bus.subscribe("status", on_status)
+    global_bus.subscribe("chunk", on_chunk)
+    global_bus.subscribe("meta", on_meta)
+    global_bus.subscribe("ui_state", on_ui_state)
     
     if getattr(voice_manager, "_on_chunk", None):
         try:
@@ -522,10 +553,6 @@ async def websocket_endpoint(websocket: WebSocket):
         except Exception:
             pass
 
-    event_bus.subscribe("input_request", lambda d: asyncio.create_task(ws_sender({"type": "input_request", **d})))
-    event_bus.subscribe("approval_request", lambda d: asyncio.create_task(ws_sender({"type": "approval_request", **d})))
-    event_bus.subscribe("done", lambda d: asyncio.create_task(ws_sender({"type": "done"})))
-    
     try:
         while True:
             data = await websocket.receive_text()
@@ -575,6 +602,12 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info("Client disconnected")
         # Clear session approvals on disconnect
         permission_manager.approval_manager.clear_session()
+    finally:
+        from core.events import global_bus
+        global_bus.unsubscribe("status", on_status)
+        global_bus.unsubscribe("chunk", on_chunk)
+        global_bus.unsubscribe("meta", on_meta)
+        global_bus.unsubscribe("ui_state", on_ui_state)
 
 @app.post("/api/chat/cancel/{session_id}")
 async def cancel_chat(session_id: int):
@@ -689,3 +722,69 @@ async def sidecar_websocket_endpoint(websocket: WebSocket):
         pass
     finally:
         sidecar_manager.unregister(sidecar_id)
+
+
+# --- System Provisioning API --------------------------------------------------
+@app.get("/api/system/provisioning")
+async def get_provisioning_status():
+    """Return current provisioning status and initialization manifest."""
+    from core.model_provisioner import is_initialized, read_initialized_manifest, load_checkpoint
+    import os as _os
+    base = _os.path.dirname(_os.path.abspath(__file__))
+    initialized = is_initialized(base)
+    manifest = read_initialized_manifest(base) if initialized else None
+    checkpoint = load_checkpoint(base) if not initialized else None
+    return {
+        "initialized": initialized,
+        "manifest": manifest,
+        "checkpoint": checkpoint
+    }
+
+
+@app.post("/api/system/reprovision")
+async def reprovision_system(req: Dict[str, Any] = {}):
+    """
+    Trigger model re-provisioning.
+    
+    Body parameters:
+        mode: "dry_run" | "analyze" | "provision" | "force"
+            - dry_run: analyze hardware and report proposed models without pulling
+            - analyze: same as dry_run
+            - provision: run full provisioning (only if not already initialized)
+            - force: re-run provisioning even if already initialized
+    """
+    from core.model_provisioner import ModelProvisioner, is_initialized
+    from core.events import global_bus
+    from providers.ollama import OllamaProvider
+    from config import OLLAMA_HOST
+    import os as _os
+
+    mode = req.get("mode", "dry_run")
+    base = _os.path.dirname(_os.path.abspath(__file__))
+
+    if mode not in ("dry_run", "analyze", "provision", "force"):
+        return {"error": f"Invalid mode '{mode}'. Use: dry_run, analyze, provision, force"}
+
+    dry_run = mode in ("dry_run", "analyze")
+    force = mode == "force"
+
+    if mode == "provision" and is_initialized(base):
+        return {"error": "Already initialized. Use mode='force' to re-provision."}
+
+    prov = OllamaProvider(host=OLLAMA_HOST)
+
+    async def bridge(event_type, data=None):
+        try:
+            await global_bus.publish("provisioning_event", {"event": event_type, "data": data})
+        except Exception:
+            pass
+
+    provisioner = ModelProvisioner(ollama_provider=prov, event_callback=bridge, base_dir=base)
+    result = await provisioner.run(dry_run=dry_run, force=force)
+
+    try:
+        await prov.close()
+    except Exception:
+        pass
+
+    return result

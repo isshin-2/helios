@@ -1,0 +1,130 @@
+{
+  "models": [
+    {
+      "name": "llama3.2:1b",
+      "role": "general",
+      "estimated_size_gb": 1.3,
+      "minimum_ram_gb": 4,
+      "minimum_vram_gb": 0,
+      "tiers": ["budget_cpu_8gb", "balanced_cpu_16gb", "gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 0
+    },
+    {
+      "name": "qwen2.5:1.5b",
+      "role": "general",
+      "estimated_size_gb": 1.0,
+      "minimum_ram_gb": 4,
+      "minimum_vram_gb": 0,
+      "tiers": ["budget_cpu_8gb", "balanced_cpu_16gb", "gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 1
+    },
+    {
+      "name": "qwen2.5:3b",
+      "role": "general",
+      "estimated_size_gb": 2.0,
+      "minimum_ram_gb": 8,
+      "minimum_vram_gb": 0,
+      "tiers": ["balanced_cpu_16gb", "gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 2
+    },
+    {
+      "name": "qwen3.5:4b",
+      "role": "general",
+      "estimated_size_gb": 3.4,
+      "minimum_ram_gb": 8,
+      "minimum_vram_gb": 0,
+      "tiers": ["balanced_cpu_16gb", "gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 3
+    },
+    {
+      "name": "qwen3.5:9b",
+      "role": "general",
+      "estimated_size_gb": 6.6,
+      "minimum_ram_gb": 16,
+      "minimum_vram_gb": 0,
+      "tiers": ["gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 4
+    },
+    {
+      "name": "qwen2.5-coder:3b",
+      "role": "coding",
+      "estimated_size_gb": 1.9,
+      "minimum_ram_gb": 8,
+      "minimum_vram_gb": 0,
+      "tiers": ["budget_cpu_8gb", "balanced_cpu_16gb", "gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 2
+    },
+    {
+      "name": "ornith:9b",
+      "role": "coding",
+      "estimated_size_gb": 5.6,
+      "minimum_ram_gb": 16,
+      "minimum_vram_gb": 0,
+      "tiers": ["gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 3
+    },
+    {
+      "name": "gemma4:12b",
+      "role": "coding",
+      "estimated_size_gb": 7.6,
+      "minimum_ram_gb": 16,
+      "minimum_vram_gb": 6,
+      "tiers": ["gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 4
+    },
+    {
+      "name": "qwen3.5:4b",
+      "role": "reasoning",
+      "estimated_size_gb": 3.4,
+      "minimum_ram_gb": 8,
+      "minimum_vram_gb": 0,
+      "tiers": ["balanced_cpu_16gb", "gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 2
+    },
+    {
+      "name": "llama3.2:3b",
+      "role": "tool_use",
+      "estimated_size_gb": 2.0,
+      "minimum_ram_gb": 8,
+      "minimum_vram_gb": 0,
+      "tiers": ["budget_cpu_8gb", "balanced_cpu_16gb", "gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 2
+    },
+    {
+      "name": "hermes3:8b",
+      "role": "tool_use",
+      "estimated_size_gb": 4.7,
+      "minimum_ram_gb": 16,
+      "minimum_vram_gb": 0,
+      "tiers": ["gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 3
+    },
+    {
+      "name": "qwen2.5vl:3b",
+      "role": "vision",
+      "estimated_size_gb": 3.2,
+      "minimum_ram_gb": 8,
+      "minimum_vram_gb": 0,
+      "tiers": ["balanced_cpu_16gb", "gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 2
+    },
+    {
+      "name": "qwen3-vl:8b",
+      "role": "vision",
+      "estimated_size_gb": 6.1,
+      "minimum_ram_gb": 16,
+      "minimum_vram_gb": 0,
+      "tiers": ["gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 3
+    },
+    {
+      "name": "nomic-embed-text:latest",
+      "role": "embedding",
+      "estimated_size_gb": 0.3,
+      "minimum_ram_gb": 4,
+      "minimum_vram_gb": 0,
+      "tiers": ["budget_cpu_8gb", "balanced_cpu_16gb", "gpu_entry_8gb_vram", "gpu_workstation_16gb_plus"],
+      "priority": 5
+    }
+  ]
+}

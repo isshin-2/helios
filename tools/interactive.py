@@ -32,8 +32,8 @@ class AskUserTool(BaseTool):
         import sys
         import config
         
-        # If running headlessly or disabled via config, fallback to CLI signaling
-        if not getattr(config, "ENABLE_TENSURA_OVERLAY", True) or os.environ.get("DOCKER_ENV"):
+        # If running headlessly, disabled via config, or if the main desktop app is running (which has its own UI), fallback to text signaling
+        if not getattr(config, "ENABLE_TENSURA_OVERLAY", True) or os.environ.get("DOCKER_ENV") or getattr(config, "ENABLE_DESKTOP_APP", True):
             if options and len(options) > 0:
                 options_str = "|".join(options)
                 return (f"INPUT_REQUIRED::{question} [OPTIONS:{options_str}]", self.name)

@@ -114,7 +114,7 @@ input_html = """
 """
 
 html = base_html.replace("</head>", css_injection + "</head>")
-html = html.replace("<!-- UI Controls -->", input_html)
+html = html.replace('<div class="controls">', input_html + '\n<div class="controls">')
 
 # We want the window to just run and look cool.
 # Remove the debug buttons from the bottom
@@ -125,61 +125,81 @@ if controls_start != -1:
 
 class DesktopApi:
     def __init__(self):
-        self.window = None
-        self.ws = None
-        self.loop = asyncio.new_event_loop()
+        self._window = None
+        self._ws = None
+        self._loop = asyncio.new_event_loop()
+        self._current_message = ""
         threading.Thread(target=self.start_loop, daemon=True).start()
 
     def start_loop(self):
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.connect_ws())
+        asyncio.set_event_loop(self._loop)
+        self._loop.run_until_complete(self.connect_ws())
 
     async def connect_ws(self):
         uri = "ws://localhost:8000/ws"
         try:
             async with websockets.connect(uri) as websocket:
-                self.ws = websocket
+                self._ws = websocket
                 await websocket.send(json.dumps({"type": "init", "user_id": 1}))
                 
                 while True:
                     msg = await websocket.recv()
                     data = json.loads(msg)
-                    if data.get("type") == "token":
-                        # streaming token
-                        pass
-                    elif data.get("type") == "message":
+                    msg_type = data.get("type")
+                    
+                    if msg_type == "ui_state":
+                        state = data.get("state")
+                        self._window.evaluate_js(f"setState('{state}');")
+                    elif msg_type == "chunk":
+                        self._current_message += data.get("content", "")
+                    elif msg_type == "done":
+                        if self._current_message:
+                            safe_content = json.dumps(self._current_message)
+                            self._window.evaluate_js(f"appendMessage({safe_content}, 'helios');")
+                            self._current_message = ""
+                        self._window.evaluate_js("setState('idle');")
+                    elif msg_type == "message":
                         # Full message received
                         content = data.get("content", "")
-                        self.window.evaluate_js(f"appendMessage({content.replace('', '')}, 'helios');")
-                        self.window.evaluate_js("setState('speaking');")
-                        await asyncio.sleep(2)
-                        self.window.evaluate_js("setState('listening');")
+                        safe_content = json.dumps(content)
+                        self._window.evaluate_js(f"appendMessage({safe_content}, 'helios');")
         except Exception as e:
             print(f"WS Error: {e}")
-            if self.window:
-                self.window.evaluate_js("appendMessage(`Failed to connect to backend on port 8000. Is HELIOS running?`, 'helios');")
+            if self._window:
+                self._window.evaluate_js("appendMessage(`Failed to connect to backend on port 8000. Is HELIOS running?`, 'helios');")
 
     def send_message(self, text):
-        if self.ws:
+        if self._ws:
             payload = json.dumps({"type": "message", "content": text})
-            asyncio.run_coroutine_threadsafe(self.ws.send(payload), self.loop)
+            asyncio.run_coroutine_threadsafe(self._ws.send(payload), self._loop)
             
     def close_app(self):
-        if self.window:
-            self.window.destroy()
+        if self._window:
+            self._window.destroy()
 
 api = DesktopApi()
+
+import ctypes
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+except Exception:
+    pass
+user32 = ctypes.windll.user32
+screen_w = user32.GetSystemMetrics(0)
+screen_h = user32.GetSystemMetrics(1)
 
 print("Launching HELIOS Desktop App...")
 window = webview.create_window(
     "HELIOS Main", 
     html=html, 
     js_api=api,
-    fullscreen=True,
+    width=screen_w,
+    height=screen_h,
+    x=0,
+    y=0,
     frameless=True,
-    transparent=True,
-    on_top=True
+    transparent=True
 )
-api.window = window
+api._window = window
 
 webview.start(gui="edgechromium")

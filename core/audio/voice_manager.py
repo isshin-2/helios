@@ -111,6 +111,10 @@ class VoiceManager:
         if self._in_think_block or self._in_code_block:
             return
             
+        # Prevent TTS from speaking raw JSON tool calls if the LLM leaked them
+        if '"name":' in sentence or '"arguments":' in sentence or '"question":' in sentence:
+            return
+            
         # Clean up the sentence
         clean_sentence = re.sub(r'```.*?```', '', sentence, flags=re.DOTALL)
         clean_sentence = re.sub(r'```', '', clean_sentence)
@@ -175,6 +179,20 @@ class VoiceManager:
             self._clean_and_queue(self._text_buffer.strip())
             self._text_buffer = ""
 
+    def _broadcast_ui_state(self, state: str):
+        try:
+            import config
+            from core.events import global_bus
+            import asyncio
+            if getattr(config, "ENABLE_DESKTOP_APP", True):
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(global_bus.publish("ui_state", state))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     async def _synthesis_worker(self):
         """Background worker that pulls sentences and synthesizes them."""
         while True:
@@ -190,12 +208,14 @@ class VoiceManager:
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, self.player.wait_until_done)
                     self.is_speaking = False
+                    self._broadcast_ui_state("idle")
                     if self.hide_overlay:
                         self.hide_overlay()
                     self._tts_queue.task_done()
                     continue
                     
                 self.is_speaking = True
+                self._broadcast_ui_state("speaking")
                 logger.info(f"Synthesizing: {sentence}")
                 try:
                     print(f"[HELIOS]: {sentence}")

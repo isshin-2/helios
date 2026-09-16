@@ -173,3 +173,66 @@ class OllamaProvider(BaseProvider):
 
     async def unload_model(self, model: str) -> Dict[str, Any]:
         return await self._post("generate", {"model": model, "keep_alive": 0})
+
+    async def model_exists(self, model: str) -> bool:
+        try:
+            res = await self.list_models()
+            models = res.get("models", [])
+            for m in models:
+                name = m.get("name", "")
+                if name == model or name.startswith(f"{model}:"):
+                    return True
+            return False
+        except Exception:
+            return False
+
+    async def pull_model(self, model: str, progress_callback=None) -> bool:
+        try:
+            request = self._client.build_request(
+                "POST", 
+                f"{self.base_url}/pull", 
+                json={"name": model, "stream": True},
+                timeout=httpx.Timeout(connect=10.0, read=600.0, write=30.0, pool=None)
+            )
+            response = await self._client.send(request, stream=True)
+            try:
+                async for line in response.aiter_lines():
+                    if not line:
+                        continue
+                    data = json.loads(line)
+                    if progress_callback and callable(progress_callback):
+                        progress_callback(data)
+                    
+                    if "error" in data:
+                        logger.error(f"Ollama pull error: {data['error']}")
+                        return False
+                        
+                    if "total" in data and "completed" in data:
+                        status = data.get("status", "Pulling")
+                        completed = data["completed"]
+                        total = data["total"]
+                        percentage = (completed / total) * 100 if total > 0 else 0
+                        logger.info(f"[Ollama Pull] {status}: {percentage:.2f}%")
+                        
+                return True
+            finally:
+                await response.aclose()
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error pulling model {model}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error pulling model {model}: {e}")
+            return False
+
+    async def delete_model(self, model: str) -> bool:
+        try:
+            response = await self._client.request("DELETE", f"{self.base_url}/delete", json={"model": model})
+            if response.status_code == 200:
+                logger.info(f"Successfully deleted model {model}")
+                return True
+            else:
+                logger.error(f"Failed to delete model {model}: {response.status_code}")
+                return False
+        except Exception as e:
+            logger.error(f"Error deleting model {model}: {e}")
+            return False

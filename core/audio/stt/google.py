@@ -1,4 +1,4 @@
-﻿import speech_recognition as sr
+import speech_recognition as sr
 import threading
 import logging
 import json
@@ -48,7 +48,29 @@ class VoiceInput:
             self.vad = None
             logger.warning("SileroVAD not available.")
 
+    def _broadcast_ui_state(self, state: str):
+        try:
+            import config
+            from core.events import global_bus
+            import asyncio
+            if getattr(config, "ENABLE_DESKTOP_APP", True):
+                try:
+                    loop = asyncio.get_event_loop()
+                    asyncio.run_coroutine_threadsafe(global_bus.publish("ui_state", state), loop)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     def _set_overlay_state(self, state: str):
+        try:
+            import config
+            if getattr(config, "ENABLE_DESKTOP_APP", True):
+                if state == "Thinking..." or state == "Processing Audio...":
+                    self._broadcast_ui_state("thinking")
+        except Exception:
+            pass
+            
         try:
             with open("overlay_state.txt", "w") as f:
                 f.write(state)
@@ -56,6 +78,11 @@ class VoiceInput:
             pass
 
     def _show_overlay(self, state="Listening..."):
+        import config
+        if getattr(config, "ENABLE_DESKTOP_APP", True):
+            self._broadcast_ui_state("listening")
+            return
+            
         self._set_overlay_state(state)
         if self.overlay_process:
             return
@@ -66,6 +93,10 @@ class VoiceInput:
             logger.error(f"Failed to spawn Siri overlay: {e}")
 
     def _hide_overlay(self):
+        import config
+        if getattr(config, "ENABLE_DESKTOP_APP", True):
+            self._broadcast_ui_state("idle")
+            
         if self.overlay_process:
             try:
                 self.overlay_process.terminate()
