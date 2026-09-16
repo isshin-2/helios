@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Core - Dynamic State Shifting</title>
+<style>
+    :root {
+        /* Core Palette */
+        --bg-slate: #0D0E12;
+        --core-black: #050507;
+        --charcoal: #2C3038;
+        --off-white: #EBF0F5;
+        --pure-white: #FFFFFF;
+        
+        /* State Accents */
+        --accent-amber: #FFCC00;
+        --accent-blue: #3296fa;
+        --accent-magenta: #BF40BF;
+        
+        /* Shared variables updated via body class */
+        --spin-speed: 8s;
+        --pulse-speed: 2s;
+        --wave-opacity: 0;
+        --horizon-glow: 0 0 10px rgba(235, 240, 245, 0.1);
+        --accent-color: var(--off-white);
+        
+        /* Background variables */
+        --bg-color-top: var(--bg-slate);
+        --bg-color-bot: var(--bg-slate);
+        --clip-top: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+        --clip-bot: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+        --emblem-scale: 1;
+        --emblem-rot: 0deg;
+        --widget-rot: 0deg;
+        --widget-shape: 46px;
+    }
+
+    body, html {
+        margin: 0; padding: 0;
+        width: 100%; height: 100%;
+        background-color: var(--bg-slate);
+        color: var(--off-white);
+        font-family: 'Helvetica Neue Extended', DIN, -apple-system, sans-serif;
+        display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+        overflow: hidden;
+    }
+
+    /* =========================================
+       DYNAMIC BACKGROUND LAYOUT
+       ========================================= */
+    .split-bg-container {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 0;
+        overflow: hidden;
+    }
+
+    .split-card {
+        position: absolute;
+        width: 100%; height: 100%;
+        transition: clip-path 0.8s cubic-bezier(0.19, 1, 0.22, 1), 
+                    background-color 0.8s ease;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .card-top {
+        background: var(--bg-color-top);
+        clip-path: var(--clip-top);
+        z-index: 2;
+    }
+
+    .card-bottom {
+        background: var(--bg-color-bot);
+        clip-path: var(--clip-bot);
+        z-index: 1;
+    }
+    
+    /* Center Emblem */
+    .emblem {
+        position: absolute;
+        width: 70vmin; height: 70vmin;
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: transform 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+        transform: scale(var(--emblem-scale)) rotate(var(--emblem-rot));
+    }
+    
+    .emblem::before, .emblem::after {
+        content: ''; position: absolute;
+        width: 80%; height: 80%;
+        border: 1px dashed rgba(255,255,255,0.1);
+        transition: transform 0.8s ease;
+    }
+    .emblem::before { transform: rotate(45deg); }
+    .emblem::after { transform: rotate(-45deg); width: 60%; height: 60%; border-style: solid; border-color: rgba(255,255,255,0.03);}
+
+    /* Kinetic Typography */
+    .kinetic-text {
+        position: absolute;
+        font-size: 14vw;
+        font-weight: 900;
+        letter-spacing: 1vw;
+        color: rgba(255,255,255,0.02);
+        text-transform: uppercase;
+        white-space: nowrap;
+        pointer-events: none;
+        transition: transform 0.8s ease, opacity 0.4s ease;
+    }
+    .card-top .kinetic-text { top: 5%; left: 0%; transform: translateX(var(--text-slide, 0)); }
+    .card-bottom .kinetic-text { bottom: 5%; right: 0%; transform: rotate(180deg) translateX(var(--text-slide, 0)); }
+
+    /* =========================================
+       AI LOGO CORE
+       ========================================= */
+    .widget-container {
+        position: relative;
+        width: 250px; height: 250px;
+        background: linear-gradient(135deg, #1a1c23 0%, #0D0E12 100%);
+        border: 1px solid var(--charcoal);
+        box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+        display: flex; justify-content: center; align-items: center;
+        z-index: 10;
+        border-radius: var(--widget-shape);
+        transform: rotate(var(--widget-rot));
+        transition: border-radius 0.6s cubic-bezier(0.19, 1, 0.22, 1),
+                    transform 0.6s cubic-bezier(0.19, 1, 0.22, 1),
+                    border-color 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .widget-inner {
+        width: 100%; height: 100%;
+        transform: rotate(calc(var(--widget-rot) * -1));
+        transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+        display: flex; justify-content: center; align-items: center;
+    }
+
+    .black-hole-svg {
+        width: 100%; height: 100%;
+        transform: scale(0.9);
+        transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .event-horizon {
+        fill: var(--core-black);
+        stroke: var(--charcoal);
+        stroke-width: 2;
+        transition: stroke 0.4s ease, filter 0.4s ease;
+        filter: drop-shadow(var(--horizon-glow));
+    }
+
+    .ring-line {
+        fill: none;
+        stroke: var(--pure-white);
+        transition: stroke-dasharray 0.4s ease, stroke-opacity 0.4s ease;
+    }
+    .ring-back { stroke: var(--charcoal); }
+
+    .spin-slow {
+        stroke-dasharray: 60 120;
+        animation: orbit var(--spin-speed) linear infinite;
+    }
+    .spin-fast {
+        stroke-dasharray: 10 30;
+        animation: orbitFront calc(var(--spin-speed) * 0.6) linear infinite;
+        stroke: var(--accent-color);
+        transition: stroke 0.4s ease;
+    }
+
+    @keyframes orbit { 0% { stroke-dashoffset: 360; } 100% { stroke-dashoffset: 0; } }
+    @keyframes orbitFront { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 360; } }
+
+    .speak-wave {
+        fill: none; stroke: var(--accent-color); stroke-width: 1.5; opacity: 0; transform-origin: center;
+    }
+    @keyframes speakPulse { 0% { transform: scale(0.8); opacity: var(--wave-opacity); } 100% { transform: scale(2.5); opacity: 0; } }
+    .speak-wave-1 { animation: speakPulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+    .speak-wave-2 { animation: speakPulse 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite 0.6s; }
+
+    /* UI Badge */
+    .status-badge {
+        position: absolute;
+        bottom: -20px;
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 16px;
+        background: var(--bg-slate);
+        border: 1px solid var(--charcoal);
+        z-index: 20;
+        transform: rotate(0deg); 
+        transition: border-radius 0.4s ease, bottom 0.4s ease;
+    }
+
+    .status-dot {
+        width: 6px; height: 6px;
+        background: var(--accent-color);
+        box-shadow: 0 0 8px var(--accent-color);
+        animation: pulse var(--pulse-speed) ease-in-out infinite alternate;
+        transition: background 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .status-text {
+        font-size: 10px; font-weight: 700; letter-spacing: 3px;
+        text-transform: uppercase; color: var(--off-white);
+    }
+    @keyframes pulse { 0% { opacity: 0.2; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1.2); } }
+
+    /* =========================================
+       STATE 1: LISTENING
+       - Horizontal Split Screen
+       - Rounded Squircle Shape
+       - Calm, slow rotation
+       ========================================= */
+    body.state-listening {
+        --bg-color-top: #15171C;
+        --bg-color-bot: var(--charcoal);
+        --clip-top: polygon(0 0, 100% 0, 100% 50%, 0 50%);
+        --emblem-scale: 1;
+        --widget-shape: 46px; /* Squircle */
+        --widget-rot: 0deg;
+    }
+    body.state-listening .card-top .emblem { top: 0; transform: translateY(-50%); }
+    body.state-listening .card-bottom .emblem { bottom: 0; transform: translateY(50%); }
+    body.state-listening .kinetic-text::after { content: "RESONANCE"; }
+    body.state-listening .status-badge { border-radius: 20px; }
+
+
+    /* =========================================
+       STATE 2: THINKING
+       - Diagonal / Diamond Layout
+       - Glitchy, fast rings with Amber accent
+       - Strict square rotated 45deg
+       ========================================= */
+    body.state-thinking {
+        --bg-color-top: #0a0b0d;
+        --bg-color-bot: var(--bg-slate);
+        --clip-top: polygon(0 0, 100% 0, 100% 100%, 0 0); /* Triangle top right */
+        --emblem-scale: 1.2;
+        --emblem-rot: 45deg;
+        
+        /* Widget shifts to Diamond */
+        --widget-shape: 0px; 
+        --widget-rot: 45deg;
+        
+        --spin-speed: 1.2s;
+        --pulse-speed: 0.1s;
+        --horizon-glow: 0 0 25px rgba(255, 204, 0, 0.3);
+        --accent-color: var(--accent-amber);
+        --text-slide: -5%;
+    }
+    body.state-thinking .card-top .emblem { top: -10%; right: -10%; }
+    body.state-thinking .card-bottom .emblem { bottom: -10%; left: -10%; }
+    body.state-thinking .widget-container { border-color: var(--accent-amber); }
+    body.state-thinking .spin-slow { stroke-dasharray: 4 20; }
+    body.state-thinking .kinetic-text::after { content: "PARADOX"; }
+    body.state-thinking .status-badge { border-radius: 0px; bottom: -35px;}
+
+
+    /* =========================================
+       STATE 3: SPEAKING
+       - Vertical Split Screen (Left/Right)
+       - Perfect Circle, Soundwaves emitting
+       - Blue accent
+       ========================================= */
+    body.state-speaking {
+        --bg-color-top: var(--bg-slate);
+        --bg-color-bot: var(--charcoal);
+        --clip-top: polygon(0 0, 50% 0, 50% 100%, 0 100%); /* Left Half */
+        --emblem-scale: 0.8;
+        --emblem-rot: 90deg;
+        
+        /* Widget shifts to Circle */
+        --widget-shape: 50%;
+        --widget-rot: 0deg;
+
+        --spin-speed: 4s;
+        --wave-opacity: 0.7;
+        --horizon-glow: 0 0 20px rgba(50, 150, 250, 0.4);
+        --accent-color: var(--accent-blue);
+        --text-slide: 5%;
+    }
+    body.state-speaking .card-top .emblem { left: 0; top: 50%; transform: translate(-50%, -50%); }
+    body.state-speaking .card-bottom .emblem { right: 0; top: 50%; transform: translate(50%, -50%); }
+    body.state-speaking .widget-container { border-color: var(--accent-blue); border-width: 2px;}
+    body.state-speaking .black-hole-svg { transform: scale(1.1); }
+    body.state-speaking .status-dot { animation: none; transform: scale(1); }
+    body.state-speaking .kinetic-text::after { content: "PROMISE"; color: rgba(50,150,250,0.05); }
+    body.state-speaking .status-badge { border-radius: 20px; bottom: -20px;}
+
+
+    /* =========================================
+       CONTROLS
+       ========================================= */
+    .controls {
+        position: relative; z-index: 30; margin-top: 100px; display: flex; gap: 15px;
+    }
+    button {
+        background: var(--bg-slate); border: 1px solid var(--charcoal);
+        color: rgba(255,255,255,0.4); padding: 10px 24px;
+        font-family: inherit; font-size: 11px; font-weight: 600;
+        letter-spacing: 2px; text-transform: uppercase;
+        cursor: pointer; transition: all 0.3s ease; position: relative;
+    }
+    button::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        border: 1px solid transparent; transition: 0.3s;
+        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    }
+    button:hover, button.active {
+        color: var(--pure-white); border-color: var(--pure-white); background: rgba(255,255,255,0.05);
+    }
+</style>
+</head>
+<body class="state-listening">
+
+    <!-- Background Layer -->
+    <div class="split-bg-container">
+        <div class="split-card card-top">
+            <div class="kinetic-text"></div>
+            <div class="emblem"></div>
+        </div>
+        <div class="split-card card-bottom">
+            <div class="kinetic-text"></div>
+            <div class="emblem"></div>
+        </div>
+    </div>
+
+    <!-- AI Core Foreground -->
+    <div class="widget-container">
+        <div class="widget-inner">
+            <svg class="black-hole-svg" viewBox="0 0 240 240">
+                <!-- Speaking Waves -->
+                <circle cx="120" cy="120" r="42" class="speak-wave speak-wave-1" />
+                <circle cx="120" cy="120" r="42" class="speak-wave speak-wave-2" />
+
+                <g transform="rotate(-15 120 120)">
+                    <!-- Back Rings -->
+                    <path d="M 20,120 A 100,30 0 0,1 220,120" class="ring-line ring-back" stroke-width="1" />
+                    <path d="M 35,120 A 85,22 0 0,1 205,120" class="ring-line ring-back spin-slow" stroke-width="1.5" />
+
+                    <!-- Core -->
+                    <circle cx="120" cy="120" r="44" class="event-horizon" />
+
+                    <!-- Front Rings -->
+                    <path d="M 50,120 A 70,16 0 0,0 190,120" class="ring-line" stroke-dasharray="2 6" stroke-width="1" stroke-opacity="0.5" />
+                    <path d="M 20,120 A 100,30 0 0,0 220,120" class="ring-line spin-slow" stroke-width="1.5" />
+                    <path d="M 35,120 A 85,22 0 0,0 205,120" class="ring-line spin-fast" stroke-width="2" />
+                </g>
+                
+                <!-- Crosshairs -->
+                <line x1="120" y1="65" x2="120" y2="70" stroke="#EBF0F5" stroke-width="1" opacity="0.4"/>
+                <line x1="120" y1="170" x2="120" y2="175" stroke="#EBF0F5" stroke-width="1" opacity="0.4"/>
+                <line x1="65" y1="120" x2="70" y2="120" stroke="#EBF0F5" stroke-width="1" opacity="0.4"/>
+                <line x1="170" y1="120" x2="175" y2="120" stroke="#EBF0F5" stroke-width="1" opacity="0.4"/>
+            </svg>
+        </div>
+        
+        <!-- Attached Badge -->
+        <div class="status-badge">
+            <span class="status-dot"></span>
+            <span class="status-text" id="statusText">Listening</span>
+        </div>
+    </div>
+
+    <!-- UI Controls -->
+    <div class="controls">
+        <button id="btn-listening" class="active" onclick="setState('listening')">Listening</button>
+        <button id="btn-thinking" onclick="setState('thinking')">Thinking</button>
+        <button id="btn-speaking" onclick="setState('speaking')">Speaking</button>
+    </div>
+
+    <script>
+        function setState(state) {
+            document.body.className = `state-${state}`;
+            document.getElementById('statusText').innerText = state;
+            
+            document.querySelectorAll('.controls button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`btn-${state}`).classList.add('active');
+        }
+    </script>
+</body>
+</html>

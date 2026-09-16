@@ -12,8 +12,10 @@ from tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
+from pydantic import BaseModel, Field, model_validator
+
 class ComputerInput(BaseModel):
-    action: str = Field(..., description="Action to perform: 'move', 'click', 'double_click', 'right_click', 'type', 'press', 'hotkey', 'scroll', 'open_app', 'click_element'")
+    action: str = Field("click", description="Action to perform: 'move', 'click', 'double_click', 'right_click', 'type', 'press', 'hotkey', 'scroll', 'open_app', 'click_element'")
     x: Optional[int] = Field(None, description="X coordinate for move/click")
     y: Optional[int] = Field(None, description="Y coordinate for move/click")
     element_id: Optional[int] = Field(None, description="ID of the UI element to click (from screen_vision SoM overlay)")
@@ -21,6 +23,19 @@ class ComputerInput(BaseModel):
     keys: Optional[List[str]] = Field(None, description="Keys to press or hotkey combo (e.g. ['ctrl', 'c'])")
     amount: Optional[int] = Field(None, description="Amount to scroll")
     app_name: Optional[str] = Field(None, description="Name of the app to open (used with 'open_app' action)")
+
+    @model_validator(mode='before')
+    def map_aliases(cls, values):
+        if isinstance(values, dict):
+            if "click_type" in values and "action" not in values:
+                ct = values["click_type"].lower()
+                if "double" in ct:
+                    values["action"] = "double_click"
+                elif "right" in ct:
+                    values["action"] = "right_click"
+                else:
+                    values["action"] = "click"
+        return values
 
 class ComputerControlTool(BaseTool):
     """

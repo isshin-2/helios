@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
   <h1>HELIOS AI Router</h1>
   <p><strong>Locally-hosted, context-aware AI routing orchestrator for agentic workflows.</strong></p>
   
@@ -6,6 +6,7 @@
   [![Ollama](https://img.shields.io/badge/Powered%20by-Ollama-orange.svg)](https://ollama.com/)
   [![Memory Optimization](https://img.shields.io/badge/Memory-Highly%20Optimized-success.svg)](#hardware-profiles--model-recommendations)
   [![Security](https://img.shields.io/badge/Security-Zero%20Trust-red.svg)](#security--sandbox)
+  [![Docker Support](https://img.shields.io/badge/Docker-Supported-blue.svg)](#docker-deployment)
 </div>
 
 <br>
@@ -16,55 +17,71 @@ HELIOS operates as a proxy between a user interface and local LLMs (via Ollama) 
 
 ## Features
 
-- **Task-Based Routing**: Directs queries to specific local LLMs based on required capability (e.g., `deepseek-r1:7b` for reasoning, `qwen2.5-coder:1.5b` for tool execution).
+- **Task-Based Routing**: Directs queries to specific local LLMs based on required capability (e.g., deepseek-r1:7b for reasoning, qwen2.5-coder:1.5b for tool execution).
 - **Memory Management**: Offloads inactive models from GPU/CPU VRAM to prevent Out-Of-Memory (OOM) exceptions.
-- **Execution Sandbox**: Implements a Zero-Trust architecture via a `PermissionManager`. High-risk file operations and terminal commands require explicit API approval.
+- **Execution Sandbox**: Implements a Zero-Trust architecture via a PermissionManager. High-risk file operations and terminal commands require explicit API approval.
 - **Pydantic Tooling**: Python-based tool definitions using Pydantic schemas, enabling LLMs to read files, run terminal commands, and automate OS tasks.
-- **Vector Memory**: Uses local SQLite vector embeddings to persist session context.
+- **Vector Memory (RAG)**: Uses local SQLite vector embeddings to persist session context, automatically categorizing facts and tool discoveries into long-term memory.
+- **Native GUI Overlays**: Features a dynamic, animated desktop UI overlay ("Tensura Style") for interactive mid-task multiple-choice questions from the AI.
 - **Self-Modification**: Can propose codebase patches. Deployment requires explicit user approval.
 
 ---
 
 ## Hardware Profiles & Model Recommendations
 
-HELIOS requires specific model configurations to prevent disk swapping or OOM crashes, particularly when running alongside the TTS engine (Kokoro TTS, ~1.5 GB). Configure `config.py` based on your available RAM.
+HELIOS requires specific model configurations to prevent disk swapping or OOM crashes, particularly when running alongside the TTS engine (Kokoro TTS, ~1.5 GB). Configure config.py based on your available RAM.
 
 | Component | 8GB RAM (Low-End Windows Laptop) | 16GB RAM (Standard Desktop) | 32GB+ RAM (Workstation) |
 |-----------|----------------------------------|-----------------------------|-------------------------|
-| **Tool Execution** | `qwen2.5-coder:1.5b` | `llama3.1:8b` | `deepseek-coder-v2:16b` |
-| **General Chat** | `qwen2.5:7b` | `qwen2.5:7b` | `qwen2.5:14b` |
-| **Reasoning** | *Not Recommended* | `deepseek-r1:7b` | `deepseek-r1:14b` |
-| **Vision** | `moondream:latest` | `llava:latest` | `llava:13b` |
+| **Tool Execution** | qwen2.5-coder:1.5b | llama3.1:8b | deepseek-coder-v2:16b |
+| **General Chat** | qwen2.5:7b | qwen2.5:7b | qwen2.5:14b |
+| **Reasoning** | *Not Recommended* | deepseek-r1:7b | deepseek-r1:14b |
+| **Vision** | moondream:latest | llava:latest | llava:13b |
 | **Memory Footprint**| **~3.2 GB** | **~8.5 GB** | **~18.0 GB** |
 
 > **8GB System Constraints:**  
-> Attempting to load 7B/8B models (4.5GB+) alongside Kokoro TTS (1.5GB) on an 8GB machine will trigger severe OS paging. Stick to the 8GB profile (`qwen2.5-coder:1.5b` + `moondream`) to maintain stable execution times.
+> Attempting to load 7B/8B models (4.5GB+) alongside Kokoro TTS (1.5GB) on an 8GB machine will trigger severe OS paging. Stick to the 8GB profile (qwen2.5-coder:1.5b + moondream) to maintain stable execution times.
 
 ---
 
 ## Installation
 
-### 1. Requirements
-- **Python 3.9+** (Must be in system PATH).
-- **Ollama**: Must be running locally (default port: 11434).
-- **Python Packages**: `pyautogui` and `Pillow` are required for UI automation tools.
+### Standard Deployment (Local)
 
-### 2. Setup
-Clone the repository and execute the startup script to build the environment and start the server:
+1. **Requirements**: 
+   - **Python 3.9+** (Must be in system PATH).
+   - **Ollama**: Must be running locally (default port: 11434).
+   - **Python Packages**: pyautogui, Pillow, and pywebview required for UI automation and GUI overlays.
 
-* **Windows**: 
-  ```bat
-  start.bat
-  ```
-* **macOS**: 
-  Run `./start.command` in terminal.
-* **Linux**: 
-  ```bash
-  ./start.sh
-  ```
+2. **Setup**:
+   Clone the repository and execute the startup script to build the environment and start the server:
+   * **Windows**: start.bat
+   * **macOS**: Run ./start.command in terminal.
+   * **Linux**: ./start.sh
 
-### 3. Usage
-Navigate to [http://localhost:8000](http://localhost:8000) in your browser.
+3. **Usage**: Navigate to [http://localhost:8000](http://localhost:8000) in your browser.
+
+### Docker Deployment
+
+HELIOS fully supports containerization for headless environments or strict isolation. When running in Docker, HELIOS automatically disables the native desktop GUI overlays and falls back to standard terminal output.
+
+`ash
+docker-compose up --build -d
+`
+*Note: The docker-compose.yml is pre-configured to mount helios.db for persistent memory and routes OLLAMA_HOST to host.docker.internal to access your host machine's Ollama engine.*
+
+---
+
+## Interactive UI Overlays
+
+HELIOS features a highly stylized, transparent, and animated desktop UI overlay for times when the AI needs your explicit confirmation mid-task (e.g. asking a multiple-choice question before executing a dangerous command). 
+
+This is toggled on by default via ENABLE_TENSURA_OVERLAY=True in config.py. If running in Docker (DOCKER_ENV=1), HELIOS gracefully falls back to emitting INPUT_REQUIRED:: signals to the console instead.
+
+You can demo the UI directly by running:
+`ash
+python tests/overlays/demo_tensura_popup.py
+`
 
 ---
 

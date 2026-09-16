@@ -13,6 +13,7 @@ from providers.ollama import OllamaProvider
 from providers.vllm import VLLMProvider
 from providers.openrouter import OpenRouterProvider
 from providers.localai import LocalAIProvider
+from providers.gemini import GeminiProvider
 from health.monitor import SystemMonitor
 from router.classifier import classify_request
 from router.rules import get_routing_decision
@@ -81,6 +82,9 @@ elif LLM_PROVIDER == "openrouter":
 elif LLM_PROVIDER == "localai":
     provider = LocalAIProvider()
     logger.info("Initialized LocalAI provider")
+elif LLM_PROVIDER == "gemini":
+    provider = GeminiProvider()
+    logger.info("Initialized Gemini provider")
 else:
     provider = OllamaProvider(host=OLLAMA_HOST)
     logger.info("Initialized Ollama provider")

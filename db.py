@@ -52,6 +52,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS memories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
+            category TEXT DEFAULT 'general',
             fact TEXT NOT NULL,
             embedding TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -200,7 +201,13 @@ def migrate_db():
         cursor.execute("ALTER TABLE users ADD COLUMN system_access TEXT DEFAULT '{}'")
         conn.commit()
     except sqlite3.OperationalError:
-        # Column already exists — this is fine
+        pass
+
+    # Add category column to memories if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE memories ADD COLUMN category TEXT DEFAULT 'general'")
+        conn.commit()
+    except sqlite3.OperationalError:
         pass
     
     conn.close()

@@ -30,19 +30,80 @@ class SkillManifest:
         if not os.path.exists(skills_dir):
             return
             
+        quarantine_dir = os.path.join(os.path.dirname(skills_dir), "quarantine")
+        if not os.path.exists(quarantine_dir):
+            try:
+                os.makedirs(quarantine_dir, exist_ok=True)
+            except Exception as e:
+                logger.warning(f"Could not create quarantine directory: {e}")
+            
+        from skills.validator import validate_skill, log_validation_result
+        import config
+            
         for filename in os.listdir(skills_dir):
-            if filename.endswith(".py") and not filename.startswith("__") and filename != "base.py":
+            if filename.endswith(".py") and not filename.startswith("__") and filename not in ("base.py", "validator.py", "manifest.py"):
+                filepath = os.path.join(skills_dir, filename)
+                
+                # --- SECURITY GATE: Validate before import ---
+                validation = validate_skill(filepath)
+                
+                load_decision = "QUARANTINE"
+                
+                if validation.status == "SCANNER_UNAVAILABLE":
+                    # Fail-open for scanner unavailable, but disable dynamic loading?
+                    # "Skillspector unavailable -> Disable dynamic skill loading -> Continue HELIOS core boot"
+                    # We will log it and skip loading ANY further skills to simulate disabling dynamic loading.
+                    log_validation_result(validation, "DISABLED_DYNAMIC_LOADING")
+                    logger.warning("Skillspector unavailable. Disabling dynamic skill loading.")
+                    break
+                    
+                elif validation.status == "SKIPPED":
+                    load_decision = "LOAD"
+                    
+                elif validation.status == "SUCCESS":
+                    rec = validation.risk_recommendation
+                    if rec == "SAFE":
+                        load_decision = "LOAD"
+                    elif rec == "CAUTION":
+                        if getattr(config, "SKILLS_REJECT_CAUTION", True):
+                            load_decision = "QUARANTINE"
+                        else:
+                            load_decision = "LOAD"
+                    elif rec == "DO_NOT_INSTALL":
+                        load_decision = "QUARANTINE"
+                    else:
+                        load_decision = "QUARANTINE"
+                else:
+                    # SCAN_ERROR, SCAN_TIMEOUT -> Fail closed
+                    load_decision = "QUARANTINE"
+                    
+                log_validation_result(validation, load_decision)
+                
+                if load_decision == "QUARANTINE":
+                    skill_path = filepath
+                    # Write quarantine metadata record
+                    if getattr(config, "SKILLS_QUARANTINE_ENABLED", True):
+                        q_file = os.path.join(quarantine_dir, f"{os.path.basename(skill_path)}.quarantine.json")
+                        import json
+                        with open(q_file, "w") as f:
+                            json.dump({
+                                "skill_file": filename,
+                                "validation_status": validation.status,
+                                "recommendation": validation.risk_recommendation,
+                                "reason": validation.reason
+                            }, f, indent=2)
+                    continue
+                
+                # --- SAFE TO LOAD ---
                 module_name = f"skills.{filename[:-3]}"
                 try:
                     module = importlib.import_module(module_name)
                     for name, obj in inspect.getmembers(module, inspect.isclass):
                         if issubclass(obj, BaseSkill) and obj is not BaseSkill:
-                            # Instantiate the skill (we pass empty kwargs, in reality they might need dependencies)
+                            # Instantiate the skill
                             try:
                                 skill_instance = obj()
                             except TypeError:
-                                # Skip skills that require dependencies for now during manifest building
-                                # A full DI container would inject dependencies here
                                 continue
                                 
                             skill_name = getattr(skill_instance, "name", name)

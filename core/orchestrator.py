@@ -409,6 +409,7 @@ class ConversationOrchestrator:
                 assistant_msg = {"role": "assistant", "content": content_accum, "tool_calls": tool_calls}
                 messages.append(assistant_msg)
                 
+                needs_input_break = False
                 for call in tool_calls:
                     function_name = call.get("function", {}).get("name")
                     arguments = call.get("function", {}).get("arguments", {})
@@ -521,6 +522,7 @@ class ConversationOrchestrator:
                         
                         # Break out of the orchestration loop to yield to the user
                         await event_bus.publish("done", None)
+                        needs_input_break = True
                         break
                     
                     # Small models (3B) often fail to understand "role": "tool" and break character.
@@ -553,6 +555,9 @@ class ConversationOrchestrator:
                 await event_bus.publish("done", None)
                 break
                 
+            if needs_input_break:
+                break
+                
             iteration += 1
             if iteration >= MAX_TOOL_ITERATIONS:
                 warning = "\n\n[System Warning: Maximum tool iterations reached.]"
@@ -567,3 +572,7 @@ class ConversationOrchestrator:
         if full_response:
             loop = asyncio.get_running_loop()
             loop.run_in_executor(_db_executor, save_message, session_id, "assistant", full_response)
+            
+            # Extract facts from the AI's final response (this naturally catches tool summaries!)
+            if not is_budget_mode_active():
+                asyncio.create_task(self.memory_manager.extract_and_save_facts(user_id, full_response))

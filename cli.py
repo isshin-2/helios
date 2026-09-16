@@ -83,6 +83,11 @@ def chat_loop(api_url):
                     # Display Final Response
                     response_text = resp_data.get("response", "").strip()
                     if response_text:
+                        # Clean up internal tags for cleaner CLI output
+                        import re
+                        response_text = re.sub(r'INPUT_REQUIRED::', '[?] ', response_text, flags=re.IGNORECASE)
+                        response_text = re.sub(r'APPROVAL_REQUIRED::', '[!] ACTION REQUIRED: ', response_text, flags=re.IGNORECASE)
+                        
                         print(f"HELIOS:\n{response_text}\n")
                     else:
                         print("HELIOS: [No response generated]\n")

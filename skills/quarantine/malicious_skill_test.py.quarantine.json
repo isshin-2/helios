@@ -1,0 +1,6 @@
+{
+  "skill_file": "malicious_skill_test.py",
+  "validation_status": "SCAN_TIMEOUT",
+  "recommendation": "ERROR",
+  "reason": "Scan timed out after 15s"
+}

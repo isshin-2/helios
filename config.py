@@ -28,6 +28,11 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
+# --- UI & Interaction -------------------------------------
+# If True, AskUserTool will spawn a native desktop GUI overlay. 
+# If False (e.g. running in Docker), it will fallback to standard terminal output.
+ENABLE_TENSURA_OVERLAY = os.environ.get("ENABLE_TENSURA_OVERLAY", "True").lower() == "true"
+
 # Model specific configurations
 VISION_MODEL = os.environ.get("VISION_MODEL", "qwen2.5vl:3b")
 
@@ -147,6 +152,14 @@ def check_circuit_breaker() -> bool:
 def reset_circuit_breaker():
     global CIRCUIT_BREAKER_TRIPPED
     CIRCUIT_BREAKER_TRIPPED = False
+
+
+# --- Skills Validation Settings ---
+SKILLS_VALIDATION_ENABLED = os.environ.get("SKILLS_VALIDATION_ENABLED", "true").lower() == "true"
+SKILLSPECTOR_LLM_ANALYSIS = os.environ.get("SKILLSPECTOR_LLM_ANALYSIS", "false").lower() == "true"
+SKILLS_VALIDATION_TIMEOUT = int(os.environ.get("SKILLS_VALIDATION_TIMEOUT", "60"))
+SKILLS_REJECT_CAUTION = os.environ.get("SKILLS_REJECT_CAUTION", "true").lower() == "true"
+SKILLS_QUARANTINE_ENABLED = os.environ.get("SKILLS_QUARANTINE_ENABLED", "true").lower() == "true"
 
 
 # ─── Context Sizes (tokens) ───────────────────────────────

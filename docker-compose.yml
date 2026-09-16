@@ -1,0 +1,20 @@
+﻿version: '3.8'
+
+services:
+  helios:
+    build: .
+    container_name: helios-router
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./helios.db:/app/helios.db
+    environment:
+      - DOCKER_ENV=1
+      - ENABLE_TENSURA_OVERLAY=False
+      # Set your LLM Provider configs here
+      - LLM_PROVIDER=ollama
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

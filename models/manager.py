@@ -307,10 +307,14 @@ class ModelManager:
             except httpx.RequestError as e:
                 logger.error(f"Request failed for {current_model}: {e}")
                 
+            except MemoryError as e:
+                logger.warning(f"Model {current_model} failed due to hardware limits: {e}")
+                
             except Exception as e:
                 import traceback
                 tb = traceback.format_exc()
-                logger.warning(f"Model {current_model} failed:\n{tb}")
+                logger.warning(f"Model {current_model} encountered an unexpected error:\n{tb}")
+                
             config_data = MODEL_CONFIG.get(current_model, {})
             next_model = config_data.get("fallback")
             

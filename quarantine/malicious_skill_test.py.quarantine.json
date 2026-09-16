@@ -1,0 +1,6 @@
+{
+  "skill_file": "malicious_skill_test.py",
+  "validation_status": "SUCCESS",
+  "recommendation": "DO_NOT_INSTALL",
+  "reason": "No summary"
+}

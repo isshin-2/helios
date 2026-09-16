@@ -36,12 +36,23 @@ class MemoryManager:
 
     # ─── ARCHIVAL MEMORY (Facts) ─────────────────────────────────────────
 
-    async def extract_and_save_facts(self, user_id: int, message: str):
+    async def extract_and_save_facts(self, user_id: int, message: str, force_category: Optional[str] = None):
+        """
+        Extract facts and optionally force a specific category (e.g. 'tool_result').
+        If force_category is None, the LLM will decide the category.
+        """
+        if force_category:
+            # If it's a forced category like tool_result, we don't need the LLM to extract facts,
+            # we just directly save the whole message as a fact.
+            await self.save_fact(user_id, message, category=force_category)
+            return
+
         prompt = (
-            "Extract any key personal facts, preferences, or ongoing project details from the following message. "
-            "Only extract factual statements about the user or their work. "
+            "Extract any key personal facts, preferences, project details, or system/tool discoveries from the following message. "
+            "Only extract important factual statements that should be remembered long-term. "
             "If there are no clear facts to remember, reply with 'NONE'.\n"
-            "Format the output as a concise bulleted list of facts.\n\n"
+            "Format the output as a JSON array of objects with a 'category' and 'fact'. Categories can be whatever makes sense (e.g. user_preference, project_info, tool_discovery, system_state).\n"
+            'Example: [{"category": "user_preference", "fact": "The user prefers Python"}, {"category": "tool_discovery", "fact": "Docker is not running on the system"}]\n\n'
             f"Message: {message}"
         )
         try:
@@ -51,14 +62,23 @@ class MemoryManager:
             if not output or "NONE" in output.upper():
                 return
                 
-            lines = [line.strip("- *") for line in output.split("\n") if line.strip()]
-            for fact in lines:
-                if fact:
-                    await self.save_fact(user_id, fact)
+            # Attempt to parse JSON
+            import json
+            import re
+            
+            # Find the JSON array in the output
+            json_match = re.search(r'\[.*\]', output, re.DOTALL)
+            if json_match:
+                facts_data = json.loads(json_match.group(0))
+                for item in facts_data:
+                    fact = item.get("fact")
+                    category = item.get("category", "general")
+                    if fact:
+                        await self.save_fact(user_id, fact, category=category)
         except Exception as e:
             logger.error(f"Error extracting facts: {e}")
 
-    async def save_fact(self, user_id: int, fact: str):
+    async def save_fact(self, user_id: int, fact: str, category: str = "general"):
         try:
             embedding = await self.provider.get_embeddings(EMBEDDING_MODEL, fact)
             if not embedding:
@@ -67,8 +87,8 @@ class MemoryManager:
             conn = get_db()
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO memories (user_id, fact, embedding) VALUES (?, ?, ?)",
-                (user_id, fact, emb_json)
+                "INSERT INTO memories (user_id, category, fact, embedding) VALUES (?, ?, ?, ?)",
+                (user_id, category, fact, emb_json)
             )
             conn.commit()
             conn.close()
