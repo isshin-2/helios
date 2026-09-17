@@ -125,10 +125,13 @@ if controls_start != -1:
 
 class DesktopApi:
     def __init__(self):
+        import random
         self._window = None
         self._ws = None
         self._loop = asyncio.new_event_loop()
         self._current_message = ""
+        self._messages = []
+        self._session_id = random.randint(10000, 999999)
         threading.Thread(target=self.start_loop, daemon=True).start()
 
     def start_loop(self):
@@ -156,6 +159,7 @@ class DesktopApi:
                         if self._current_message:
                             safe_content = json.dumps(self._current_message)
                             self._window.evaluate_js(f"appendMessage({safe_content}, 'helios');")
+                            self._messages.append({"role": "assistant", "content": self._current_message})
                             self._current_message = ""
                         self._window.evaluate_js("setState('idle');")
                     elif msg_type == "message":
@@ -163,6 +167,7 @@ class DesktopApi:
                         content = data.get("content", "")
                         safe_content = json.dumps(content)
                         self._window.evaluate_js(f"appendMessage({safe_content}, 'helios');")
+                        self._messages.append({"role": "assistant", "content": content})
         except Exception as e:
             print(f"WS Error: {e}")
             if self._window:
@@ -170,7 +175,14 @@ class DesktopApi:
 
     def send_message(self, text):
         if self._ws:
-            payload = json.dumps({"type": "message", "content": text})
+            self._messages.append({"role": "user", "content": text})
+            payload = json.dumps({
+                "type": "message", 
+                "messages": self._messages,
+                "user_id": 1,
+                "session_id": self._session_id,
+                "agent_mode": True
+            })
             asyncio.run_coroutine_threadsafe(self._ws.send(payload), self._loop)
             
     def close_app(self):
