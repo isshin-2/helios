@@ -1,11 +1,11 @@
-﻿import sys
+import sys
 import os
 import webview
 import json
 
 def get_user_input(question, options=None):
     # Load the Tensura HTML template
-    html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tensura style.txt")
+    html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "tensura_style.html")
     with open(html_path, "r", encoding="utf-8") as f:
         base_html = f.read()
 

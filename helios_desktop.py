@@ -7,7 +7,7 @@ import asyncio
 import websockets
 
 # Load the HTML
-html_path = os.path.join(os.path.dirname(__file__), "tensura style.txt")
+html_path = os.path.join(os.path.dirname(__file__), "static", "tensura_style.html")
 with open(html_path, "r", encoding="utf-8") as f:
     base_html = f.read()
 

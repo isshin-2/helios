@@ -434,7 +434,7 @@ class ModelProvisioner:
         Returns:
             Dict with provisioning result summary.
         """
-        if not force and is_initialized(self.base_dir):
+        if not force and not dry_run and is_initialized(self.base_dir):
             manifest = read_initialized_manifest(self.base_dir)
             logger.info("HELIOS already initialized, skipping provisioning.")
             await self._emit("provisioning_skipped", manifest)
@@ -452,6 +452,7 @@ class ModelProvisioner:
             self.provisioned_models = checkpoint_data.get("provisioned_models", [])
             self.analyzer_model = checkpoint_data.get("analyzer_model", "")
             self.analyzer_was_preexisting = checkpoint_data.get("analyzer_was_preexisting", True)
+            self.selected_models = checkpoint_data.get("selected_models", [])
 
         try:
             # --- HARDWARE_SCAN ---
@@ -641,7 +642,8 @@ class ModelProvisioner:
         save_checkpoint(ProvisionState.MODEL_PULL, {
             "provisioned_models": self.provisioned_models,
             "analyzer_model": self.analyzer_model,
-            "analyzer_was_preexisting": self.analyzer_was_preexisting
+            "analyzer_was_preexisting": self.analyzer_was_preexisting,
+            "selected_models": self.selected_models
         }, self.base_dir)
 
     async def _find_or_pull_analyzer(self) -> Optional[tuple]:

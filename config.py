@@ -69,7 +69,12 @@ MODEL_CONFIG = {
 }
 
 # --- RAM Management ---------------------------------------
-RAM_TOTAL_MB = 8192            # Windows Budget PC 8 GB
+try:
+    from core.hardware_profiler import detect_hardware
+    RAM_TOTAL_MB = int(detect_hardware().ram_total_gb * 1024)
+except Exception:
+    RAM_TOTAL_MB = 8192            # Fallback for Windows Budget PC 8 GB
+
 RAM_MIN_FREE_MB = 256         # Keep at least 1 GB free for OS + browser (reduced for budget hardware)
 RAM_CRITICAL_MB = 128          # Below this, force-unload everything
 MODEL_CONTEXT_BUFFER_MB = 512  # Reduced padding for 4K context cap
