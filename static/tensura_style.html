@@ -413,7 +413,10 @@
             document.querySelectorAll('.controls button').forEach(btn => {
                 btn.classList.remove('active');
             });
-            document.getElementById(`btn-${state}`).classList.add('active');
+            let btn = document.getElementById(`btn-${state}`);
+            if (btn) {
+                btn.classList.add('active');
+            }
         }
     </script>
 </body>

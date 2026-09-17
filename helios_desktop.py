@@ -138,6 +138,13 @@ class DesktopApi:
         asyncio.set_event_loop(self._loop)
         self._loop.run_until_complete(self.connect_ws())
 
+    def _safe_eval(self, js):
+        if self._window:
+            try:
+                self._window.evaluate_js(js)
+            except Exception as e:
+                print(f"JS Eval Error: {e}")
+
     async def connect_ws(self):
         uri = "ws://localhost:8000/ws"
         try:
@@ -146,32 +153,36 @@ class DesktopApi:
                 await websocket.send(json.dumps({"type": "init", "user_id": 1}))
                 
                 while True:
-                    msg = await websocket.recv()
-                    data = json.loads(msg)
-                    msg_type = data.get("type")
-                    
-                    if msg_type == "ui_state":
-                        state = data.get("state")
-                        self._window.evaluate_js(f"setState('{state}');")
-                    elif msg_type == "chunk":
-                        self._current_message += data.get("content", "")
-                    elif msg_type == "done":
-                        if self._current_message:
-                            safe_content = json.dumps(self._current_message)
-                            self._window.evaluate_js(f"appendMessage({safe_content}, 'helios');")
-                            self._messages.append({"role": "assistant", "content": self._current_message})
-                            self._current_message = ""
-                        self._window.evaluate_js("setState('idle');")
-                    elif msg_type == "message":
-                        # Full message received
-                        content = data.get("content", "")
-                        safe_content = json.dumps(content)
-                        self._window.evaluate_js(f"appendMessage({safe_content}, 'helios');")
-                        self._messages.append({"role": "assistant", "content": content})
+                    try:
+                        msg = await websocket.recv()
+                        data = json.loads(msg)
+                        msg_type = data.get("type")
+                        
+                        if msg_type == "ui_state":
+                            state = data.get("state")
+                            self._safe_eval(f"setState('{state}');")
+                        elif msg_type == "chunk":
+                            self._current_message += data.get("content", "")
+                        elif msg_type == "done":
+                            if self._current_message:
+                                safe_content = json.dumps(self._current_message)
+                                self._safe_eval(f"appendMessage({safe_content}, 'helios');")
+                                self._messages.append({"role": "assistant", "content": self._current_message})
+                                self._current_message = ""
+                            self._safe_eval("setState('idle');")
+                        elif msg_type == "message":
+                            # Full message received
+                            content = data.get("content", "")
+                            safe_content = json.dumps(content)
+                            self._safe_eval(f"appendMessage({safe_content}, 'helios');")
+                            self._messages.append({"role": "assistant", "content": content})
+                    except Exception as loop_e:
+                        print(f"WS Loop inner error: {loop_e}")
+                        # Don't break the connection on parsing/rendering errors
+                        pass
         except Exception as e:
             print(f"WS Error: {e}")
-            if self._window:
-                self._window.evaluate_js("appendMessage(`Failed to connect to backend on port 8000. Is HELIOS running?`, 'helios');")
+            self._safe_eval("appendMessage(`Failed to connect to backend on port 8000. Is HELIOS running?`, 'helios');")
 
     def send_message(self, text):
         if self._ws:
