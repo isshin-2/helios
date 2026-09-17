@@ -154,7 +154,7 @@ class ModelManager:
         attempted = set()
         
         # Extract tools from kwargs once — each cloud client needs them separately
-        tools_for_cloud = kwargs.pop("tools", None)
+        tools_for_cloud = kwargs.get("tools", None)
         
         while current_model:
             attempted.add(current_model)
