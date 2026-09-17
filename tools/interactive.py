@@ -32,8 +32,22 @@ class AskUserTool(BaseTool):
         import sys
         import config
         
-        # If running headlessly, disabled via config, or if the main desktop app is running (which has its own UI), fallback to text signaling
-        if not getattr(config, "ENABLE_TENSURA_OVERLAY", True) or os.environ.get("DOCKER_ENV") or getattr(config, "ENABLE_DESKTOP_APP", True):
+        # Check if the main desktop app is actually running right now
+        desktop_running = False
+        try:
+            import psutil
+            for p in psutil.process_iter(['name', 'cmdline']):
+                try:
+                    if p.info['cmdline'] and any('helios_desktop.py' in arg for arg in p.info['cmdline']):
+                        desktop_running = True
+                        break
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except ImportError:
+            pass
+
+        # If running headlessly, disabled via config, or if the main desktop app is currently running, fallback to text signaling
+        if not getattr(config, "ENABLE_TENSURA_OVERLAY", True) or os.environ.get("DOCKER_ENV") or desktop_running:
             if options and len(options) > 0:
                 options_str = "|".join(options)
                 return (f"INPUT_REQUIRED::{question} [OPTIONS:{options_str}]", self.name)

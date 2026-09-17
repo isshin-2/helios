@@ -170,6 +170,15 @@ class DesktopApi:
                                 self._messages.append({"role": "assistant", "content": self._current_message})
                                 self._current_message = ""
                             self._safe_eval("setState('idle');")
+                        elif msg_type == "input_request":
+                            req_id = data.get("request_id")
+                            op = data.get("operation", "unknown")
+                            tgt = data.get("target", "unknown")
+                            self._pending_input_id = req_id
+                            prompt_msg = f"HELIOS REQUIRES INPUT for {op} on {tgt}: Please reply to authorize or provide data."
+                            safe_content = json.dumps(prompt_msg)
+                            self._safe_eval(f"appendMessage({safe_content}, 'helios');")
+                            self._safe_eval("setState('idle');")
                         elif msg_type == "message":
                             # Full message received
                             content = data.get("content", "")
@@ -187,13 +196,21 @@ class DesktopApi:
     def send_message(self, text):
         if self._ws:
             self._messages.append({"role": "user", "content": text})
-            payload = json.dumps({
-                "type": "message", 
-                "messages": self._messages,
-                "user_id": 1,
-                "session_id": self._session_id,
-                "agent_mode": True
-            })
+            if hasattr(self, '_pending_input_id') and self._pending_input_id:
+                payload = json.dumps({
+                    "type": "input_response",
+                    "request_id": self._pending_input_id,
+                    "text": text
+                })
+                self._pending_input_id = None
+            else:
+                payload = json.dumps({
+                    "type": "message", 
+                    "messages": self._messages,
+                    "user_id": 1,
+                    "session_id": self._session_id,
+                    "agent_mode": True
+                })
             asyncio.run_coroutine_threadsafe(self._ws.send(payload), self._loop)
             
     def close_app(self):

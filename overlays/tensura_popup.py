@@ -18,24 +18,32 @@ def get_user_input(question, options=None):
         .question-box {
             position: absolute;
             top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
             width: 80%;
             text-align: center;
             z-index: 50;
-            font-size: 32px;
-            font-weight: 700;
+            font-size: 48px;
+            font-weight: bold;
             color: #00e5ff;
-            text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+            text-shadow: 0 0 15px rgba(0, 229, 255, 0.8);
+            font-family: 'Consolas', monospace;
         }
         .controls {
-            margin-top: 50px; /* Adjust from 100px to fit input */
+            margin-top: 50px;
             flex-wrap: wrap;
             justify-content: center;
         }
         .controls button {
-            font-size: 16px;
-            padding: 12px 30px;
+            font-size: 18px;
+            padding: 15px 30px;
             border-color: #00e5ff;
             color: #00e5ff;
+            border-radius: 30px;
+            background: transparent;
+            font-family: 'Consolas', monospace;
+            font-weight: bold;
+            cursor: pointer;
         }
         .controls button:hover {
             background: rgba(0, 229, 255, 0.2);
@@ -43,23 +51,41 @@ def get_user_input(question, options=None):
         }
         .custom-input-container {
             position: absolute;
-            bottom: 15%;
+            bottom: 10%;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 50;
             display: flex;
-            gap: 10px;
+            gap: 15px;
         }
         .custom-input {
             background: #0a1a2f;
             border: 1px solid #00e5ff;
             color: #00e5ff;
-            padding: 10px 20px;
-            font-size: 16px;
+            padding: 15px 25px;
+            font-size: 18px;
             font-family: 'Consolas', monospace;
-            width: 300px;
+            width: 500px;
             outline: none;
+            border-radius: 30px;
         }
         .custom-input:focus {
-            box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+        }
+        .btn-submit {
+            background: transparent;
+            border: 1px solid #00e5ff;
+            color: #00e5ff;
+            padding: 10px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 18px;
+            font-family: 'Consolas', monospace;
+        }
+        .btn-submit:hover {
+            background: rgba(0, 229, 255, 0.2);
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
         }
     </style>
     """
@@ -75,7 +101,7 @@ def get_user_input(question, options=None):
     input_html = """
     <div class="custom-input-container">
         <input type="text" id="customInput" class="custom-input" placeholder="Or type response..." onkeypress="if(event.key === 'Enter') submitCustom()">
-        <button onclick="submitCustom()">SUBMIT</button>
+        <button class="btn-submit" onclick="submitCustom()">SUBMIT</button>
     </div>
     <script>
         function submitCustom() {
@@ -114,14 +140,29 @@ def get_user_input(question, options=None):
 
     api = Api()
     
-    # Create fullscreen borderless window
+    # Use system metrics to make it match the desktop app size
+    import ctypes
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
+    try:
+        user32 = ctypes.windll.user32
+        w = user32.GetSystemMetrics(0)
+        h = user32.GetSystemMetrics(1)
+    except:
+        w = 1200
+        h = 800
+
     window = webview.create_window(
-        "HELIOS Notice", 
-        html=html, 
+        'HELIOS - Question',
+        html=html,
         js_api=api,
-        fullscreen=True,
-        frameless=True,
         transparent=True,
+        frameless=True,
+        width=w,
+        height=h,
+        x=0, y=0,
         on_top=True
     )
     api.window = window
@@ -136,8 +177,9 @@ def get_user_input(question, options=None):
     return api.result if api.result else "CANCELLED"
 
 if __name__ == "__main__":
-    q = sys.argv[1] if len(sys.argv) > 1 else "Is this the correct Tensura design?"
-    opts = sys.argv[2].split(",") if len(sys.argv) > 2 and sys.argv[2] else None
-    
-    ans = get_user_input(q, options=opts)
-    print(ans)
+    if len(sys.argv) > 1:
+        q = sys.argv[1]
+        opts = sys.argv[2].split(",") if len(sys.argv) > 2 else None
+        print(get_user_input(q, opts))
+    else:
+        print(get_user_input("Are you sure you want to proceed?", ["Yes", "No"]))
