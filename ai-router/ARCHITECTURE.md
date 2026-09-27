@@ -28,7 +28,12 @@ HELIOS trusts the LLM to generate text, but *never* trusts it to execute code bl
 - If successful, the experiment enters an `AWAITING_APPROVAL` status via the API, awaiting human deployment.
 
 ## External Integrations & Tool Ecosystem
-- **Core Toolset**: HELIOS provides a rich toolset spanning from basic system utilities (`stateful_shell`, `filesystem`) to complex API integrations (`github_tool`, `google_drive_tool`).
+- **Core Toolset**: HELIOS provides a rich toolset spanning from basic system utilities (`stateful_shell`, `filesystem`, `llmfit_tool`) to complex API integrations (`github_tool`, `google_drive_tool`).
 - **Hardware Control**: Integrations (e.g., `octoprint_tool`, `bambulabs_tool`, `cad_tool`) allow the LLM to interface directly with physical making processes.
 - **Computer Vision & GUI**: The `ComputerTool` and `ScreenVisionTool` work in tandem with the `SomOverlayTool` to allow the LLM to perceive the user's screen, identify UI elements via bounding boxes, and orchestrate GUI automation.
 - **Model Context Protocol (MCP)**: The `mcp_client` enables HELIOS to connect to local and remote MCP servers via Stdio, seamlessly loading external tools into the router without hardcoded integrations.
+
+## Multi-Client Ecosystem (`HELIOS` Monorepo)
+- **Desktop Overlay & App (`ai-router/helios_desktop.py` & `desktop_app.py`)**: PyQt5-based floating AI Core HUD (`static/AI-Core-System.html`) and full desktop window (`static/app.html`) synced over WebSockets.
+- **3D VRM Companion (`../helios-live2d`)**: Standalone FastAPI + Three.js/VRM avatar server (`ai_server.py` on port `8080`) that bridges to `ai-router` (`port 8000`), translating responses into structured animation/movement sequences with Kokoro ONNX viseme lip-sync.
+- **Mobile Companion (`../mobile_v2`)**: Expo / React Native client that connects to `ai-router` via WebSockets when online and falls back to local on-device `.gguf` inference (`llama.rn`) when offline.
