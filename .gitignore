@@ -1,24 +1,50 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+venv/
+.venv/
+
+# Node / Expo / Mobile
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+.kotlin/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Environment & Secrets
 .env
-db/*.db
+.env.*
+*.pem
+
+# Databases & Logs
+*.db
+*.log
+logs/
+
+# Local Models & Binaries
+.models/
+llmfit_bin/
+
+# IDE & OS
 .vscode/
 .idea/
-*.db
-experiments/
-markdown_skills/
-venv/
-*.log
-.models/
-logs/
-static/media/*.jpg
-static/media/*.png
+.DS_Store
+
+# Temporary / Scratch
 scratch/
-patch_*.py
-fix*.py
-check_*.py
-revert.py
-rewrite_overlay.py
-input.txt
+tmp_live_test/
+experiments/
 .setup_complete
 overlay_state.txt

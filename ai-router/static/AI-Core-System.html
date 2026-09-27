@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Core - Dimensional Menu System</title>
+<style>
+    :root {
+        /* Core Monochrome Palette */
+        --bg-slate: transparent;
+        --core-black: #050507;
+        --charcoal: #2C3038;
+        --off-white: #EBF0F5;
+        --pure-white: #FFFFFF;
+        
+        /* State Accent Colors */
+        --accent-amber: #FFCC00;
+        --accent-blue: #3296fa;
+        --accent-cyan: #00e5ff;
+        
+        /* Dynamic SVG Variables */
+        --spin-speed: 8s;
+        --pulse-speed: 2s;
+        --wave-opacity: 0;
+        --horizon-glow: 0 0 10px rgba(235, 240, 245, 0.1);
+        --accent-color: var(--off-white);
+        
+        /* Container Geometric Variables (Overwritten by states) */
+        --cont-w: 540px;
+        --cont-h: 540px;
+        --cont-br: 80px;
+        --cont-rot: 0deg;
+        --inner-rot: 0deg;
+        
+        /* Layout Variables */
+        --ai-width: 540px;
+        --menu-width: 0px; /* Expands to 600px in menu mode */
+        --menu-opacity: 0;
+    }
+
+    body, html {
+        margin: 0; padding: 0;
+        width: 100%; height: 100%;
+        background-color: transparent;
+        color: var(--off-white);
+        font-family: 'Helvetica Neue Extended', 'DIN', -apple-system, sans-serif;
+        display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+        overflow: hidden;
+    }
+
+    /* Responsive Scaler */
+    #scale-wrapper {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        width: 1300px; /* Force internal layout size to prevent clipping! */
+        height: 850px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-end;
+        box-sizing: border-box;
+        transition: transform 0.3s ease;
+        transform-origin: bottom right;
+    }
+
+    /* Master Widget Container */
+    .widget-container {
+        position: relative;
+        z-index: 10;
+        width: calc(var(--cont-w) + var(--menu-width)); 
+        height: var(--cont-h);
+        border-radius: var(--cont-br);
+        transform: rotate(var(--cont-rot));
+        background: linear-gradient(135deg, rgba(21,23,28,0.95) 0%, rgba(13,14,18,0.95) 100%);
+        border: 2px solid var(--charcoal);
+        box-shadow: 0 40px 80px rgba(0,0,0,0.9), inset 0 0 20px rgba(255,255,255,0.02);
+        display: flex;
+        flex-direction: row-reverse; /* Menu expands to the left! */
+        overflow: hidden;
+        
+        transition: width 0.8s cubic-bezier(0.19, 1, 0.22, 1),
+                    height 0.8s cubic-bezier(0.19, 1, 0.22, 1),
+                    border-radius 0.8s cubic-bezier(0.19, 1, 0.22, 1),
+                    transform 0.8s cubic-bezier(0.19, 1, 0.22, 1),
+                    border-color 0.5s ease, box-shadow 0.5s ease;
+    }
+
+    /* Inner wrapper counter-rotates to keep content upright during diamond state */
+    .widget-rotator {
+        display: flex;
+        width: 100%; height: 100%;
+        transform: rotate(var(--inner-rot));
+        transition: transform 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+    }
+
+    /* Left Side: 540x540 fixed slot for the AI */
+    .ai-section {
+        position: relative;
+        width: var(--ai-width);
+        min-width: var(--ai-width);
+        height: 540px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-shrink: 0;
+        transition: width 0.8s cubic-bezier(0.19, 1, 0.22, 1),
+                    min-width 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+    }
+
+    /* Right Side: 600x540 exact space for Menu */
+    .menu-section {
+        width: var(--menu-width);
+        min-width: var(--menu-width);
+        height: 540px;
+        flex-shrink: 0;
+        opacity: var(--menu-opacity);
+        background: linear-gradient(270deg, transparent 0%, rgba(255,255,255,0.01) 100%);
+        border-right: 2px solid var(--charcoal);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 60px;
+        box-sizing: border-box;
+        
+        transition: width 0.8s cubic-bezier(0.19, 1, 0.22, 1),
+                    min-width 0.8s cubic-bezier(0.19, 1, 0.22, 1),
+                    opacity 0.6s ease;
+    }
+
+    .black-hole-svg {
+        width: 85%;
+        height: 85%;
+        transform: scale(var(--svg-scale, 1));
+        transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .event-horizon {
+        fill: var(--core-black); stroke: var(--charcoal); stroke-width: 2.5;
+        transition: stroke 0.4s ease, filter 0.4s ease;
+        filter: drop-shadow(var(--horizon-glow));
+    }
+    .ring-line { fill: none; stroke: var(--pure-white); transition: stroke-dasharray 0.4s ease, stroke-opacity 0.4s ease; }
+    .ring-back { stroke: var(--charcoal); }
+
+    .spin-slow { stroke-dasharray: 60 120; animation: orbit var(--spin-speed) linear infinite; }
+    .spin-fast { stroke-dasharray: 10 30; animation: orbitFront calc(var(--spin-speed) * 0.6) linear infinite; stroke: var(--accent-color); transition: stroke 0.4s ease; }
+
+    @keyframes orbit { 0% { stroke-dashoffset: 360; } 100% { stroke-dashoffset: 0; } }
+    @keyframes orbitFront { 0% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 360; } }
+
+    .speak-wave { fill: none; stroke: var(--accent-color); stroke-width: 2; opacity: 0; transform-origin: center; }
+    @keyframes speakPulse { 0% { transform: scale(0.8); opacity: var(--wave-opacity); } 100% { transform: scale(3.5); opacity: 0; } }
+    .speak-wave-1 { animation: speakPulse 2s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+    .speak-wave-2 { animation: speakPulse 2s cubic-bezier(0.16, 1, 0.3, 1) infinite 0.8s; }
+
+    /* Crosshairs inside AI */
+    .crosshair { stroke: #EBF0F5; stroke-width: 1.5; opacity: 0.4; }
+
+    /* Status Badge attached to bottom of AI Section */
+    .status-badge {
+        position: absolute;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 24px;
+        background: rgba(13,14,18,0.8);
+        border: 2px solid var(--charcoal);
+        z-index: 20;
+        transition: border-radius 0.4s ease, bottom 0.6s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.4s ease;
+    }
+    .status-dot {
+        width: 8px; height: 8px; background: var(--accent-color);
+        box-shadow: 0 0 10px var(--accent-color);
+        animation: pulse var(--pulse-speed) ease-in-out infinite alternate;
+        transition: background 0.4s ease, box-shadow 0.4s ease;
+    }
+    .status-text { font-size: 13px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; color: var(--off-white); }
+    @keyframes pulse { 0% { opacity: 0.2; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1.2); } }
+
+    .menu-header {
+        font-size: 14px; font-weight: 900; letter-spacing: 6px;
+        color: rgba(255,255,255,0.4); text-transform: uppercase;
+        margin-bottom: 25px; border-bottom: 2px solid var(--charcoal);
+        padding-bottom: 12px; display: flex; justify-content: space-between;
+    }
+    .menu-list { display: flex; flex-direction: column; gap: 16px; overflow-y: auto; max-height: 400px; }
+    
+    .menu-item {
+        position: relative;
+        background: transparent; border: 2px solid var(--charcoal);
+        padding: 24px 30px; text-align: left;
+        display: flex; flex-direction: column; gap: 8px;
+        cursor: pointer; transition: all 0.3s ease; overflow: hidden;
+    }
+    .menu-item::before {
+        content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+        transition: left 0.5s ease; z-index: 0;
+    }
+    .menu-item:hover::before { left: 100%; }
+    .menu-item:hover { border-color: var(--accent-color); transform: translateX(10px); }
+    
+    .menu-title { font-size: 18px; font-weight: 800; letter-spacing: 3px; color: var(--off-white); z-index: 1; transition: color 0.3s; }
+    .menu-item:hover .menu-title { color: var(--pure-white); }
+    .menu-desc { font-size: 12px; font-weight: 500; letter-spacing: 1px; color: rgba(255,255,255,0.5); z-index: 1; }
+
+    /* 0. IDLE (Pill Shape) */
+    body.state-idle {
+        --cont-w: 340px; --ai-width: 340px; 
+        --cont-br: 170px; --cont-rot: 0deg; --inner-rot: 0deg;
+        --spin-speed: 24s; --accent-color: var(--charcoal); --horizon-glow: 0 0 0px transparent;
+    }
+    body.state-idle .black-hole-svg { animation: breathe 8s ease-in-out infinite alternate; opacity: 0.5;}
+    @keyframes breathe { 0% { transform: scale(0.9); } 100% { transform: scale(0.95); } }
+    body.state-idle:not(.layout-menu) .status-badge { opacity: 0; bottom: -20px; pointer-events: none;}
+
+    /* 1. LISTENING (Squircle) */
+    body.state-listening {
+        --cont-w: 540px; --ai-width: 540px; 
+        --cont-br: 90px; --cont-rot: 0deg; --inner-rot: 0deg;
+        --spin-speed: 10s; --accent-color: var(--accent-cyan);
+        --horizon-glow: 0 0 25px rgba(0, 229, 255, 0.2);
+    }
+    body.state-listening .status-badge { border-radius: 30px; }
+    body.state-listening .widget-container { border-color: rgba(0, 229, 255, 0.4); }
+
+    /* 2. THINKING (Diamond / Rotated Square) */
+    body.state-thinking {
+        --cont-w: 540px; --ai-width: 540px; 
+        --cont-br: 0px; --cont-rot: 45deg; --inner-rot: -45deg; 
+        --spin-speed: 1.2s; --pulse-speed: 0.1s; 
+        --accent-color: var(--accent-amber); --horizon-glow: 0 0 35px rgba(255, 204, 0, 0.3);
+    }
+    body.state-thinking .widget-container { border-color: var(--accent-amber); }
+    body.state-thinking .spin-slow { stroke-dasharray: 4 20; }
+    body.state-thinking:not(.layout-menu) .status-badge { border-radius: 0px; bottom: 45px;}
+
+    /* 3. SPEAKING (Circle) */
+    body.state-speaking {
+        --cont-w: 540px; --ai-width: 540px; 
+        --cont-br: 50%; --cont-rot: 0deg; --inner-rot: 0deg;
+        --spin-speed: 5s; --wave-opacity: 0.8; 
+        --accent-color: var(--accent-blue); --horizon-glow: 0 0 30px rgba(50, 150, 250, 0.4);
+        --svg-scale: 1.15;
+    }
+    body.state-speaking .widget-container { border-color: var(--accent-blue); border-width: 3px;}
+    body.state-speaking .status-dot { animation: none; transform: scale(1); }
+    body.state-speaking .status-badge { border-radius: 30px; bottom: 15px;}
+
+    /* Layout: MENU MODE */
+    body.layout-menu {
+        --cont-w: 540px; 
+        --ai-width: 540px; 
+        --menu-width: 600px; 
+        --menu-opacity: 1;
+        --cont-br: 24px !important; 
+        --cont-rot: 0deg !important; 
+        --inner-rot: 0deg !important; 
+    }
+    body.layout-menu .status-badge {
+        bottom: 30px !important; border-radius: 12px !important; opacity: 1 !important;
+    }
+    body.layout-menu .menu-section {
+        border-color: var(--accent-color);
+        transition: border-color 0.5s ease;
+    }
+
+    #subtitle-text {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #EBF0F5;
+        font-size: 20px;
+        font-weight: bold;
+        text-shadow: 0px 2px 10px rgba(0,0,0,0.8);
+        text-align: center;
+        max-width: 80%;
+        z-index: 100;
+        pointer-events: none;
+    }
+
+    /* Invisible click target for desktop shortcut trigger */
+    #mic-target {
+        position: absolute;
+        width: 100%; height: 100%;
+        top: 0; left: 0; z-index: 50;
+        cursor: pointer;
+    }
+</style>
+</head>
+
+<body class="state-idle layout-core">
+
+    <!-- Scaler to ensure exact pixel dimensions fit on smaller monitors -->
+    <div id="scale-wrapper">
+        <!-- MAIN WIDGET -->
+        <div class="widget-container">
+            <div class="widget-rotator">
+                <!-- LEFT AI CORE (Exactly 540x540) -->
+                <div class="ai-section">
+                    <div id="mic-target" onclick="toggleMic()"></div>
+                    <svg class="black-hole-svg" viewBox="0 0 240 240">
+                        <circle cx="120" cy="120" r="42" class="speak-wave speak-wave-1" />
+                        <circle cx="120" cy="120" r="42" class="speak-wave speak-wave-2" />
+                        <g transform="rotate(-15 120 120)">
+                            <path d="M 20,120 A 100,30 0 0,1 220,120" class="ring-line ring-back" stroke-width="1.5" />
+                            <path d="M 35,120 A 85,22 0 0,1 205,120" class="ring-line ring-back spin-slow" stroke-width="2" />
+                            <circle cx="120" cy="120" r="44" class="event-horizon" />
+                            <path d="M 50,120 A 70,16 0 0,0 190,120" class="ring-line" stroke-dasharray="2 6" stroke-width="1.5" stroke-opacity="0.5" />
+                            <path d="M 20,120 A 100,30 0 0,0 220,120" class="ring-line spin-slow" stroke-width="2" />
+                            <path d="M 35,120 A 85,22 0 0,0 205,120" class="ring-line spin-fast" stroke-width="3" />
+                        </g>
+                        <!-- High tech crosshairs -->
+                        <line x1="120" y1="55" x2="120" y2="65" class="crosshair"/>
+                        <line x1="120" y1="175" x2="120" y2="185" class="crosshair"/>
+                        <line x1="55" y1="120" x2="65" y2="120" class="crosshair"/>
+                        <line x1="175" y1="120" x2="185" y2="120" class="crosshair"/>
+                    </svg>
+
+                    <!-- Status Text -->
+                    <div class="status-badge">
+                        <span class="status-dot"></span>
+                        <span class="status-text" id="statusText">IDLE</span>
+                    </div>
+                </div>
+
+                <!-- RIGHT MENU PANEL -->
+                <div class="menu-section">
+                    <div class="menu-header">
+                        <span>Core Access System</span>
+                        <span id="menu-stat-text">V_4.0</span>
+                    </div>
+                    <div class="menu-list" id="menu-list">
+                        <!-- JS injects menu items here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="subtitle-text"></div>
+
+    <script>
+        const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:' || window.location.hostname === '') 
+            ? 'http://127.0.0.1:8000' 
+            : window.location.origin;
+            
+        const subtitleText = document.getElementById('subtitle-text');
+
+        // State Controllers
+        let isMenuMode = false;
+        function toggleLayoutMode() {
+            isMenuMode = !isMenuMode;
+            if (isMenuMode) {
+                document.title = "resize:650,425";
+                document.body.classList.replace('layout-core', 'layout-menu');
+            } else {
+                document.title = "resize:300,300";
+                document.body.classList.replace('layout-menu', 'layout-core');
+            }
+        }
+
+        function setAIState(state) {
+            document.body.className = document.body.className.replace(/state-\w+/g, '');
+            document.body.classList.add(`state-${state}`);
+            document.getElementById('statusText').innerText = state;
+        }
+
+        let globalWs = null;
+        function connectWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsHost = API_BASE.replace(/^https?:\/\//, '');
+            globalWs = new WebSocket(`${wsProtocol}//${wsHost}/ws`);
+            
+            globalWs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'ui_state') {
+                        setAIState(data.state);
+                        if (data.state === 'idle') {
+                            setTimeout(() => { if(document.body.classList.contains('state-idle')) subtitleText.innerText = ""; }, 3000);
+                        }
+                    } else if (data.type === 'status' && data.text) {
+                        subtitleText.innerText = data.text;
+                    } else if (data.type === 'chunk' && data.content) {
+                        if (!document.body.classList.contains('state-speaking')) {
+                            setAIState('speaking');
+                            subtitleText.innerText = "";
+                        }
+                        subtitleText.innerText += data.content;
+                    } else if (data.type === 'input_request') {
+                        // Handle interactive options in the overlay
+                        if (!isMenuMode) toggleLayoutMode();
+                        const menuContainer = document.getElementById('menu-list');
+                        menuContainer.innerHTML = '';
+                        
+                        let qText = document.createElement('div');
+                        qText.className = 'menu-title';
+                        qText.innerText = data.question || "Please select an option:";
+                        qText.style.marginBottom = "15px";
+                        menuContainer.appendChild(qText);
+
+                        if (data.options) {
+                            data.options.forEach((opt, idx) => {
+                                const btn = document.createElement('div');
+                                btn.className = 'menu-item';
+                                btn.innerHTML = `<div class="menu-title">${idx + 1} // ${opt}</div>`;
+                                btn.onclick = async () => {
+                                    toggleLayoutMode();
+                                    setAIState('thinking');
+                                    // Submit option to backend
+                                    await fetch(`${API_BASE}/api/input/response`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ session_id: data.session_id, response: opt })
+                                    });
+                                };
+                                menuContainer.appendChild(btn);
+                            });
+                        }
+                    } else if (data.type === 'done') {
+                        setAIState('idle');
+                        setTimeout(() => { if(document.body.classList.contains('state-idle')) subtitleText.innerText = ""; }, 3000);
+                    }
+                } catch(e) {}
+            };
+            globalWs.onclose = () => setTimeout(connectWebSocket, 2000);
+        }
+        connectWebSocket();
+
+        // WebSpeech API
+        let recognition;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                setAIState('listening');
+                subtitleText.innerText = "Listening...";
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+                    else interimTranscript += event.results[i][0].transcript;
+                }
+                subtitleText.innerText = finalTranscript || interimTranscript;
+                
+                if (finalTranscript) {
+                    setAIState('thinking');
+                    sendToHelios(finalTranscript);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                setAIState('idle');
+                subtitleText.innerText = "Error: " + event.error;
+            };
+
+            recognition.onend = () => {
+                if(document.body.classList.contains('state-listening')) {
+                    setAIState('idle');
+                    subtitleText.innerText = "";
+                }
+            };
+        }
+
+        async function toggleMic() {
+            if (typeof recognition === 'undefined' || !recognition) {
+                let userInput = prompt("Speech API restricted by Qt. Enter text command (e.g. 'open menu'):");
+                if (userInput) {
+                    sendToHelios(userInput);
+                }
+                return;
+            }
+
+            if (document.body.classList.contains('state-listening') || document.body.classList.contains('state-speaking')) {
+                // If it was listening, stop listening.
+                if (document.body.classList.contains('state-listening')) {
+                    recognition.stop();
+                }
+                // Send interrupt to stop TTS
+                fetch(`${API_BASE}/api/interrupt`, { method: 'POST' });
+                setAIState('idle');
+            } else {
+                // Stop any ongoing speech before listening
+                fetch(`${API_BASE}/api/interrupt`, { method: 'POST' });
+                recognition.start();
+                setAIState('listening');
+            }
+        }
+        
+        // Expose to Python for Global Hotkey
+        window.startListening = () => { if (recognition) recognition.start(); }
+
+        async function sendToHelios(text) {
+            try {
+                let sessionId = localStorage.getItem('helios_session') || "desktop_sess";
+                const userId = 1;
+                
+                // If it's a command to open menu
+                if (text.toLowerCase().includes("open menu") || text.toLowerCase().includes("show options")) {
+                    toggleLayoutMode();
+                    populateMenu();
+                    setAIState('idle');
+                    subtitleText.innerText = "";
+                    return;
+                }
+                if (text.toLowerCase().includes("close menu")) {
+                    if(isMenuMode) toggleLayoutMode();
+                    setAIState('idle');
+                    subtitleText.innerText = "";
+                    return;
+                }
+
+                const res = await fetch(`${API_BASE}/api/chat/headless`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, user_id: userId, session_id: sessionId })
+                });
+
+                if (res.ok) {
+                    // We don't need to manually speak() or innerText here because the globalWs
+                    // receives the 'chunk' events and updates the subtitle, and Kokoro speaks it on the backend!
+                    const data = await res.json();
+                } else {
+                    setAIState('error');
+                    subtitleText.innerText = "Server Error";
+                    setTimeout(() => { setAIState('idle'); }, 2000);
+                }
+            } catch (err) {
+                setAIState('error');
+                subtitleText.innerText = "Connection Failed";
+                setTimeout(() => { setAIState('idle'); }, 2000);
+            }
+        }
+
+        function speak(text) {
+            // Disabled. Backend Kokoro TTS handles this now, preventing double-audio.
+        }
+        
+        function populateMenu() {
+            const menuContainer = document.getElementById('menu-list');
+            menuContainer.innerHTML = ''; // clear
+            
+            const menuData = [
+                { id: '01', title: 'System Status', desc: 'Run llmfit to profile hardware capabilities.', text: 'Run a system hardware check' },
+                { id: '02', title: 'Model Roster', desc: 'List active neural models.', text: 'What models do you have?' },
+                { id: '03', title: 'Network Hub', desc: 'Scan local connections.', text: 'Check local network devices' },
+                { id: '04', title: 'Standby', desc: 'Return core to low-power resting state.', action: 'close' }
+            ];
+
+            menuData.forEach(item => {
+                const btn = document.createElement('div');
+                btn.className = 'menu-item';
+                btn.innerHTML = `
+                    <div class="menu-title">${item.id} // ${item.title}</div>
+                    <div class="menu-desc">${item.desc}</div>
+                `;
+                btn.onclick = () => {
+                    if(item.action === 'close') {
+                        toggleLayoutMode();
+                        setAIState('idle');
+                    } else {
+                        setAIState('thinking');
+                        sendToHelios(item.text);
+                    }
+                };
+                menuContainer.appendChild(btn);
+            });
+        }
+        
+        // Initial setup
+        function handleResize() {
+            const wrapper = document.getElementById('scale-wrapper');
+            const scaleW = window.innerWidth / 1300; 
+            const scaleH = window.innerHeight / 850;
+            const scale = Math.min(scaleW, scaleH, 1); 
+            wrapper.style.transform = `scale(${scale})`;
+        }
+        window.addEventListener('resize', handleResize);
+        handleResize();
+    </script>
+</body>
+</html>
