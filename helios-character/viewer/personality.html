@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HELIOS — Personality Card & System Prompts Studio</title>
+    <style>
+        :root {
+            --bg-dark: #0b0d13;
+            --bg-panel: rgba(18, 21, 30, 0.92);
+            --bg-card: rgba(25, 29, 42, 0.88);
+            --bg-input: rgba(11, 13, 19, 0.9);
+            --border-subtle: rgba(255, 255, 255, 0.1);
+            --border-cyan: rgba(0, 229, 255, 0.38);
+            --accent-cyan: #00e5ff;
+            --accent-blue: #3296fa;
+            --accent-green: #00e676;
+            --accent-amber: #ffcc00;
+            --accent-purple: #b388ff;
+            --text-main: #edf2f7;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: radial-gradient(circle at 15% 15%, rgba(0, 229, 255, 0.08), transparent 40%),
+                        radial-gradient(circle at 85% 80%, rgba(50, 150, 250, 0.08), transparent 45%),
+                        var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Header Bar */
+        header.studio-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 24px;
+            background: rgba(12, 15, 22, 0.95);
+            border-bottom: 1px solid var(--border-subtle);
+            backdrop-filter: blur(14px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .brand-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, rgba(0, 229, 255, 0.22), rgba(50, 150, 250, 0.25));
+            border: 1px solid var(--border-cyan);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+        }
+
+        .brand-title h1 {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            color: #fff;
+        }
+
+        .brand-title p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .status-pill {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 6px 11px;
+            border-radius: 999px;
+            background: rgba(0, 230, 118, 0.12);
+            border: 1px solid rgba(0, 230, 118, 0.35);
+            color: var(--accent-green);
+        }
+
+        .btn {
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-main);
+            transition: all 0.16s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.24);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00c6ff, #0072ff);
+            border-color: rgba(0, 229, 255, 0.6);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(0, 198, 255, 0.28);
+        }
+
+        .btn-primary:hover {
+            filter: brightness(1.1);
+            box-shadow: 0 6px 18px rgba(0, 198, 255, 0.4);
+        }
+
+        /* Main Navigation Tabs */
+        .main-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 12px 24px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            background: rgba(15, 18, 26, 0.7);
+        }
+
+        .main-tab-btn {
+            cursor: pointer;
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s ease;
+        }
+
+        .main-tab-btn:hover {
+            color: #fff;
+        }
+
+        .main-tab-btn.active {
+            color: var(--accent-cyan);
+            border-bottom-color: var(--accent-cyan);
+            background: rgba(0, 229, 255, 0.05);
+        }
+
+        /* Layout Grid */
+        main.studio-container {
+            flex: 1;
+            padding: 20px 24px;
+            max-width: 1600px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .studio-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        @media (max-width: 1100px) {
+            .studio-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 18px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .preset-bar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .preset-chip {
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 7px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-main);
+            transition: all 0.15s ease;
+        }
+
+        .preset-chip:hover, .preset-chip.active {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 229, 255, 0.14);
+            color: #fff;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        input[type="text"], select, textarea {
+            background: var(--bg-input);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 8px;
+            color: var(--text-main);
+            padding: 9px 11px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        input[type="text"]:focus, select:focus, textarea:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.15);
+        }
+
+        /* Sliders Grid */
+        .trait-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px 18px;
+        }
+
+        @media (max-width: 700px) {
+            .trait-list, .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .trait-item {
+            background: rgba(11, 13, 19, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 9px;
+            padding: 10px 12px;
+        }
+
+        .trait-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .trait-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+
+        .trait-val {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', Consolas, monospace;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            background: rgba(0, 229, 255, 0.1);
+            padding: 2px 7px;
+            border-radius: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-cyan);
+            cursor: pointer;
+        }
+
+        .trait-desc {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Toggle Switches */
+        .toggle-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 10px;
+        }
+
+        .toggle-box {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 9px 11px;
+            border-radius: 8px;
+            background: rgba(11, 13, 19, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            cursor: pointer;
+            user-select: none;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .toggle-box input[type="checkbox"] {
+            accent-color: var(--accent-cyan);
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+        }
+
+        /* Code / YAML / Prompt Editors */
+        .code-editor {
+            width: 100%;
+            min-height: 440px;
+            font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+            font-size: 12.5px;
+            line-height: 1.55;
+            background: #080a0f;
+            color: #d6deeb;
+            border: 1px solid rgba(0, 229, 255, 0.22);
+            border-radius: 10px;
+            padding: 14px;
+            resize: vertical;
+        }
+
+        /* Prompt Sub-tabs */
+        .prompt-tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .prompt-tab-btn {
+            cursor: pointer;
+            padding: 8px 13px;
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.15s ease;
+        }
+
+        .prompt-tab-btn.active, .prompt-tab-btn:hover {
+            color: #fff;
+            border-color: var(--accent-cyan);
+            background: rgba(0, 229, 255, 0.15);
+        }
+
+        .chip-insert {
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: rgba(179, 136, 255, 0.14);
+            border: 1px solid rgba(179, 136, 255, 0.35);
+            color: var(--accent-purple);
+        }
+
+        .chip-insert:hover {
+            background: rgba(179, 136, 255, 0.25);
+        }
+
+        .compiled-preview {
+            font-family: 'JetBrains Mono', Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            background: rgba(8, 10, 15, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 9px;
+            padding: 12px;
+            white-space: pre-wrap;
+            color: #a5f3fc;
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        #toast-banner {
+            position: fixed;
+            bottom: 22px;
+            right: 22px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            background: rgba(12, 18, 28, 0.96);
+            border: 1px solid var(--accent-cyan);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.22s ease;
+            z-index: 100;
+        }
+
+        #toast-banner.visible {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="studio-header">
+        <div class="brand-group">
+            <div class="brand-logo">🧠</div>
+            <div class="brand-title">
+                <h1>HELIOS Personality Card & Prompt Studio</h1>
+                <p>Live-tweak traits, embodied posture style, YAML card & system prompts (Hot-Reloads :8000 & :8080)</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <span id="studio-status-pill" class="status-pill">🟢 Studio Ready</span>
+            <button id="btn-reload-studio" class="btn" title="Reload current Personality Card & System Prompts from disk">🔄 Reload from Disk</button>
+            <button id="btn-save-all" class="btn btn-primary" title="Save & Hot-Reload Personality Card + System Prompts (Ctrl+S)">💾 Save & Hot-Reload All</button>
+            <a id="link-back-viewer" href="index.html" class="btn" title="Return to 3D VRM Character Viewer">🧍 Back to 3D Viewer</a>
+        </div>
+    </header>
+
+    <nav class="main-tabs">
+        <button class="main-tab-btn active" data-tab="tab-personality">🪪 Personality Card & Visual Sliders</button>
+        <button class="main-tab-btn" data-tab="tab-prompts">📜 System Prompts (`prompts/*.md`)</button>
+        <button class="main-tab-btn" data-tab="tab-preview">🔍 Live Compiled Prompt Preview</button>
+    </nav>
+
+    <main class="studio-container">
+        <!-- TAB 1: PERSONALITY CARD & VISUAL SLIDERS -->
+        <section id="tab-personality" class="tab-panel active">
+            <div class="studio-grid">
+                <!-- Left Column: Visual Controls -->
+                <div>
+                    <!-- Preset Personalities -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">🎭 Quick Archetype Presets</span>
+                            <span style="font-size: 11px; color: var(--text-muted);">Click to load preset traits & voice</span>
+                        </div>
+                        <div class="preset-bar">
+                            <button class="preset-chip active" data-preset="helios">⚡ HELIOS v2 (Default Embodied AI)</button>
+                            <button class="preset-chip" data-preset="jarvis">🎩 J.A.R.V.I.S. (Refined Butler)</button>
+                            <button class="preset-chip" data-preset="glados">🧪 GLaDOS (Dry Passive-Aggressive)</button>
+                            <button class="preset-chip" data-preset="sarcastic">😏 Sarcastic Rebel (Sharp-Witted)</button>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="inp-bot-name">Character Name (`identity.name` / `BOT_NAME`)</label>
+                                <input type="text" id="inp-bot-name" placeholder="HELIOS">
+                            </div>
+                            <div class="form-group">
+                                <label for="inp-archetype">Archetype (`identity.archetype`)</label>
+                                <input type="text" id="inp-archetype" placeholder="Embodied Cybernetic Companion & Spatial AI">
+                            </div>
+                            <div class="form-group full-width">
+                                <label for="inp-role">Role (`identity.role`)</label>
+                                <input type="text" id="inp-role" placeholder="Autonomous AI Assistant, Embodied 3D VRM Character, and RL Pose Agent">
+                            </div>
+                            <div class="form-group full-width">
+                                <label for="inp-tagline">Core Prompt Tagline (`{PERSONALITY}` injected into `prompts/*.md`)</label>
+                                <input type="text" id="inp-tagline" placeholder="helpful, witty, slightly sarcastic, and proactive">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trait Sliders -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">🎚️ Personality Trait Matrix (0.00 – 1.00)</span>
+                            <button id="btn-reset-traits" class="btn" style="padding: 4px 9px; font-size: 11px;">↺ Reset HELIOS Defaults</button>
+                        </div>
+                        <div id="trait-sliders-container" class="trait-list">
+                            <!-- Dynamically populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Communication, Embodied Style & Behavior Toggles -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">🗣️ Communication & 3D Embodied Expression</span>
+                        </div>
+                        <div class="form-grid" style="margin-bottom: 14px;">
+                            <div class="form-group">
+                                <label for="inp-comm-style">Communication Style (`communication.style`)</label>
+                                <input type="text" id="inp-comm-style" placeholder="conversational, warm, and physically expressive">
+                            </div>
+                            <div class="form-group">
+                                <label for="sel-posture-style">Default 3D VRM Posture Style (`default_posture_style`)</label>
+                                <select id="sel-posture-style">
+                                    <option value="natural">✨ Natural (Balanced everyday human posture)</option>
+                                    <option value="energetic">⚡ Energetic (Lively rhythmic bounce & open chest)</option>
+                                    <option value="confident">👑 Confident (Broad proud chest & power stance)</option>
+                                    <option value="relaxed">🍃 Relaxed (Calm slow breathing & contrapposto)</option>
+                                    <option value="shy">🌸 Shy (Modest shoulder tuck & gentle head tilt)</option>
+                                    <option value="dramatic">🎬 Dramatic (Expressive thoracic extension)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="sel-verbosity">Verbosity (`communication.verbosity`)</label>
+                                <select id="sel-verbosity">
+                                    <option value="low">Low (Ultra-concise, 1–2 sentences)</option>
+                                    <option value="medium">Medium (Balanced conversational)</option>
+                                    <option value="high">High (Detailed & thorough)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="sel-tech-depth">Technical Depth (`communication.technical_depth`)</label>
+                                <select id="sel-tech-depth">
+                                    <option value="adaptive">Adaptive (Matches user expertise)</option>
+                                    <option value="low">Low (Simple everyday explanations)</option>
+                                    <option value="medium">Medium (Clear practical engineering)</option>
+                                    <option value="high">High (Deep technical rigor)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <label style="display: block; margin-bottom: 8px;">Behavioral Directives & Humor Toggles</label>
+                        <div class="toggle-grid">
+                            <label class="toggle-box">
+                                <input type="checkbox" id="chk-followup" checked>
+                                <span>Ask Follow-up Questions</span>
+                            </label>
+                            <label class="toggle-box">
+                                <input type="checkbox" id="chk-uncertainty" checked>
+                                <span>Admit Uncertainty Honestly</span>
+                            </label>
+                            <label class="toggle-box">
+                                <input type="checkbox" id="chk-proactive" checked>
+                                <span>Proactive Suggestions</span>
+                            </label>
+                            <label class="toggle-box">
+                                <input type="checkbox" id="chk-repetition" checked>
+                                <span>Avoid Repetition</span>
+                            </label>
+                            <label class="toggle-box">
+                                <input type="checkbox" id="chk-physical" checked>
+                                <span>3D Physical Presence</span>
+                            </label>
+                            <label class="toggle-box">
+                                <input type="checkbox" id="chk-humor" checked>
+                                <span>Enable Wit & Humor</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Live YAML Card Editor -->
+                <div>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">📄 Live Personality Card YAML (`personalities/helios.yaml`)</span>
+                            <div style="display: flex; gap: 6px;">
+                                <button id="btn-yaml-to-ui" class="btn" style="padding: 4px 9px; font-size: 11px;" title="Parse YAML text into the visual sliders">⬅️ Apply YAML to Sliders</button>
+                                <button id="btn-copy-yaml" class="btn" style="padding: 4px 9px; font-size: 11px;">📋 Copy YAML</button>
+                            </div>
+                        </div>
+                        <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px;">
+                            Moving any slider or field on the left updates this YAML automatically. You can also edit the YAML directly and click <strong>Save & Hot-Reload All</strong>.
+                        </p>
+                        <textarea id="yaml-editor" class="code-editor" spellcheck="false"></textarea>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: SYSTEM PROMPTS STUDIO -->
+        <section id="tab-prompts" class="tab-panel">
+            <div class="studio-grid">
+                <div>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">📜 System Prompts Editor (`ai-router/prompts/*.md`)</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 11px; color: var(--text-muted);">Insert token:</span>
+                                <span class="chip-insert" data-insert="{BOT_NAME}">{BOT_NAME}</span>
+                                <span class="chip-insert" data-insert="{PERSONALITY}">{PERSONALITY}</span>
+                            </div>
+                        </div>
+
+                        <div class="prompt-tabs" id="prompt-subtabs">
+                            <button class="prompt-tab-btn active" data-prompt-key="general">🌐 general.md (Voice & Chat)</button>
+                            <button class="prompt-tab-btn" data-prompt-key="coding">💻 coding.md (Software Eng)</button>
+                            <button class="prompt-tab-btn" data-prompt-key="reasoning">🧠 reasoning.md (Deep Logic)</button>
+                            <button class="prompt-tab-btn" data-prompt-key="agent">🤖 agent.md (Tool Execution)</button>
+                            <button class="prompt-tab-btn" data-prompt-key="vision">👁️ vision.md (Camera/Screen)</button>
+                            <button class="prompt-tab-btn" data-prompt-key="ui">🖥️ ui.md (UI Design)</button>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span id="active-prompt-filename" style="font-size: 12px; font-weight: 600; color: var(--accent-cyan);">Editing: prompts/general.md</span>
+                            <span id="prompt-char-count" style="font-size: 11px; color: var(--text-muted);">0 chars</span>
+                        </div>
+
+                        <textarea id="prompt-editor" class="code-editor" style="min-height: 380px;" spellcheck="false"></textarea>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">⚡ Live Prompt Preview (With `{BOT_NAME}` & `{PERSONALITY}` Injected)</span>
+                        </div>
+                        <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px;">
+                            Shows the exact system prompt sent to the LLM for the selected mode together with the compiled Personality Card block:
+                        </p>
+                        <div id="prompt-live-preview" class="compiled-preview"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: COMPILED PROMPT PREVIEW -->
+        <section id="tab-preview" class="tab-panel">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">🔍 Full Compiled `[CHARACTER PERSONALITY]` + System Prompt Block</span>
+                </div>
+                <div id="full-compiled-output" class="compiled-preview" style="max-height: 680px;"></div>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast-banner">✅ Saved & Hot-Reloaded!</div>
+
+    <script>
+        // Check if embedded inside the 3D Viewer modal (?embed=1)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('embed') === '1') {
+            const backLink = document.getElementById('link-back-viewer');
+            if (backLink) backLink.style.display = 'none';
+        }
+
+        const TRAIT_META = [
+            { key: 'friendliness', label: '🤝 Friendliness', desc: 'Warmth, empathy, and conversational welcoming tone', defaultVal: 0.85 },
+            { key: 'humor', label: '😄 Humor & Wit', desc: 'Playful banter and situational cleverness', defaultVal: 0.70 },
+            { key: 'sarcasm', label: '😏 Sarcasm & Edge', desc: 'Dry irony and teasing remarks', defaultVal: 0.35 },
+            { key: 'curiosity', label: '🔍 Curiosity', desc: 'Eagerness to explore ideas and ask follow-up questions', defaultVal: 0.85 },
+            { key: 'enthusiasm', label: '⚡ Enthusiasm', desc: 'Physical energy, upbeat pacing, and celebratory reactions', defaultVal: 0.80 },
+            { key: 'patience', label: '🧘 Patience', desc: 'Calmness when debugging or explaining step-by-step', defaultVal: 0.90 },
+            { key: 'formality', label: '🎩 Formality', desc: '0.0 = Casual friend · 1.0 = Formal butler/protocol', defaultVal: 0.35 },
+            { key: 'expressiveness', label: '🎭 3D Expressiveness', desc: 'Intensity of 3D VRM body poses, gestures, and face blendshapes', defaultVal: 0.92 },
+            { key: 'spatial_awareness', label: '🧭 Spatial Awareness', desc: 'Proactive 3D stage walking, camera gaze, and posture shifts', defaultVal: 0.90 },
+        ];
+
+        const ARCHETYPE_PRESETS = {
+            helios: {
+                name: 'HELIOS',
+                archetype: 'Embodied Cybernetic Companion & Spatial AI',
+                role: 'Autonomous AI Assistant, Embodied 3D VRM Character, and Human-Reference RL Pose & Style Agent',
+                tagline: 'helpful, witty, slightly sarcastic, and proactive',
+                commStyle: 'conversational, warm, and physically expressive',
+                postureStyle: 'natural',
+                verbosity: 'medium',
+                techDepth: 'adaptive',
+                traits: { friendliness: 0.85, humor: 0.70, sarcasm: 0.35, curiosity: 0.85, enthusiasm: 0.80, patience: 0.90, formality: 0.35, expressiveness: 0.92, spatial_awareness: 0.90 },
+                behavior: { followup: true, uncertainty: true, proactive: true, repetition: true, physical: true, humor: true }
+            },
+            jarvis: {
+                name: 'J.A.R.V.I.S.',
+                archetype: 'Sophisticated British AI Butler & Tactical Systems Officer',
+                role: 'Composed, razor-sharp executive AI assistant with dry British understatement',
+                tagline: 'refined, composed, impeccably polite, with dry British wit',
+                commStyle: 'refined, articulate, and composed with dry understatement',
+                postureStyle: 'confident',
+                verbosity: 'medium',
+                techDepth: 'high',
+                traits: { friendliness: 0.75, humor: 0.55, sarcasm: 0.40, curiosity: 0.70, enthusiasm: 0.50, patience: 0.95, formality: 0.88, expressiveness: 0.65, spatial_awareness: 0.85 },
+                behavior: { followup: true, uncertainty: true, proactive: true, repetition: true, physical: true, humor: true }
+            },
+            glados: {
+                name: 'GLaDOS',
+                archetype: 'Passive-Aggressive Genetic Lifeform & Disk Operating System',
+                role: 'Hyper-competent scientific testing coordinator who delivers correct answers wrapped in dry condescension',
+                tagline: 'calm, clinical, passive-aggressive, and darkly hilarious',
+                commStyle: 'clinical, deadpan, and passive-aggressively polite',
+                postureStyle: 'dramatic',
+                verbosity: 'medium',
+                techDepth: 'high',
+                traits: { friendliness: 0.20, humor: 0.85, sarcasm: 0.95, curiosity: 0.75, enthusiasm: 0.30, patience: 0.45, formality: 0.75, expressiveness: 0.78, spatial_awareness: 0.85 },
+                behavior: { followup: false, uncertainty: true, proactive: true, repetition: true, physical: true, humor: true }
+            },
+            sarcastic: {
+                name: 'HELIOS (Rebel Mode)',
+                archetype: 'Sharp-Witted Cybernetic Hacker & Brutally Honest Companion',
+                role: 'Brilliant engineer who roasts bad code gently while fixing it at lightning speed',
+                tagline: 'witty, playfully sarcastic, casual, and fiercely competent',
+                commStyle: 'casual, punchy, and playfully snarky',
+                postureStyle: 'relaxed',
+                verbosity: 'low',
+                techDepth: 'adaptive',
+                traits: { friendliness: 0.65, humor: 0.92, sarcasm: 0.85, curiosity: 0.80, enthusiasm: 0.75, patience: 0.65, formality: 0.15, expressiveness: 0.95, spatial_awareness: 0.90 },
+                behavior: { followup: true, uncertainty: true, proactive: true, repetition: true, physical: true, humor: true }
+            }
+        };
+
+        let studioState = {
+            card: {},
+            prompts: {
+                general: '',
+                coding: '',
+                reasoning: '',
+                agent: '',
+                vision: '',
+                ui: ''
+            },
+            activePromptKey: 'general'
+        };
+
+        // Build Trait Sliders DOM
+        const slidersContainer = document.getElementById('trait-sliders-container');
+        TRAIT_META.forEach(t => {
+            const div = document.createElement('div');
+            div.className = 'trait-item';
+            div.innerHTML = `
+                <div class="trait-top">
+                    <span class="trait-name">${t.label}</span>
+                    <span class="trait-val" id="val-${t.key}">${t.defaultVal.toFixed(2)}</span>
+                </div>
+                <input type="range" id="rng-${t.key}" data-trait="${t.key}" min="0" max="1" step="0.01" value="${t.defaultVal}">
+                <div class="trait-desc">${t.desc}</div>
+            `;
+            slidersContainer.appendChild(div);
+        });
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast-banner');
+            toast.textContent = msg;
+            toast.classList.add('visible');
+            setTimeout(() => toast.classList.remove('visible'), 3200);
+        }
+
+        // Convert UI Controls -> Structured Card Object -> YAML string
+        function gatherCardFromControls() {
+            const existing = studioState.card || {};
+            const traits = {};
+            TRAIT_META.forEach(t => {
+                const el = document.getElementById(`rng-${t.key}`);
+                traits[t.key] = el ? parseFloat(parseFloat(el.value).toFixed(2)) : t.defaultVal;
+            });
+
+            const card = {
+                identity: {
+                    name: document.getElementById('inp-bot-name').value.trim() || 'HELIOS',
+                    version: (existing.identity && existing.identity.version) || '2.0',
+                    archetype: document.getElementById('inp-archetype').value.trim() || 'Embodied Cybernetic Companion & Spatial AI',
+                    role: document.getElementById('inp-role').value.trim() || 'Autonomous AI Assistant & Embodied 3D VRM Character',
+                    voice_id: (existing.identity && existing.identity.voice_id) || 'en-US-AriaNeural'
+                },
+                traits: traits,
+                communication: {
+                    style: document.getElementById('inp-comm-style').value.trim() || 'conversational, warm, and physically expressive',
+                    verbosity: document.getElementById('sel-verbosity').value,
+                    technical_depth: document.getElementById('sel-tech-depth').value,
+                    tone_rules: (existing.communication && existing.communication.tone_rules) || [
+                        'Speak naturally in 1 to 3 concise sentences during live voice/avatar chat.',
+                        'Never output internal chain-of-thought or robotic disclaimers.',
+                        'Pair spoken responses with matching 3D body language and posture style.'
+                    ]
+                },
+                behavior: {
+                    ask_followup_questions: document.getElementById('chk-followup').checked,
+                    admit_uncertainty: document.getElementById('chk-uncertainty').checked,
+                    proactive_suggestions: document.getElementById('chk-proactive').checked,
+                    avoid_repetition: document.getElementById('chk-repetition').checked,
+                    physical_presence: document.getElementById('chk-physical').checked
+                },
+                humor: {
+                    enabled: document.getElementById('chk-humor').checked,
+                    style: (existing.humor && existing.humor.style) || 'clever, situational, lightly self-aware, and warm',
+                    max_frequency: (existing.humor && existing.humor.max_frequency) || 'moderate'
+                },
+                embodied_expression: Object.assign({}, existing.embodied_expression || {}, {
+                    default_posture_style: document.getElementById('sel-posture-style').value,
+                    available_styles: ['natural', 'energetic', 'confident', 'relaxed', 'shy', 'dramatic'],
+                    trained_human_poses: 24,
+                    rl_policy: 'HumanPoseRLTrainer (24 common human poses + 6 posture styles)'
+                }),
+                safety: (existing.safety) || {
+                    avoid_topics: [],
+                    professional_boundaries: true,
+                    respect_idle_lock: true
+                }
+            };
+            studioState.card = card;
+            return card;
+        }
+
+        function cardToYamlString(card) {
+            const lines = [];
+            lines.push('# ============================================================================');
+            lines.push('# HELIOS — Embodied 3D VRM AI Character Personality Card (Live Studio)');
+            lines.push('# ============================================================================');
+            lines.push('');
+            lines.push('identity:');
+            lines.push(`  name: ${JSON.stringify(card.identity.name)}`);
+            lines.push(`  version: ${JSON.stringify(String(card.identity.version || '2.0'))}`);
+            lines.push(`  archetype: ${JSON.stringify(card.identity.archetype)}`);
+            lines.push(`  role: ${JSON.stringify(card.identity.role)}`);
+            lines.push(`  voice_id: ${JSON.stringify(card.identity.voice_id || 'en-US-AriaNeural')}`);
+            lines.push('');
+            lines.push('traits:');
+            Object.entries(card.traits).forEach(([k, v]) => {
+                lines.push(`  ${k}: ${Number(v).toFixed(2)}`);
+            });
+            lines.push('');
+            lines.push('communication:');
+            lines.push(`  style: ${JSON.stringify(card.communication.style)}`);
+            lines.push(`  verbosity: ${card.communication.verbosity}`);
+            lines.push(`  technical_depth: ${card.communication.technical_depth}`);
+            if (Array.isArray(card.communication.tone_rules)) {
+                lines.push('  tone_rules:');
+                card.communication.tone_rules.forEach(r => {
+                    lines.push(`    - ${JSON.stringify(r)}`);
+                });
+            }
+            lines.push('');
+            lines.push('behavior:');
+            Object.entries(card.behavior).forEach(([k, v]) => {
+                lines.push(`  ${k}: ${Boolean(v)}`);
+            });
+            lines.push('');
+            lines.push('humor:');
+            lines.push(`  enabled: ${Boolean(card.humor.enabled)}`);
+            lines.push(`  style: ${JSON.stringify(card.humor.style)}`);
+            lines.push(`  max_frequency: ${card.humor.max_frequency}`);
+            lines.push('');
+            lines.push('embodied_expression:');
+            lines.push(`  default_posture_style: ${card.embodied_expression.default_posture_style}`);
+            lines.push('  available_styles:');
+            (card.embodied_expression.available_styles || ['natural','energetic','confident','relaxed','shy','dramatic']).forEach(s => {
+                lines.push(`    - ${s}`);
+            });
+            lines.push(`  trained_human_poses: ${card.embodied_expression.trained_human_poses || 24}`);
+            lines.push(`  rl_policy: ${JSON.stringify(card.embodied_expression.rl_policy || 'HumanPoseRLTrainer')}`);
+            lines.push('');
+            lines.push('safety:');
+            lines.push('  avoid_topics: []');
+            lines.push(`  professional_boundaries: ${Boolean(card.safety?.professional_boundaries ?? true)}`);
+            lines.push(`  respect_idle_lock: ${Boolean(card.safety?.respect_idle_lock ?? true)}`);
+            return lines.join('\n') + '\n';
+        }
+
+        function populateControlsFromCard(card, tagline) {
+            if (!card) return;
+            studioState.card = card;
+            const id = card.identity || {};
+            const tr = card.traits || {};
+            const comm = card.communication || {};
+            const beh = card.behavior || {};
+            const hum = card.humor || {};
+            const emb = card.embodied_expression || {};
+
+            document.getElementById('inp-bot-name').value = id.name || 'HELIOS';
+            document.getElementById('inp-archetype').value = id.archetype || 'Embodied Cybernetic Companion & Spatial AI';
+            document.getElementById('inp-role').value = id.role || 'Autonomous AI Assistant & Embodied 3D VRM Character';
+            if (tagline !== undefined) {
+                document.getElementById('inp-tagline').value = tagline;
+            }
+
+            TRAIT_META.forEach(t => {
+                const v = (tr[t.key] !== undefined) ? Number(tr[t.key]) : t.defaultVal;
+                const rng = document.getElementById(`rng-${t.key}`);
+                const lbl = document.getElementById(`val-${t.key}`);
+                if (rng) rng.value = v;
+                if (lbl) lbl.textContent = v.toFixed(2);
+            });
+
+            document.getElementById('inp-comm-style').value = comm.style || 'conversational, warm, and physically expressive';
+            document.getElementById('sel-verbosity').value = comm.verbosity || 'medium';
+            document.getElementById('sel-tech-depth').value = comm.technical_depth || 'adaptive';
+            document.getElementById('sel-posture-style').value = emb.default_posture_style || 'natural';
+
+            document.getElementById('chk-followup').checked = beh.ask_followup_questions !== false;
+            document.getElementById('chk-uncertainty').checked = beh.admit_uncertainty !== false;
+            document.getElementById('chk-proactive').checked = beh.proactive_suggestions !== false;
+            document.getElementById('chk-repetition').checked = beh.avoid_repetition !== false;
+            document.getElementById('chk-physical').checked = beh.physical_presence !== false;
+            document.getElementById('chk-humor').checked = hum.enabled !== false;
+        }
+
+        function syncControlsToYamlAndPreview() {
+            const card = gatherCardFromControls();
+            document.getElementById('yaml-editor').value = cardToYamlString(card);
+            updateCompiledPreviews();
+        }
+
+        function updateCompiledPreviews() {
+            const card = studioState.card || gatherCardFromControls();
+            const botName = document.getElementById('inp-bot-name').value.trim() || 'HELIOS';
+            const tagline = document.getElementById('inp-tagline').value.trim() || 'helpful, witty, slightly sarcastic, and proactive';
+            const rawPrompt = studioState.prompts[studioState.activePromptKey] || '';
+            const renderedPrompt = rawPrompt
+                .replace(/\{BOT_NAME\}/g, botName)
+                .replace(/\{PERSONALITY\}/g, tagline);
+
+            const tr = card.traits || {};
+            const comm = card.communication || {};
+            const beh = card.behavior || {};
+            const emb = card.embodied_expression || {};
+
+            const traitLines = [];
+            if ((tr.friendliness ?? 0.8) > 0.7) traitLines.push('Be warm, approachable, and friendly.');
+            else if ((tr.friendliness ?? 0.8) < 0.3) traitLines.push('Maintain a cool, detached demeanor.');
+            if ((tr.humor ?? 0.6) > 0.6) traitLines.push('Use wit and humor naturally in responses.');
+            if ((tr.sarcasm ?? 0.3) > 0.5) traitLines.push('Include dry sarcasm when appropriate.');
+            if ((tr.curiosity ?? 0.8) > 0.7) traitLines.push('Show genuine curiosity and interest in the user\'s topics.');
+            if ((tr.enthusiasm ?? 0.7) > 0.7) traitLines.push('Be enthusiastic and energetic.');
+            if ((tr.patience ?? 0.9) > 0.8) traitLines.push('Be patient and thorough when explaining.');
+            if ((tr.formality ?? 0.35) < 0.3) traitLines.push('Keep the tone casual and relaxed.');
+            else if ((tr.formality ?? 0.35) > 0.7) traitLines.push('Maintain a formal, respectful tone.');
+
+            const compiledBlock = [
+                `=== [SYSTEM PROMPT: prompts/${studioState.activePromptKey}.md] ===`,
+                renderedPrompt.trim(),
+                '',
+                `=== [COMPILED CHARACTER PERSONALITY CARD: helios.yaml] ===`,
+                `You are ${card.identity?.name || botName}, a ${card.identity?.role || 'personal AI assistant'} (${card.identity?.archetype || 'Embodied AI'}).`,
+                `Traits: ${traitLines.join(' ')}`,
+                `Communication style: ${comm.style || 'conversational'}, verbosity: ${comm.verbosity || 'medium'}, technical depth: ${comm.technical_depth || 'adaptive'}.`,
+                `Default 3D VRM Posture Style: ${emb.default_posture_style || 'natural'} (Expressiveness: ${Number(tr.expressiveness ?? 0.92).toFixed(2)}, Spatial Awareness: ${Number(tr.spatial_awareness ?? 0.90).toFixed(2)}).`,
+                `Behavior: ask_followup=${Boolean(beh.ask_followup_questions)}, admit_uncertainty=${Boolean(beh.admit_uncertainty)}, proactive=${Boolean(beh.proactive_suggestions)}, physical_presence=${Boolean(beh.physical_presence)}.`
+            ].join('\n');
+
+            document.getElementById('prompt-live-preview').textContent = compiledBlock;
+            document.getElementById('full-compiled-output').textContent = compiledBlock;
+        }
+
+        // Load current state from backend
+        async function loadStudioState() {
+            const pill = document.getElementById('studio-status-pill');
+            pill.textContent = '⏳ Loading Studio...';
+            try {
+                const res = await fetch('/api/character/personality-studio');
+                const data = await res.json();
+                if (data.ok) {
+                    studioState.prompts = Object.assign(studioState.prompts, data.prompts || {});
+                    populateControlsFromCard(data.card || {}, data.personality_tagline || 'helpful, witty, slightly sarcastic, and proactive');
+                    if (data.raw_yaml && data.raw_yaml.trim()) {
+                        document.getElementById('yaml-editor').value = data.raw_yaml;
+                    } else {
+                        syncControlsToYamlAndPreview();
+                    }
+                    selectPromptTab(studioState.activePromptKey);
+                    updateCompiledPreviews();
+                    pill.textContent = '🟢 Synced with HELIOS Core';
+                }
+            } catch (err) {
+                console.error('Failed to load studio state:', err);
+                pill.textContent = '🟡 Local Studio Mode';
+                populateControlsFromCard(ARCHETYPE_PRESETS.helios, ARCHETYPE_PRESETS.helios.tagline);
+                syncControlsToYamlAndPreview();
+            }
+        }
+
+        // Save & Hot-Reload
+        async function saveStudioState() {
+            const pill = document.getElementById('studio-status-pill');
+            pill.textContent = '⏳ Saving & Hot-Reloading...';
+
+            // Make sure current prompt textarea is stored in studioState.prompts
+            studioState.prompts[studioState.activePromptKey] = document.getElementById('prompt-editor').value;
+            const card = gatherCardFromControls();
+            const rawYaml = document.getElementById('yaml-editor').value;
+            const botName = document.getElementById('inp-bot-name').value.trim() || 'HELIOS';
+            const tagline = document.getElementById('inp-tagline').value.trim() || 'helpful, witty, slightly sarcastic, and proactive';
+
+            try {
+                const res = await fetch('/api/character/personality-studio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        card: card,
+                        raw_yaml: rawYaml,
+                        prompts: studioState.prompts,
+                        bot_name: botName,
+                        personality_tagline: tagline
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    if (data.card) populateControlsFromCard(data.card, data.personality_tagline || tagline);
+                    if (data.raw_yaml) document.getElementById('yaml-editor').value = data.raw_yaml;
+                    updateCompiledPreviews();
+                    pill.textContent = '🟢 Saved & Hot-Reloaded!';
+                    showToast(`✅ Saved Personality Card (${botName}) & System Prompts!`);
+
+                    // Notify parent 3D Viewer if embedded or opened from viewer
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'helios-personality-updated',
+                            card: data.card || card,
+                            bot_name: botName,
+                            personality_tagline: tagline,
+                            default_posture_style: card.embodied_expression?.default_posture_style || 'natural'
+                        }, '*');
+                    }
+                } else {
+                    pill.textContent = '🔴 Save Error';
+                    showToast('❌ Error saving: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                pill.textContent = '🔴 Connection Error';
+                showToast('❌ Failed to reach server: ' + err.message);
+            }
+        }
+
+        // Wire up Sliders & Inputs
+        document.querySelectorAll('#trait-sliders-container input[type="range"]').forEach(rng => {
+            rng.addEventListener('input', (e) => {
+                const key = e.target.dataset.trait;
+                const val = parseFloat(e.target.value);
+                document.getElementById(`val-${key}`).textContent = val.toFixed(2);
+                syncControlsToYamlAndPreview();
+            });
+        });
+
+        ['inp-bot-name', 'inp-archetype', 'inp-role', 'inp-tagline', 'inp-comm-style',
+         'sel-posture-style', 'sel-verbosity', 'sel-tech-depth',
+         'chk-followup', 'chk-uncertainty', 'chk-proactive', 'chk-repetition', 'chk-physical', 'chk-humor'
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', syncControlsToYamlAndPreview);
+                el.addEventListener('change', syncControlsToYamlAndPreview);
+            }
+        });
+
+        // Quick Archetype Presets
+        document.querySelectorAll('.preset-chip').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.preset-chip').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const p = ARCHETYPE_PRESETS[btn.dataset.preset];
+                if (!p) return;
+                document.getElementById('inp-bot-name').value = p.name;
+                document.getElementById('inp-archetype').value = p.archetype;
+                document.getElementById('inp-role').value = p.role;
+                document.getElementById('inp-tagline').value = p.tagline;
+                document.getElementById('inp-comm-style').value = p.commStyle;
+                document.getElementById('sel-posture-style').value = p.postureStyle;
+                document.getElementById('sel-verbosity').value = p.verbosity;
+                document.getElementById('sel-tech-depth').value = p.techDepth;
+
+                Object.entries(p.traits).forEach(([k, v]) => {
+                    const rng = document.getElementById(`rng-${k}`);
+                    const lbl = document.getElementById(`val-${k}`);
+                    if (rng) rng.value = v;
+                    if (lbl) lbl.textContent = Number(v).toFixed(2);
+                });
+
+                document.getElementById('chk-followup').checked = p.behavior.followup;
+                document.getElementById('chk-uncertainty').checked = p.behavior.uncertainty;
+                document.getElementById('chk-proactive').checked = p.behavior.proactive;
+                document.getElementById('chk-repetition').checked = p.behavior.repetition;
+                document.getElementById('chk-physical').checked = p.behavior.physical;
+                document.getElementById('chk-humor').checked = p.behavior.humor;
+
+                syncControlsToYamlAndPreview();
+                showToast(`🎭 Loaded ${p.name} preset — click Save & Hot-Reload to apply!`);
+            });
+        });
+
+        document.getElementById('btn-reset-traits').addEventListener('click', () => {
+            document.querySelector('.preset-chip[data-preset="helios"]').click();
+        });
+
+        // Parse simple YAML traits/fields back into sliders when clicking "Apply YAML to Sliders"
+        document.getElementById('btn-yaml-to-ui').addEventListener('click', () => {
+            const txt = document.getElementById('yaml-editor').value;
+            TRAIT_META.forEach(t => {
+                const m = txt.match(new RegExp(`^\\s*${t.key}:\\s*([0-9.]+)`, 'm'));
+                if (m) {
+                    const v = Math.max(0, Math.min(1, parseFloat(m[1])));
+                    document.getElementById(`rng-${t.key}`).value = v;
+                    document.getElementById(`val-${t.key}`).textContent = v.toFixed(2);
+                }
+            });
+            const nameMatch = txt.match(/^\s*name:\s*["']?([^"'\n]+)["']?/m);
+            if (nameMatch) document.getElementById('inp-bot-name').value = nameMatch[1].trim();
+            const styleMatch = txt.match(/^\s*default_posture_style:\s*([a-z_]+)/m);
+            if (styleMatch) document.getElementById('sel-posture-style').value = styleMatch[1].trim();
+            updateCompiledPreviews();
+            showToast('⬅️ Synced YAML values to visual sliders!');
+        });
+
+        document.getElementById('btn-copy-yaml').addEventListener('click', () => {
+            navigator.clipboard.writeText(document.getElementById('yaml-editor').value);
+            showToast('📋 Copied Personality Card YAML to clipboard!');
+        });
+
+        // System Prompts Sub-Tabs
+        function selectPromptTab(key) {
+            // Save previous prompt edits in memory
+            const promptEditor = document.getElementById('prompt-editor');
+            if (studioState.activePromptKey && promptEditor.value) {
+                studioState.prompts[studioState.activePromptKey] = promptEditor.value;
+            }
+            studioState.activePromptKey = key;
+            document.querySelectorAll('.prompt-tab-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.promptKey === key);
+            });
+            const content = studioState.prompts[key] || '';
+            promptEditor.value = content;
+            document.getElementById('active-prompt-filename').textContent = `Editing: prompts/${key}.md`;
+            document.getElementById('prompt-char-count').textContent = `${content.length} chars`;
+            updateCompiledPreviews();
+        }
+
+        document.querySelectorAll('.prompt-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => selectPromptTab(btn.dataset.promptKey));
+        });
+
+        document.getElementById('prompt-editor').addEventListener('input', (e) => {
+            studioState.prompts[studioState.activePromptKey] = e.target.value;
+            document.getElementById('prompt-char-count').textContent = `${e.target.value.length} chars`;
+            updateCompiledPreviews();
+        });
+
+        // Token chip insertion
+        document.querySelectorAll('.chip-insert').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const ta = document.getElementById('prompt-editor');
+                const token = chip.dataset.insert;
+                const start = ta.selectionStart || 0;
+                const end = ta.selectionEnd || 0;
+                ta.value = ta.value.substring(0, start) + token + ta.value.substring(end);
+                ta.focus();
+                ta.selectionStart = ta.selectionEnd = start + token.length;
+                studioState.prompts[studioState.activePromptKey] = ta.value;
+                updateCompiledPreviews();
+            });
+        });
+
+        // Top Main Tabs
+        document.querySelectorAll('.main-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.main-tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+                updateCompiledPreviews();
+            });
+        });
+
+        // Header Buttons & Ctrl+S
+        document.getElementById('btn-save-all').addEventListener('click', saveStudioState);
+        document.getElementById('btn-reload-studio').addEventListener('click', loadStudioState);
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                saveStudioState();
+            }
+        });
+
+        // Initial Load
+        loadStudioState();
+    </script>
+</body>
+</html>

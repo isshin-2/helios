@@ -33,7 +33,7 @@ def get_or_create_session(api_url):
 
 def chat_loop(api_url):
     print("=" * 60)
-    print("HELIOS Command Line Interface")
+    print("HELIOS Terminal Chat Interface")
     print(f"Connecting to: {api_url}")
     print("Type 'exit' or 'quit' to exit.")
     print("=" * 60)
@@ -105,7 +105,7 @@ def chat_loop(api_url):
             print(f"\nUnexpected Error: {e}\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="HELIOS Headless CLI")
+    parser = argparse.ArgumentParser(description="HELIOS Headless Terminal Chat")
     parser.add_argument("--url", default=os.getenv("HELIOS_API_URL", DEFAULT_API_URL),
                         help="The base URL of the HELIOS API")
     args = parser.parse_args()

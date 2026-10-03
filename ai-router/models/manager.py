@@ -302,6 +302,8 @@ class ModelManager:
                     # Execute local model
                     await self.ensure_model_loaded(current_model, context_size)
                     options = {"num_ctx": context_size}
+                    if context_size <= 1024:
+                        options["num_predict"] = 120
                     
                     target_provider = self.provider
                     from providers.openrouter import OpenRouterProvider

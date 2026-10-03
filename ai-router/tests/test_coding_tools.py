@@ -8,8 +8,11 @@ sys.stdout.reconfigure(encoding='utf-8')
 from tools.stateful_shell import StatefulShellTool
 from security.permissions import PermissionManager, PermissionResult
 
+import pytest
+
 logging.basicConfig(level=logging.INFO)
 
+@pytest.mark.asyncio
 async def test_coding_tools():
     print("Initializing Permission Manager...", flush=True)
     pm = PermissionManager()

@@ -283,6 +283,18 @@ class PermissionManager:
                 return True
         return False
 
+    def is_command_allowed(self, command: str) -> bool:
+        """Check if a base command is allowed (not permanently blocked)."""
+        cmd_lower = command.lower().strip()
+        return cmd_lower not in BLOCKED_COMMANDS
+
+    def validate_path_access(self, path: Any) -> bool:
+        """Validate if a path is accessible (not protected and not blocked system path)."""
+        p = Path(path) if not isinstance(path, Path) else path
+        if is_blocked_system_path(str(p)):
+            return False
+        return not self.is_protected_path(p)
+
     def _get_user_access(self, user_id: int) -> Dict[str, Any]:
         """Load the user's system_access config from the database."""
         conn = get_db()

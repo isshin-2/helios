@@ -74,7 +74,7 @@ def get_routing_decision(classification: Dict[str, Any]) -> Dict[str, Any]:
 
     # 5. Conversation
     if intent == "conversation":
-        model = _get_model_by_role("fast", "phi4:mini")
+        model = _get_model_by_role("fast", "llama3.2:3b")
         base_response.update({
             "route": "general",
             "model": model,
@@ -84,17 +84,17 @@ def get_routing_decision(classification: Dict[str, Any]) -> Dict[str, Any]:
         return base_response
         
     # Default: General
-    model = _get_model_by_role("general", "ministral3:8b")
+    model = _get_model_by_role("general", "llama3.2:3b")
     context_size = CONTEXT_SIZES.get("medium", 4096)
     reason = "Standard general request."
     
     # Detail overrides
     if detail == "detailed":
-        model = _get_model_by_role("reasoning", "qwen3.6-thinking:9b")
+        model = _get_model_by_role("reasoning", "qwen3.5:4b")
         context_size = CONTEXT_SIZES.get("complex", 8192)
         reason += " (Upgraded to reasoning model for high detail)"
     elif detail == "simple":
-        model = _get_model_by_role("fast", "phi4:mini")
+        model = _get_model_by_role("fast", "llama3.2:3b")
         context_size = CONTEXT_SIZES.get("simple", 2048)
         reason += " (Downgraded to fast model for simple answer)"
         

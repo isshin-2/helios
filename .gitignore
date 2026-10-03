@@ -48,3 +48,6 @@ tmp_live_test/
 experiments/
 .setup_complete
 overlay_state.txt
+.helios_worktrees/
+ai-router/benchmarks/results/
+helios_swarm_test/

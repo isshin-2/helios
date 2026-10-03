@@ -208,11 +208,24 @@ class ConversationOrchestrator:
         loop = asyncio.get_running_loop()
         loop.run_in_executor(_db_executor, save_message, session_id, "user", last_msg_raw)
         
+        # Attach CharacterManager to the request EventBus if character addon is enabled
+        try:
+            from core.character_manager import character_manager
+            if character_manager.enabled:
+                character_manager.attach_event_bus(event_bus)
+        except Exception:
+            pass
+
         # Send initial loading status
         await event_bus.publish("status", "Analyzing your request...")
         
-        # Extract facts in background (fire-and-forget) — disabled under memory pressure
-        if not is_budget_mode_active():
+        _mem_keywords = ("remember", "my name", "i am", "i like", "prefer", "fact", "earlier", "previous", "who am i", "what did i")
+        is_short_greeting = (
+            isinstance(last_msg, str)
+            and len(last_msg.strip()) < 90
+            and not any(k in last_msg.lower() for k in _mem_keywords)
+        )
+        if not is_budget_mode_active() and not is_short_greeting:
             asyncio.create_task(self.memory_manager.extract_and_save_facts(user_id, last_msg))
         
         # ─── CONCURRENT PIPELINE ─────────────────────────────────────────
@@ -220,10 +233,14 @@ class ConversationOrchestrator:
         # Instantiate routing engine dynamically or pass down; for now instantiate locally
         routing_engine = RoutingEngine(semantic_cache_db=None) 
         
-        rag_context, route_tuple = await asyncio.gather(
-            self.memory_manager.search_memory(user_id, last_msg),
-            routing_engine.route_request(last_msg_raw, agent_mode=agent_mode)
-        )
+        if is_short_greeting:
+            rag_context = []
+            route_tuple = await routing_engine.route_request(last_msg_raw, agent_mode=agent_mode)
+        else:
+            rag_context, route_tuple = await asyncio.gather(
+                self.memory_manager.search_memory(user_id, last_msg),
+                routing_engine.route_request(last_msg_raw, agent_mode=agent_mode)
+            )
         
         route_type, route_metadata = route_tuple
 
@@ -239,8 +256,8 @@ class ConversationOrchestrator:
         route = {
             "route": route_type,
             "category": "general",
-            "context_size": 4096,
-            "model": route_metadata.get("model", route_metadata.get("model_chain", ["phi3:mini"])[0])
+            "context_size": 1024 if is_short_greeting else 4096,
+            "model": "llama3.2:3b" if is_short_greeting else route_metadata.get("model", route_metadata.get("model_chain", ["llama3.2:3b"])[0])
         }
         
         if route_type == "cloud":
@@ -254,19 +271,32 @@ class ConversationOrchestrator:
             "memory_injected": len(rag_context) > 0
         })
         
-        messages = inject_system_prompt(messages, route.get("category", "general"), rag_context)
+        if is_short_greeting and route.get("category") == "general" and not rag_context:
+            fast_sys = (
+                "You are Airi, a sharp, friendly, embodied AI engineering companion in a real-time 3D Techwear VRM avatar body. "
+                "Start every reply with `[BODY: move=<stay|walk_to_user|step_back|circle_user|return_center>, "
+                "pose=<wave|nod|peace|cheer|shrug|bow|confident|smug_pose|dance_shikano|backflip|think_pose|talk_explain|cyber_salute|superhero_landing|martial_arts_guard|double_biceps_flex|facepalm|zen_meditation|point_forward|rock_on_pose>, "
+                "emotion=<neutral|happy|amused|curious|excited|concerned|serious>]` followed by a concise, natural 1-2 sentence reply in character."
+            )
+            if messages and messages[0].get("role") == "system":
+                messages[0]["content"] = fast_sys
+            else:
+                messages = [{"role": "system", "content": fast_sys}] + messages
+        else:
+            messages = inject_system_prompt(messages, route.get("category", "general"), rag_context)
         
         MAX_TOOL_ITERATIONS = 3
         iteration = 0
         full_response = ""
         
         allowed_tools = []
-        if self.tool_router:
-            allowed_tools = self.tool_router.get_tool_schemas()
-            
-        mcp_tools = await self.mcp_manager.list_all_tools()
-        if mcp_tools:
-            allowed_tools.extend(mcp_tools)
+        if agent_mode or route.get("category") in ("agent", "tool_use", "system"):
+            if self.tool_router:
+                allowed_tools = self.tool_router.get_tool_schemas()
+                
+            mcp_tools = await self.mcp_manager.list_all_tools()
+            if mcp_tools:
+                allowed_tools.extend(mcp_tools)
         
         # Track whether screen_vision has been called (for vision enforcement)
         vision_used = False
@@ -414,6 +444,7 @@ class ConversationOrchestrator:
                     function_name = call.get("function", {}).get("name")
                     arguments = call.get("function", {}).get("arguments", {})
                     
+                    await event_bus.publish("tool_start", {"tool": function_name})
                     await event_bus.publish("status", f"[System] Running tool {function_name}...")
                     
                     # Track screen_vision usage for enforcement
@@ -495,6 +526,7 @@ class ConversationOrchestrator:
                     # Phase 6 & 7: Verification & Bounded Recovery
                     is_verified, reject_reason = verification_manager.verify_tool_result(function_name, structured_result)
                     if not is_verified:
+                        await event_bus.publish("tool_error", {"tool": function_name, "error": reject_reason})
                         if not verification_manager.record_failure(str(session_id)):
                             # Limit exceeded
                             task.transition(tm.TaskState.FAILED, "Max recovery attempts exceeded")
@@ -508,6 +540,7 @@ class ConversationOrchestrator:
                             structured_result["result"] = f"[{reject_reason}] " + res_text_safe
                     else:
                         verification_manager.record_success(str(session_id))
+                        await event_bus.publish("tool_complete", {"tool": function_name})
 
                     
                     if res_text_safe.startswith("INPUT_REQUIRED::"):
@@ -582,5 +615,5 @@ class ConversationOrchestrator:
             loop.run_in_executor(_db_executor, save_message, session_id, "assistant", full_response)
             
             # Extract facts from the AI's final response (this naturally catches tool summaries!)
-            if not is_budget_mode_active():
+            if not is_budget_mode_active() and not is_short_greeting:
                 asyncio.create_task(self.memory_manager.extract_and_save_facts(user_id, full_response))

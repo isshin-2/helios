@@ -65,6 +65,6 @@ It uses a localized mini-model (1B-3B) as an analyzer to select models from a se
 
 * **AI Core Floating Overlay (`helios_desktop.py`)**: Uses `PyQt5` (`QWebEngineView`) to render a transparent, frameless, click-through AI Core widget (`static/AI-Core-System.html`) in the corner of your screen. Toggle visibility anytime with **`Ctrl+Shift+Space`**.
 * **Full Desktop App (`desktop_app.py` / `app.bat`)**: Launches the complete HELIOS Web UI (`http://127.0.0.1:8000/static/app.html`) inside a dedicated native desktop window.
-* **3D VRM Companion Add-On (`start_vrm_addon.bat`)**: Launches the [`../helios-live2d`](../helios-live2d) server on port `8080`, bridging HELIOS responses to a 3D VRM avatar with Kokoro ONNX lip-sync and animations.
+* **Character Presentation Addon (`start_vrm_addon.bat`)**: Launches the [`../helios-character`](../helios-character) server on port `8080`, subscribing to HELIOS Core's `/ws/character` protocol for 3D VRM / Live2D expressions, animations, and `VoiceManager` lip-sync.
 
 > **Warning for 8GB Systems:** Attempting to load 7B/8B models (4.5GB+) alongside a TTS engine (1.5GB) on an 8GB machine will trigger severe OS paging. HELIOS's auto-provisioner will actively restrict your catalog to lightweight models (1.5B - 3B) to maintain stable execution times.

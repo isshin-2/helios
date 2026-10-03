@@ -35,5 +35,5 @@ HELIOS trusts the LLM to generate text, but *never* trusts it to execute code bl
 
 ## Multi-Client Ecosystem (`HELIOS` Monorepo)
 - **Desktop Overlay & App (`ai-router/helios_desktop.py` & `desktop_app.py`)**: PyQt5-based floating AI Core HUD (`static/AI-Core-System.html`) and full desktop window (`static/app.html`) synced over WebSockets.
-- **3D VRM Companion (`../helios-live2d`)**: Standalone FastAPI + Three.js/VRM avatar server (`ai_server.py` on port `8080`) that bridges to `ai-router` (`port 8000`), translating responses into structured animation/movement sequences with Kokoro ONNX viseme lip-sync.
+- **Character Presentation Addon (`../helios-character`)**: Optional, stateless FastAPI + Three.js/VRM & Live2D presentation server (`ai_server.py` on port `8080`) driven by `CharacterManager` and `EmotionEngine` over `/ws/character`.
 - **Mobile Companion (`../mobile_v2`)**: Expo / React Native client that connects to `ai-router` via WebSockets when online and falls back to local on-device `.gguf` inference (`llama.rn`) when offline.

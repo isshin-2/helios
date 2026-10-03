@@ -18,23 +18,32 @@ This monorepo unites the three core pillars of the **HELIOS** platform:
 
 ```text
 HELIOS/
-├── ai-router/       # Core AI Router, Orchestrator, Sandbox, Desktop UI & Tool Ecosystem (Port 8000)
-├── helios-live2d/   # 3D VRM Autonomous Companion Add-On with Kokoro TTS & Lip-Sync (Port 8080)
-├── mobile_v2/       # Expo / React Native Mobile Companion with Offline GGUF Fallback
-└── start_helios.bat # Quick-start launcher for Windows
+├── ai-router/         # Core AI Router, Sandbox, Desktop UI & Swarm Engine (Port 8000)
+├── helios-character/  # Airi — 3D VRM / Live2D Avatar Presentation Addon (Port 8080)
+├── mobile_v2/         # Expo / React Native Mobile Companion with Offline GGUF Fallback
+├── hikari.bat         # Launcher for Hikari Autonomous Coding CLI (Claude Code style)
+└── start_helios.bat   # Quick-start launcher for Windows
 ```
 
 | Module | Description | Tech Stack |
 | :--- | :--- | :--- |
 | **[`ai-router/`](./ai-router)** | Core backend server, intelligent LLM router, vector memory (SQLite RAG), zero-trust sandbox, MCP client, and PyQt5 desktop overlays. | Python, FastAPI, Uvicorn, Ollama, SQLite, PyQt5 |
-| **[`helios-live2d/`](./helios-live2d)** | Standalone & bridged 3D VRM companion server (`Riko` architecture) featuring structured action sequences, FBX animations, spatial movement, and real-time Kokoro ONNX viseme lip-sync. | FastAPI, WebSockets, Three.js / VRM, Kokoro ONNX |
+| **[`helios-character/`](./helios-character)** | **Airi** — 3D VRM & Live2D avatar presentation companion driven by HELIOS Core's Character Protocol (`/ws/character`) with procedural humanization, FBX animations, spatial navigation, and VoiceManager lip-sync. | FastAPI, WebSockets, Three.js / VRM, Live2D |
 | **[`mobile_v2/`](./mobile_v2)** | Cross-platform mobile app featuring the interactive AI Core WebView HUD, real-time WebSocket streaming to HELIOS Core, and offline on-device GGUF model execution. | React Native 0.86, Expo 57, TypeScript, `llama.rn` |
+| **Hikari** | **Hikari (`hikari.bat`)** — Autonomous multi-agent coding CLI (Claude Code & Codex style) featuring the HELIOS Black Hole visual representation, git worktree isolation, automated test verification, and rollback safety. | Python, Rich, Git Worktrees, Pytest, Multi-Agent Swarm |
 
 ---
 
 ## ✨ Key Features
 
-### 🧠 1. Core AI Router (`ai-router`)
+### 💻 1. Hikari Autonomous Coding CLI (`hikari.bat`)
+* **Event Horizon Visual HUD**: Styled after the HELIOS AI Core with a signature relativistic Black Hole ASCII representation and accretion disk telemetry badges.
+* **Autonomous Coding Swarm**: Multi-agent software engineering terminal interface (Claude Code & Codex CLI style) driven by 8 specialized agents (`Planner`, `Architect`, `Repo Mapper`, `Coder`, `Tester`, `Repair`, `Reviewer`, `Security Reviewer`).
+* **Git Worktree Isolation**: Safely develops code inside isolated `.helios_worktrees` so your working branch is never modified unless all verification tests pass.
+* **Deterministic Automated Verification**: Executes real unit tests (`pytest`), detects failure root causes, and executes automated self-repair loops.
+* **Interactive CLI Commands**: Inspect terminal diffs (`/diff`), run code review (`/review`), run tests (`/test`), check active VRAM model allocations (`/models`), or rollback changes (`/rollback`).
+
+### 🧠 2. Core AI Router (`ai-router`)
 * **Task-Based Model Routing**: Automatically classifies prompts (`coding`, `reasoning`, `vision`, `general`) and routes them to the optimal local or cloud model.
 * **Hardware-Aware Auto-Provisioner & `llmfit`**: Scans CPU, RAM, VRAM, and Disk on startup to right-size and provision compatible local models automatically.
 * **Zero-Trust Sandbox**: Restricts filesystem access to allowed directories, blocks system paths, and requires explicit human approval for high-risk shell or file modifications.
@@ -42,10 +51,11 @@ HELIOS/
 * **Desktop App & AI Core Overlay**: Includes both a full PyQt5 desktop client (`desktop_app.py`) and a frameless, click-through floating HUD overlay (`helios_desktop.py`, toggled via `Ctrl+Shift+Space`).
 * **Rich Tool Ecosystem & MCP**: Built-in tools for Computer Vision (Set-of-Mark screen analysis), Stateful Shell, GitHub, Google Drive, CAD, 3D Printing (OctoPrint / BambuLabs), Self-Modification, and Model Context Protocol (MCP) servers.
 
-### 🎭 2. 3D VRM Companion Add-On (`helios-live2d`)
-* **Structured Sequence Protocol**: Translates LLM responses into multi-step JSON sequences combining speech, facial expressions (`happy`, `smug`, `relaxed`, `surprised`, etc.), spatial movement (`walk_to_user`, `circle_user`), and FBX animations (`wave`, `dance_shikano`, `backflip`, `hug_attempt`).
-* **Streaming Kokoro ONNX TTS & Visemes**: Synthesizes low-latency voice audio and streams synchronized phoneme/viseme timelines for accurate 3D mouth movement.
-* **HELIOS Core Bridge**: Auto-connects to `ai-router` on `http://localhost:8000` so tool executions and chat replies drive the 3D companion in real time.
+### 🎭 2. Airi Avatar Companion (`helios-character`)
+* **3D VRM Avatar Companion (Airi)**: Real-time 3D techwear VRM character body with full spatial movement, facial expressions, and body gesture controls.
+* **Optional Presentation Layer**: Strictly separated from HELIOS Core intelligence (`CHARACTER_ENABLED=true/false`, `CHARACTER_RENDERER=vrm/live2d`, `CHARACTER_MODEL=helios-v1`). HELIOS continues functioning normally if the character is disabled, crashes, or disconnects.
+* **Deterministic Emotion Engine & Safety Lock**: Translates EventBus lifecycle events (`tool_called`, `tool_completed`, `tool_failed`, `approval_required`) into renderer-independent `CharacterState` updates without extra LLM latency, and enforces `serious` mode during critical/destructive actions.
+* **VoiceManager Lip-Sync**: Driven by `VoiceManager` (`speech_started`, `audio_chunk`, `speech_finished`, `speech_interrupted`) with 30-FPS RMS envelopes and viseme timelines.
 
 ### 📱 3. Mobile Companion (`mobile_v2`)
 * **Hybrid Online / Offline Architecture**: Connects over WebSockets (`ws://<host>:8000/ws`) to the HELIOS desktop backend when on the same network, and seamlessly falls back to on-device inference via `llama.rn` (`.gguf` models) when offline.
@@ -53,7 +63,14 @@ HELIOS/
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Two Versions Available)
+
+HELIOS can be launched in **two distinct versions** depending on your needs (or via the interactive `start_helios.bat` menu):
+
+| Version | Launcher Script | What It Runs |
+| :--- | :--- | :--- |
+| **⚡ Version 1: Full Spec** | **`start_helios_full_spec.bat`** *(or `start_helios.bat 1`)* | Full HELIOS stack: **`ai-router` (`:8000`)** (multi-model router, zero-trust sandbox, vector RAG memory, tools, MCP, desktop overlay) **+** **`helios-character` (`:8080`)** bridged via `/ws/character`. |
+| **🎭 Version 2: Just the Character** | **`start_character_only.bat`** *(or `start_helios.bat 2`)* | Standalone 3D VRM Character (`:8080`) with its own lightweight local Ollama chat, neural TTS + 30-FPS lip-sync, 24 human reference poses, 6 posture styles, and RL pose trainer — **no `ai-router` (`:8000`) stack required**. |
 
 ### Prerequisites
 1. **[Python 3.11+](https://www.python.org/downloads/)** (ensure **"Add python.exe to PATH"** is checked on Windows).
@@ -62,15 +79,14 @@ HELIOS/
 
 ---
 
-### 1️⃣ Start HELIOS Core (`ai-router`)
-From the repository root on Windows, double-click **`start_helios.bat`** or run:
+### ⚡ Option A: Launch the Full Spec Version (`ai-router` + `helios-character`)
+From the repository root on Windows, double-click **`start_helios_full_spec.bat`** (or run `start_helios.bat` and choose `[1]`):
 
 ```powershell
-cd ai-router
-.\start.bat
+.\start_helios_full_spec.bat
 ```
 
-* Creates and activates the Python virtual environment (`ai-router/venv`), installs dependencies, runs first-time hardware provisioning, and launches the server at **[http://localhost:8000](http://localhost:8000)**.
+* Launches **HELIOS Core (`ai-router`)** at **[http://localhost:8000](http://localhost:8000)** (plus the desktop AI Core overlay) AND **HELIOS Character (`helios-character`)** at **[http://localhost:8080?edition=full_spec](http://localhost:8080?edition=full_spec)**.
 * To launch the full Desktop Window or floating AI Core overlay manually:
   ```powershell
   cd ai-router
@@ -80,15 +96,18 @@ cd ai-router
 
 ---
 
-### 2️⃣ Start the 3D VRM Companion (`helios-live2d`)
-Once `ai-router` is set up, launch the 3D VRM add-on server:
+### 🎭 Option B: Launch Just the Character (`helios-character` Standalone)
+To run **only the 3D VRM character** with lightweight local chat, neural TTS lip-sync, 24 human poses, 6 posture styles, and the RL pose trainer—without starting `ai-router` (`:8000`):
 
 ```powershell
-cd helios-live2d
-.\start_vrm_addon.bat
+.\start_character_only.bat
+# or inside helios-character/:
+cd helios-character
+.\start_character_only.bat
 ```
 
-* Opens the 3D VRM viewer server at **[http://localhost:8080](http://localhost:8080)** and bridges automatically to HELIOS Core at `http://localhost:8000`.
+* Opens the standalone Character Viewer at **[http://localhost:8080?edition=character_only](http://localhost:8080?edition=character_only)**.
+* You can also toggle between **⚡ Full Spec** and **🎭 Just the Character** live at any time using the Edition Switcher in the top-right corner of the viewer.
 
 ---
 
@@ -107,5 +126,5 @@ npx expo start
 
 * **[AI Router Guide](./ai-router/README.md)** — Setup, hardware tiers, and desktop overlay controls.
 * **[Architecture Deep-Dive](./ai-router/ARCHITECTURE.md)** — Request lifecycle, zero-trust sandbox, VRAM offloading, and self-modification pipeline.
-* **[3D VRM / Live2D Companion Guide](./helios-live2d/README.md)** — Avatar server endpoints, animation catalog, and Kokoro TTS setup.
+* **[Character Addon Guide](./helios-character/README.md)** — Character Protocol, modular VRM/Live2D renderers, and model manifest format.
 * **[Mobile v2 Guide](./mobile_v2/README.md)** — Mobile app configuration, WebSocket bridge, and offline GGUF usage.

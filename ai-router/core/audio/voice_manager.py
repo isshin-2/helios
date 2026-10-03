@@ -61,14 +61,13 @@ class VoiceManager:
             content = data["content"]
             
         self._text_buffer += content
-        self._process_buffer(force=False)
         
     def _on_done(self, data):
         """Called when the LLM finishes generating the response."""
         if not config.VOICE_ENABLED:
             return
             
-        # Flush whatever is left in the buffer
+        # Flush whatever is left in the buffer once LLM token generation is complete
         self._process_buffer(force=True)
         # Put a sentinel value in the queue so the worker knows the stream is done
         try:
@@ -125,6 +124,10 @@ class VoiceManager:
         clean_sentence = re.sub(r'\[System Warning.*?\]', '', clean_sentence, flags=re.IGNORECASE)
         clean_sentence = re.sub(r'INPUT_REQUIRED::', '', clean_sentence, flags=re.IGNORECASE)
         
+        # Mute inline character body / pose synthesis tags so TTS never speaks them
+        clean_sentence = re.sub(r'`*\[BODY\s*:[^\]\n]*(?:\]|>>+|>+\s*,|$)`*[,;\s]*', '', clean_sentence, flags=re.IGNORECASE)
+        clean_sentence = re.sub(r'\[POSE_JSON\s*:.*?\]', '', clean_sentence, flags=re.DOTALL | re.IGNORECASE)
+
         # Mute internal placeholder tags and debug metadata
         clean_sentence = re.sub(r'\[Code\]', '', clean_sentence, flags=re.IGNORECASE)
         clean_sentence = re.sub(r'\[Link\]', '', clean_sentence, flags=re.IGNORECASE)
@@ -137,7 +140,7 @@ class VoiceManager:
         # Convert interactive buttons into spoken options
         clean_sentence = re.sub(r'<button>(.*?)</button>', r'Option: \1.', clean_sentence, flags=re.IGNORECASE)
         clean_sentence = re.sub(r'<[^>]+>', '', clean_sentence) # Remove stray HTML tags
-        clean_sentence = re.sub(r'[*_#~]', '', clean_sentence)
+        clean_sentence = re.sub(r'[*_#~`]', '', clean_sentence)
         clean_sentence = re.sub(r'http[s]?://\S+', '', clean_sentence)
         
         # Mute raw unfenced JSON tool structures
@@ -179,17 +182,97 @@ class VoiceManager:
             self._clean_and_queue(self._text_buffer.strip())
             self._text_buffer = ""
 
+    def _publish_bus_event(self, event_type: str, data=None):
+        """Publish an event to both the local bus (if any) and global_bus safely."""
+        try:
+            from core.events import global_bus
+            buses = [global_bus]
+            if self.event_bus and self.event_bus is not global_bus:
+                buses.append(self.event_bus)
+            try:
+                loop = asyncio.get_running_loop()
+                for b in buses:
+                    loop.create_task(b.publish(event_type, data))
+            except RuntimeError:
+                import core.events as _ce
+                if _ce.main_loop and _ce.main_loop.is_running():
+                    for b in buses:
+                        asyncio.run_coroutine_threadsafe(b.publish(event_type, data), _ce.main_loop)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _compute_lip_sync_metadata(samples, sample_rate: int, text: str) -> dict:
+        """Compute 30-FPS RMS amplitude envelope, viseme timeline, and WAV base64 from audio samples."""
+        import base64
+        import io
+        import wave
+        import numpy as np
+
+        arr = np.asarray(samples, dtype=np.float32).flatten()
+        sr = int(sample_rate or 24000)
+        duration = float(len(arr)) / sr if sr > 0 else 0.0
+
+        # 30 FPS RMS envelope
+        win = max(1, sr // 30)
+        rms = []
+        for i in range(0, len(arr), win):
+            frame = arr[i : i + win]
+            val = float(np.sqrt(np.mean(frame * frame))) if len(frame) else 0.0
+            rms.append(round(min(1.0, val * 3.5), 3))
+
+        # Lightweight vowel-based viseme timeline aligned across duration
+        vowels = ["aa", "ih", "ou", "ee", "oh"]
+        words = [w for w in re.findall(r"[A-Za-z]+", text or "") if w]
+        visemes = []
+        if words and duration > 0:
+            step_t = duration / len(words)
+            for idx, w in enumerate(words):
+                v = vowels[idx % len(vowels)]
+                for ch in w.lower():
+                    if ch in "a":
+                        v = "aa"
+                        break
+                    if ch in "ei":
+                        v = "ih"
+                        break
+                    if ch in "ou":
+                        v = "ou"
+                        break
+                visemes.append({
+                    "time": round(idx * step_t, 3),
+                    "duration": round(step_t * 0.85, 3),
+                    "viseme": v,
+                    "weight": 0.75,
+                })
+
+        # Encode 16-bit PCM WAV for remote character renderer lip-sync if needed
+        audio_b64 = None
+        if len(arr) > 0:
+            pcm16 = np.clip(arr * 32767.0, -32768, 32767).astype(np.int16)
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sr)
+                wf.writeframes(pcm16.tobytes())
+            audio_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+        return {
+            "text": text,
+            "sample_rate": sr,
+            "duration": round(duration, 3),
+            "rms": rms,
+            "visemes": visemes,
+            "audio_b64": audio_b64,
+            "mime_type": "audio/wav",
+        }
+
     def _broadcast_ui_state(self, state: str):
         try:
             import config
-            from core.events import global_bus
-            import asyncio
-            if getattr(config, "ENABLE_DESKTOP_APP", True):
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(global_bus.publish("ui_state", state))
-                except Exception:
-                    pass
+            if getattr(config, "ENABLE_DESKTOP_APP", True) or getattr(config, "CHARACTER_ENABLED", True):
+                self._publish_bus_event("ui_state", state)
         except Exception:
             pass
 
@@ -208,6 +291,7 @@ class VoiceManager:
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, self.player.wait_until_done)
                     self.is_speaking = False
+                    self._publish_bus_event("speech_finished", {})
                     self._broadcast_ui_state("idle")
                     if self.hide_overlay:
                         self.hide_overlay()
@@ -215,6 +299,7 @@ class VoiceManager:
                     continue
                     
                 self.is_speaking = True
+                self._publish_bus_event("speech_started", {"text": sentence})
                 self._broadcast_ui_state("speaking")
                 logger.info(f"Synthesizing: {sentence}")
                 try:
@@ -228,6 +313,11 @@ class VoiceManager:
                         logger.info("TTS Synthesis aborted mid-sentence due to interrupt.")
                         break
                     self.player.enqueue(samples, sample_rate)
+                    try:
+                        chunk_meta = self._compute_lip_sync_metadata(samples, sample_rate, sentence)
+                        self._publish_bus_event("audio_chunk", chunk_meta)
+                    except Exception as chunk_err:
+                        logger.debug(f"Audio chunk metadata warning: {chunk_err}")
                         
                 self._tts_queue.task_done()
                 
@@ -245,12 +335,17 @@ class VoiceManager:
         1. Cancels/terminates audio playback
         2. Clears the TTS queue
         3. Clears text buffer
+        4. Emits speech_interrupted so character stops mouth & speaking animation
         """
         logger.info("[VoiceManager] Interrupting current speech!")
         self.is_speaking = False
         
         # Stop physical audio immediately
         self.player.stop()
+        
+        # Notify character addon & UI immediately
+        self._publish_bus_event("speech_interrupted", {"reason": "barge_in"})
+        self._broadcast_ui_state("idle")
         
         # Hide overlay if active
         if self.hide_overlay:
@@ -266,4 +361,5 @@ class VoiceManager:
                 self._tts_queue.task_done()
             except asyncio.QueueEmpty:
                 break
+
 

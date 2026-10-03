@@ -1,0 +1,72 @@
+{
+  "id": "helios-v1",
+  "name": "Airi Techwear",
+  "format": "vrm",
+  "version": "2.0",
+  "model_path": "models/Helios_Techwear.vrm",
+  "base_reference_model": "models/Yu1_1.vrm",
+  "concept_sheet": "models/helios_concept_sheet.jpg",
+  "available_models": [
+    {
+      "id": "helios-v2-techwear",
+      "name": "HELIOS Techwear (Wolf-Cut / Cyberpunk)",
+      "path": "models/Helios_Techwear.vrm"
+    },
+    {
+      "id": "helios-twin-techwear",
+      "name": "HELIOS Twin (Male / Techwear)",
+      "path": "models/Helios_Twin.vrm",
+      "concept_sheet": "models/helios_twin_concept_sheet.jpg",
+      "description": "Cool, sharp-eyed male twin. Silver-gray wolf-cut hair with subtle cyan underlayer tips, glowing cyan-blue eyes (#00e5ff), dark slate techwear hoodie with cybernetic cyan neon trim, cargo joggers, and chunky runner sneakers."
+    },
+    {
+      "id": "helios-meshy-techwear",
+      "name": "Meshy Techwear (FBX Model)",
+      "format": "fbx",
+      "path": "models/Meshy_Male_Techwear.fbx",
+      "description": "Tactical techwear male character generated via Meshy AI, rigged with HELIOS VRM-compatible humanoid skeleton and cybernetic neon accents."
+    },
+    {
+      "id": "helios-v1-base",
+      "name": "Yu1_1 (Base Reference)",
+      "path": "models/Yu1_1.vrm"
+    }
+  ],
+  "aesthetic": {
+    "original": {
+      "name": "HELIOS Techwear (Original)",
+      "character_type": "Female Cyberpunk / Techwear",
+      "hair": "silver-gray layered wolf-cut with subtle cyan underlayer tips",
+      "eyes": "piercing glowing cyan-blue (#00e5ff)",
+      "details": "subtle metallic ear piercings (3D helix cuffs + earlobe ring & cyan stud), fingerless tactical gloves",
+      "outfit": "dark slate (#0D0E12) and charcoal (#2C3038) oversized tactical techwear hoodie with cybernetic seamlines, off-white accents, glowing cyan neon trim, dark pleated tech-skirt, dark thigh-high socks, and futuristic runner sneakers",
+      "concept_sheet": "models/helios_concept_sheet.jpg"
+    },
+    "twin": {
+      "name": "HELIOS Twin (Brother)",
+      "character_type": "Male Cyberpunk / Techwear",
+      "hair": "silver-gray layered wolf-cut with subtle cyan underlayer tips",
+      "eyes": "piercing glowing cyan-blue (#00e5ff)",
+      "details": "matching metallic ear piercings & cuffs, fingerless tactical gloves",
+      "outfit": "dark slate (#0D0E12) and charcoal (#2C3038) oversized tactical techwear hoodie with cybernetic seamlines, glowing cyan neon trim, tapered techwear cargo joggers with buckle straps, and futuristic runner sneakers",
+      "concept_sheet": "models/helios_twin_concept_sheet.jpg"
+    },
+    "style": "anime aesthetic, clean cel-shaded lines, high detail, studio lighting"
+  },
+  "expressions": [
+    "neutral",
+    "happy",
+    "amused",
+    "surprised",
+    "concerned",
+    "serious",
+    "smirk"
+  ],
+  "animations": [
+    "idle",
+    "thinking",
+    "wave",
+    "nod",
+    "talking"
+  ]
+}

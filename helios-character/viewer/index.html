@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HELIOS — Character Presentation Add-On (VRM / Live2D)</title>
+    <link rel="stylesheet" href="style.css?v=13">
+    <!-- Import map for Three.js and @pixiv/three-vrm -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.3.4/lib/three-vrm.module.js"
+        }
+    }
+    </script>
+</head>
+<body class="state-idle">
+    <div id="canvas-container"></div>
+
+    <!-- Collapsible Sidebar Toggle Button -->
+    <button id="sidebar-toggle" title="Toggle State & Pose Sidebar">
+        <span class="sidebar-dot"></span>
+        <span id="sidebar-toggle-label">⚡ Controls</span>
+        <span id="sidebar-toggle-icon">◀</span>
+    </button>
+
+    <!-- Collapsible Left Sidebar -->
+    <aside id="top-ui" class="sidebar-panel">
+        <!-- Core State Controls -->
+        <div id="test-controls" class="sidebar-section">
+            <span class="preset-label">AI Core State (Popup Sync):</span>
+            <div class="sidebar-btn-grid">
+                <button id="btn-idle" class="active" title="Idle State (#2C3038 Charcoal)">⚫ Idle</button>
+                <button id="btn-listening" title="Listening State (#00E5FF Cyan)">🔵 Listening</button>
+                <button id="btn-thinking" title="Thinking / Executing State (#FFCC00 Amber)">🟡 Thinking</button>
+                <button id="btn-speaking" title="Speaking State (#3296FA Electric Blue)">🔷 Speaking</button>
+            </div>
+
+            <span class="preset-label" style="margin-top: 6px;">Avatar Model (VRM / FBX):</span>
+            <div class="sidebar-btn-grid">
+                <button id="btn-model-helios" class="active" title="Load HELIOS Techwear VRM">⚡ HELIOS Techwear</button>
+                <button id="btn-model-twin" title="Load HELIOS Twin (Male Techwear) VRM">🔷 HELIOS Twin</button>
+                <button id="btn-model-meshy" title="Load Meshy AI Male Techwear (Auto-Rigged FBX Model)">🦾 Meshy Techwear (FBX)</button>
+                <button id="btn-model-base" title="Load Base Reference VRM (Yu1_1.vrm)">🧬 Base VRM (Yu1_1)</button>
+                <label class="btn-import">
+                    📁 Import Model
+                    <input type="file" id="vrm-file-input" accept=".vrm,.glb">
+                </label>
+                <label class="btn-import btn-import-anim">
+                    🎞️ Import FBX
+                    <input type="file" id="fbx-file-input" accept=".fbx">
+                </label>
+                <button id="btn-reset-cam">🎯 Reset Camera</button>
+            </div>
+
+            <span class="preset-label" style="margin-top: 6px;">🦴 Rigging & Model Tools:</span>
+            <div class="sidebar-btn-grid">
+                <button id="btn-toggle-skeleton" title="Toggle 3D Skeleton & Bone Visualizer">🦴 Skeleton: OFF</button>
+                <button id="btn-toggle-xray" title="Toggle Semi-Transparent Mesh to see internal rig">🩻 X-Ray: OFF</button>
+                <button id="btn-open-rig-studio" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(0, 229, 255, 0.22), rgba(138, 43, 226, 0.25)); border-color: rgba(0, 229, 255, 0.5); color: #00e5ff; font-weight: 600;" title="Open Rigging & Model Inspector/Editor">🛠️ Rig & Model Studio</button>
+            </div>
+        </div>
+
+        <!-- Character Protocol & Voice Sync Controls -->
+        <div id="voice-controls" class="sidebar-section">
+            <span class="preset-label">🚀 HELIOS Edition (Full Spec vs. Character Only):</span>
+            <div class="sidebar-btn-grid" style="margin-bottom: 6px;">
+                <button id="btn-sidebar-full-spec" title="Full Spec HELIOS Stack (ai-router :8000 + Tools + RAG + Sandbox + Character)">⚡ Full Spec (:8000)</button>
+                <button id="btn-sidebar-char-only" title="Just the Character (Standalone 3D VRM Avatar + Local Chat + TTS without ai-router)">🎭 Just Character</button>
+            </div>
+            <span class="preset-label">🔌 HELIOS Protocol & Body Control:</span>
+            <div class="sidebar-btn-grid">
+                <span id="helios-status-pill" class="addon-pill online" title="Active HELIOS Edition & Connection Status">🟣 Character Ready</span>
+                <button id="btn-mirror-helios" class="active" title="Resynchronize current CharacterState">🔄 Sync State</button>
+                <button id="btn-ai-body" class="active" title="Allow AI Body Director to move the 3D body & synthesize poses">🤖 AI Body: ON</button>
+                <button id="btn-ai-body-step" title="Direct a 3D pose or movement">🎬 AI Pose</button>
+            </div>
+            <span class="preset-label" style="margin-top: 6px;">🎙️ Voice Sync & Personality Studio:</span>
+            <div class="sidebar-btn-grid">
+                <button id="btn-mute-voice" class="active">🔊 Lip-Sync: ON</button>
+                <button id="btn-test-voice" title="Preview voice / lip-sync">⏹️ Test Voice</button>
+                <button id="btn-open-personality-studio" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(50, 150, 250, 0.25)); border-color: rgba(0, 229, 255, 0.5); color: #00e5ff; font-weight: 600;" title="Open Live Personality Card & System Prompts Studio">🧠 Personality & Prompts Studio</button>
+            </div>
+        </div>
+
+        <!-- HELIOS Autonomous AI Pose Synthesizer (ChatVRM / Amica / Kalidokit Normalized Bone + IK) -->
+        <div id="ai-pose-creator-controls" class="sidebar-section">
+            <span class="preset-label">✨ HELIOS AI Pose Synthesizer (24 Human Poses):</span>
+            <div style="display: flex; gap: 5px; width: 100%; margin-bottom: 6px;">
+                <input id="custom-pose-input" type="text" placeholder="e.g. heart hands, crossed arms, salute..." style="flex: 1; min-width: 0; background: rgba(13,14,18,0.85); color: #ebf0f5; border: 1px solid rgba(255,255,255,0.14); border-radius: 7px; padding: 5px 8px; font-size: 11px; outline: none;">
+                <button id="btn-create-pose" title="Ask HELIOS Core AI to synthesize and execute this custom 3D VRM pose">✨ Pose</button>
+            </div>
+            <div id="custom-pose-buttons" class="sidebar-btn-grid">
+                <button data-custom-pose="cyber_salute">🫡 Salute</button>
+                <button data-custom-pose="superhero_landing">🦸 Hero Land</button>
+                <button data-custom-pose="martial_arts_guard">🥋 Guard</button>
+                <button data-custom-pose="double_biceps_flex">💪 Flex</button>
+                <button data-custom-pose="crossed_arms_think">🤔 Cross Arms</button>
+                <button data-custom-pose="hands_on_hips_power">👑 Power Hips</button>
+                <button data-custom-pose="thumbs_up_approval">👍 Thumbs Up</button>
+                <button data-custom-pose="heart_hands_love">🫶 Heart Hands</button>
+                <button data-custom-pose="polite_namaste_bow">🙏 Namaste</button>
+                <button data-custom-pose="excited_victory_jump">🎉 Victory</button>
+                <button data-custom-pose="shy_bashful_tuck">🌸 Bashful</button>
+                <button data-custom-pose="sassy_hip_pop">💃 Sassy Hip</button>
+                <button data-custom-pose="hand_to_heart_sincere">🤍 Sincere</button>
+                <button data-custom-pose="thinking_chin_rest">🧐 Chin Rest</button>
+                <button data-custom-pose="tired_stretch_yawn">🥱 Stretch</button>
+                <button data-custom-pose="wave_greeting_friendly">👋 Hi Wave</button>
+                <button data-custom-pose="shrug_confused_expressive">🤷 Open Shrug</button>
+                <button data-custom-pose="facepalm">🤦 Facepalm</button>
+                <button data-custom-pose="zen_meditation">🧘 Meditate</button>
+                <button data-custom-pose="point_forward">👉 Point</button>
+            </div>
+        </div>
+
+        <!-- Human Posture & Expressive Motion Style Selector -->
+        <div id="style-controls" class="sidebar-section">
+            <span class="preset-label">🎭 Human Posture & Expressive Style:</span>
+            <div id="style-buttons" class="sidebar-btn-grid">
+                <button data-style="natural" class="active" title="Balanced everyday human posture, breathing, and eye contact">✨ Natural</button>
+                <button data-style="energetic" title="Lively rhythmic bounce, open chest, upbeat breathing">⚡ Energetic</button>
+                <button data-style="confident" title="Broad proud chest, lifted chin, grounded power stance">👑 Confident</button>
+                <button data-style="relaxed" title="Calm slow breathing, soft shoulders, easy contrapposto">🍃 Relaxed</button>
+                <button data-style="shy" title="Modest inward shoulder tuck, gentle head tilt, bashful gaze">🌸 Shy</button>
+                <button data-style="dramatic" title="Expressive thoracic extension, dynamic weight shift, intense focus">🎬 Dramatic</button>
+            </div>
+        </div>
+
+        <!-- Human-Reference Reinforcement Learning (RL) Pose Trainer & Reward System -->
+        <div id="rl-trainer-controls" class="sidebar-section">
+            <span class="preset-label">🏆 Human-Ref RL Pose & Style Trainer (24):</span>
+            <div id="rl-reward-badge" style="font-size: 11px; color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 7px; padding: 5px 8px; margin-bottom: 5px; font-weight: 600;">
+                🏆 RL Match: 100.0% | Awards: -- (+-- pts)
+            </div>
+            <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
+                <div id="rl-reward-bar-fill" style="width: 100%; height: 100%; background: linear-gradient(90deg, #00e5ff, #00ff88); transition: width 0.3s ease;"></div>
+            </div>
+            <div id="rl-telemetry-detail" style="font-size: 10px; color: rgba(235,240,245,0.75); margin-bottom: 6px; line-height: 1.35;">
+                Pose: 100% · IK: 100% · Wrist: 100% · Gaze: 100% · Style: 100%
+            </div>
+            <div class="sidebar-btn-grid">
+                <button id="btn-rl-train" title="Run RL Policy Gradient training on active pose with 3-stage curriculum (Exploratory -> Mid -> Human Match)">⚡ Train RL Pose</button>
+                <button id="btn-rl-train-all" title="Train RL Policy across all 24 Human Reference Poses & Expressive Styles">🎓 Train All (24)</button>
+                <button id="btn-rl-award" title="Award +100 RL points for matching human reference anatomy & style">🏆 Award (+100)</button>
+                <button id="btn-rl-penalize" title="Penalize -50 RL points and trigger immediate corrective policy update">⚠️ Fix / Penalize</button>
+            </div>
+        </div>
+
+        <!-- Spatial Navigation -->
+        <div id="nav-controls" class="sidebar-section">
+            <span class="preset-label">Spatial Navigation:</span>
+            <div id="nav-buttons" class="sidebar-btn-grid">
+                <button data-nav="walk_to_user">🚶‍♀️ Walk to Me</button>
+                <button data-nav="step_back">↩️ Step Back</button>
+                <button data-nav="circle_user">🔄 Circle Me</button>
+                <button data-nav="return_center">🎯 Center</button>
+                <button data-nav="stay" class="active">🛑 Stay</button>
+            </div>
+        </div>
+
+        <!-- 3D Body, Hand & Full-Body Animations Bar -->
+        <div id="pose-controls" class="sidebar-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span class="preset-label" style="margin-bottom: 0;">✨ Curious & Waiting Idle Interactions:</span>
+                <button id="btn-auto-idle" class="active" style="padding: 2px 7px; font-size: 10px; border-radius: 5px;" title="Automatically cycle curious object interactions and waiting animations when idle">🔄 Auto-Idle: ON</button>
+            </div>
+            <div id="idle-interaction-buttons" class="sidebar-btn-grid" style="margin-bottom: 8px;">
+                <button data-pose="idle_popup_curious" title="Curiously inspect & poke the floating HELIOS Popup HUD">🪟 Inspect Popup</button>
+                <button data-pose="idle_orb_curious" title="Curiously reach toward & cradle the floating HELIOS Core Orb">🔮 Curious Orb</button>
+                <button data-pose="idle_screen_curious" title="Lean forward and curiously tap the viewer glass">👆 Tap Glass</button>
+                <button data-pose="idle_waiting_patient" title="Wait patiently with clasped hands and gentle rhythmic sway">⏳ Wait Patient</button>
+                <button data-pose="idle_waiting_look" title="Wait while glancing around the room and checking wrist HUD">👀 Wait & Look</button>
+                <button data-pose="idle_waiting_stretch" title="Wait with a relaxed shoulder roll and wrist stretch">🙆‍♀️ Wait Stretch</button>
+            </div>
+            <span class="preset-label">HELIOS Poses & Animations:</span>
+            <div id="pose-buttons" class="sidebar-btn-grid">
+                <button data-pose="idle" class="active">🧍 Idle</button>
+                <button data-pose="listen_pose">👂 Listening</button>
+                <button data-pose="talk_explain">🗣️ Explain</button>
+                <button data-pose="talk_excited">✨ Happy</button>
+                <button data-pose="talk_smug">😏 Smirk</button>
+                <button data-pose="talk_angry">💢 Serious</button>
+                <button data-pose="talk_sad">🥺 Concerned</button>
+                <button data-pose="talk_surprised">😲 Confused</button>
+                <button data-pose="walk">🚶 Walk</button>
+                <button data-pose="wave">👋 Wave</button>
+                <button data-pose="think_pose">🤔 Thinking</button>
+                <button data-pose="smug_pose">😤 Smirk Pose</button>
+                <button data-pose="backflip">🤸 Backflip</button>
+                <button data-pose="dance_shikano">🦌 Dance</button>
+                <button data-pose="hug_attempt">🤗 Welcome</button>
+                <button data-pose="refuse">🙅‍♀️ Refuse</button>
+                <button data-pose="peace">✌️ Peace</button>
+                <button data-pose="cheer">🙌 Cheer</button>
+                <button data-pose="shrug">🤷 Shrug</button>
+                <button data-pose="bow">🙇 Bow</button>
+                <button data-pose="nod">👍 Nod</button>
+                <button data-pose="confident">😎 Confident</button>
+                <button data-pose="shy">👉👈 Shy</button>
+            </div>
+        </div>
+
+        <!-- Dynamically populated from VRM model preset expressions -->
+        <div id="preset-controls" class="sidebar-section" style="display: none;">
+            <span class="preset-label">BlendShapes:</span>
+            <div id="preset-buttons" class="sidebar-btn-grid"></div>
+        </div>
+    </aside>
+
+    <!-- Screen Glass Tap Ripple Overlay (triggered when VRM taps camera glass in idle_screen_curious) -->
+    <div id="screen-tap-ripple" class="screen-tap-ripple"></div>
+
+    <!-- Status message overlay -->
+    <div id="status-badge">
+        Loading HELIOS Character Add-On...
+    </div>
+
+    <!-- User-facing Activity HUD (Never exposes chain-of-thought) -->
+    <div id="thought-banner" style="display: none;">
+        <span class="thought-label">⚡ HELIOS Activity:</span>
+        <span id="thought-text"></span>
+    </div>
+
+    <!-- HELIOS Core Chat Relay UI -->
+    <div id="chat-container">
+        <div id="chat-log"></div>
+        <div id="chat-input-wrapper">
+            <button id="chat-mic" title="Hold or click to talk via microphone">🎤</button>
+            <input type="text" id="chat-input" placeholder="Send message to HELIOS Core..." autocomplete="off">
+            <button id="chat-send">Send</button>
+        </div>
+    </div>
+
+    <!-- Floating Quick-Access Bar for Edition Switcher & Personality Studio -->
+    <div style="position: fixed; top: 14px; right: 16px; z-index: 45; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <div style="display: inline-flex; background: rgba(15, 19, 28, 0.9); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 3px; backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
+            <button id="btn-edition-full" title="Full Spec Version: HELIOS Core (:8000) + Tools + Sandbox + RAG + 3D Character" style="cursor: pointer; background: transparent; color: #94a3b8; border: none; border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 600; transition: all 0.15s ease;">
+                ⚡ Full Spec
+            </button>
+            <button id="btn-edition-character" title="Character-Only Version: Standalone 3D VRM Character + Local Chat + Neural TTS (No :8000 required)" style="cursor: pointer; background: rgba(0, 229, 255, 0.18); color: #00e5ff; border: none; border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 600; transition: all 0.15s ease;">
+                🎭 Just the Character
+            </button>
+        </div>
+        <button id="btn-floating-personality" style="cursor: pointer; background: rgba(15, 19, 28, 0.88); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.45); border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 600; backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
+            🧠 Personality & Prompts
+        </button>
+        <a href="personality.html" target="_blank" style="text-decoration: none; background: rgba(15, 19, 28, 0.88); color: #edf2f7; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 600; backdrop-filter: blur(10px);" title="Open Standalone Personality & Prompts Studio Page">
+            ↗️ Studio Page
+        </a>
+    </div>
+
+    <!-- In-Viewer Slide-Over Personality & Prompts Studio Modal -->
+    <div id="personality-studio-modal" style="display: none; position: fixed; inset: 0; z-index: 120; background: rgba(5, 7, 12, 0.65); backdrop-filter: blur(6px); align-items: center; justify-content: flex-end;">
+        <div style="width: min(1080px, 94vw); height: 96vh; margin-right: 16px; background: #0b0d13; border: 1px solid rgba(0, 229, 255, 0.4); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0, 0, 0, 0.65);">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(14, 18, 27, 0.98); border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <span style="font-size: 13px; font-weight: 700; color: #00e5ff;">🧠 HELIOS Live Personality Card & System Prompts Studio</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <a href="personality.html" target="_blank" style="color: #94a3b8; font-size: 12px; text-decoration: none; padding: 5px 10px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px;">↗️ Open Full Tab (`personality.html`)</a>
+                    <button id="btn-close-personality-studio" style="cursor: pointer; background: rgba(255, 75, 75, 0.16); color: #ff8080; border: 1px solid rgba(255, 75, 75, 0.35); border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;">✕ Close</button>
+                </div>
+            </div>
+            <iframe id="personality-studio-iframe" src="personality.html?embed=1" style="flex: 1; width: 100%; border: none; background: #0b0d13;"></iframe>
+        </div>
+    </div>
+
+    <!-- In-Viewer Interactive 3D Rig & Model Studio Modal -->
+    <div id="rig-studio-modal" style="display: none; position: fixed; inset: 0; z-index: 125; background: rgba(5, 7, 12, 0.65); backdrop-filter: blur(6px); align-items: center; justify-content: flex-end;">
+        <div style="width: min(540px, 94vw); height: 96vh; margin-right: 16px; background: #0c0f17; border: 1px solid rgba(0, 229, 255, 0.45); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0, 0, 0, 0.75);">
+            <!-- Modal Header -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: rgba(15, 20, 30, 0.98); border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 14px; font-weight: 700; color: #00e5ff; letter-spacing: 0.5px;">🦴 HELIOS 3D Rig & Model Studio</span>
+                    <span id="rig-model-badge" style="font-size: 10px; color: #94a3b8; font-weight: 600; margin-top: 2px;">🦾 FBX Skinned Model (Meshy Techwear)</span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="btn-close-rig-studio" style="cursor: pointer; background: rgba(255, 75, 75, 0.16); color: #ff8080; border: 1px solid rgba(255, 75, 75, 0.35); border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;">✕ Close</button>
+                </div>
+            </div>
+
+            <!-- Quick Global Toggles Bar -->
+            <div style="display: flex; gap: 8px; padding: 10px 18px; background: rgba(18, 24, 38, 0.7); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                <button id="rig-toggle-skeleton" style="flex: 1; padding: 6px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; background: rgba(0,229,255,0.12); color: #00e5ff; border: 1px solid rgba(0,229,255,0.3); cursor: pointer;">🦴 Skeleton: OFF</button>
+                <button id="rig-toggle-xray" style="flex: 1; padding: 6px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;">🩻 X-Ray: OFF</button>
+                <button id="rig-toggle-wireframe" style="flex: 1; padding: 6px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;">🕸️ Wireframe: OFF</button>
+            </div>
+
+            <!-- Studio Tabs Navigation -->
+            <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: rgba(12, 16, 25, 0.9);">
+                <button id="tab-btn-bones" class="rig-tab-btn active" style="flex: 1; padding: 10px 6px; background: transparent; border: none; border-bottom: 2px solid #00e5ff; color: #00e5ff; font-size: 11px; font-weight: 700; cursor: pointer;">🦴 Bones & Joints</button>
+                <button id="tab-btn-skinning" class="rig-tab-btn" style="flex: 1; padding: 10px 6px; background: transparent; border: none; border-bottom: 2px solid transparent; color: #94a3b8; font-size: 11px; font-weight: 700; cursor: pointer;">📐 Skinning</button>
+                <button id="tab-btn-material" class="rig-tab-btn" style="flex: 1; padding: 10px 6px; background: transparent; border: none; border-bottom: 2px solid transparent; color: #94a3b8; font-size: 11px; font-weight: 700; cursor: pointer;">🎨 Material</button>
+                <button id="tab-btn-profile" class="rig-tab-btn" style="flex: 1; padding: 10px 6px; background: transparent; border: none; border-bottom: 2px solid transparent; color: #94a3b8; font-size: 11px; font-weight: 700; cursor: pointer;">💾 Profiles</button>
+            </div>
+
+            <!-- Tab Content Scrollable Container -->
+            <div style="flex: 1; overflow-y: auto; padding: 16px 20px; font-size: 12px; color: #e2e8f0; display: flex; flex-direction: column; gap: 14px;">
+                <!-- Tab 1: Bones & Joints -->
+                <div id="tab-content-bones">
+                    <label style="display: block; font-weight: 600; color: #94a3b8; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Select Humanoid Bone Node:</label>
+                    <select id="rig-bone-select" style="width: 100%; padding: 8px 10px; background: #161b26; color: #00e5ff; border: 1px solid rgba(0,229,255,0.3); border-radius: 6px; font-size: 12px; font-weight: 600; outline: none; margin-bottom: 10px;">
+                        <option value="hips">hips (Root Pelvis)</option>
+                        <option value="spine">spine (Lower Spine)</option>
+                        <option value="chest">chest (Thoracic Cavity)</option>
+                        <option value="neck">neck (Cervical Spine)</option>
+                        <option value="head">head (Cranium & LookAt)</option>
+                        <option value="rightUpperArm" selected>rightUpperArm (Right Shoulder)</option>
+                        <option value="rightLowerArm">rightLowerArm (Right Forearm / Elbow)</option>
+                        <option value="rightHand">rightHand (Right Wrist & Palm)</option>
+                        <option value="leftUpperArm">leftUpperArm (Left Shoulder)</option>
+                        <option value="leftLowerArm">leftLowerArm (Left Forearm / Elbow)</option>
+                        <option value="leftHand">leftHand (Left Wrist & Palm)</option>
+                        <option value="rightUpperLeg">rightUpperLeg (Right Thigh / Hip Joint)</option>
+                        <option value="rightLowerLeg">rightLowerLeg (Right Knee / Shin)</option>
+                        <option value="rightFoot">rightFoot (Right Ankle & Sneaker)</option>
+                        <option value="leftUpperLeg">leftUpperLeg (Left Thigh / Hip Joint)</option>
+                        <option value="leftLowerLeg">leftLowerLeg (Left Knee / Shin)</option>
+                        <option value="leftFoot">leftFoot (Left Ankle & Sneaker)</option>
+                    </select>
+
+                    <div id="rig-bone-info" style="font-size: 11px; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px; margin-bottom: 14px; font-family: monospace;">
+                        Bone: rightUpperArm | Parent: chest
+                    </div>
+
+                    <div style="background: rgba(18,24,38,0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+                        <div style="font-weight: 700; color: #00e5ff; font-size: 11px; text-transform: uppercase;">Bone Joint Pivot Offsets (Rest Pose):</div>
+                        
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Offset X (Lateral Width):</span>
+                                <span id="val-bone-x" style="color: #00e5ff; font-weight: 600;">0 cm</span>
+                            </div>
+                            <input id="slider-bone-x" type="range" min="-25" max="25" value="0" step="1" style="width: 100%;">
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Offset Y (Height / Length):</span>
+                                <span id="val-bone-y" style="color: #00e5ff; font-weight: 600;">0 cm</span>
+                            </div>
+                            <input id="slider-bone-y" type="range" min="-25" max="25" value="0" step="1" style="width: 100%;">
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Offset Z (Depth / Posture):</span>
+                                <span id="val-bone-z" style="color: #00e5ff; font-weight: 600;">0 cm</span>
+                            </div>
+                            <input id="slider-bone-z" type="range" min="-25" max="25" value="0" step="1" style="width: 100%;">
+                        </div>
+
+                        <div style="display: flex; gap: 8px; margin-top: 4px;">
+                            <button id="btn-reset-bone" style="flex: 1; padding: 6px; font-size: 11px; background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; cursor: pointer;">Zero Selected Bone</button>
+                            <button id="btn-reset-all-bones" style="flex: 1; padding: 6px; font-size: 11px; background: rgba(255,75,75,0.15); color: #ff8080; border: 1px solid rgba(255,75,75,0.3); border-radius: 6px; cursor: pointer;">Reset All Bones</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Skinning & Binding -->
+                <div id="tab-content-skinning" style="display: none;">
+                    <div style="background: rgba(0, 229, 255, 0.06); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 8px; padding: 12px; margin-bottom: 14px; font-size: 11px; line-height: 1.45; color: #94a3b8;">
+                        💡 <b>GPU Linear Blend Skinning Engine:</b> Controls cylindrical distance-field falloff and anatomical lateral partition thresholds to prevent arm/torso webbing.
+                    </div>
+
+                    <div style="background: rgba(18,24,38,0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Arm Separation Threshold |X|:</span>
+                                <span id="val-lateral-partition" style="color: #00e5ff; font-weight: 600;">0.22 m</span>
+                            </div>
+                            <input id="slider-lateral-partition" type="range" min="0.15" max="0.35" value="0.22" step="0.01" style="width: 100%;">
+                            <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Vertices with |X| &ge; threshold are isolated exclusively to arm bones below shoulder.</div>
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Distance Falloff Exponent:</span>
+                                <span id="val-falloff-power" style="color: #00e5ff; font-weight: 600;">2.0</span>
+                            </div>
+                            <input id="slider-falloff-power" type="range" min="1.0" max="4.0" value="2.0" step="0.1" style="width: 100%;">
+                            <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Higher values create crisper joint folds; lower values create smoother blending.</div>
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Max Influencing Bones / Vertex:</span>
+                                <span id="val-max-influences" style="color: #00e5ff; font-weight: 600;">4</span>
+                            </div>
+                            <input id="slider-max-influences" type="range" min="1" max="4" value="4" step="1" style="width: 100%;">
+                        </div>
+
+                        <button id="btn-rebind-skinning" style="margin-top: 6px; padding: 10px; background: linear-gradient(135deg, rgba(0,229,255,0.25), rgba(0,255,136,0.2)); color: #00e5ff; border: 1px solid rgba(0,229,255,0.5); border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 12px;">⚡ Re-calculate & Bind GPU Skinning</button>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Material & Appearance -->
+                <div id="tab-content-material" style="display: none;">
+                    <div style="background: rgba(18,24,38,0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+                        <div style="font-weight: 700; color: #00e5ff; font-size: 11px; text-transform: uppercase;">Palette Presets:</div>
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
+                            <button id="preset-graphite" style="height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #3e4758; cursor: pointer;" title="Graphite Navy"></button>
+                            <button id="preset-stealth" style="height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #181a20; cursor: pointer;" title="Stealth Black"></button>
+                            <button id="preset-cyan" style="height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #153243; cursor: pointer;" title="Cyber Cyan"></button>
+                            <button id="preset-white" style="height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #d1d5db; cursor: pointer;" title="Titanium White"></button>
+                            <button id="preset-olive" style="height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #2c3529; cursor: pointer;" title="Tactical Olive"></button>
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span>Base Garment Color:</span>
+                                <input id="rig-mat-color" type="color" value="#3e4758" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; width: 40px; height: 24px; cursor: pointer;">
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Roughness:</span>
+                                <span id="val-mat-roughness" style="color: #00e5ff; font-weight: 600;">0.48</span>
+                            </div>
+                            <input id="slider-mat-roughness" type="range" min="0.0" max="1.0" value="0.48" step="0.02" style="width: 100%;">
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Metalness:</span>
+                                <span id="val-mat-metalness" style="color: #00e5ff; font-weight: 600;">0.32</span>
+                            </div>
+                            <input id="slider-mat-metalness" type="range" min="0.0" max="1.0" value="0.32" step="0.02" style="width: 100%;">
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span>Emissive Cyber Accent:</span>
+                                <input id="rig-emissive-color" type="color" value="#00e5ff" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; width: 40px; height: 24px; cursor: pointer;">
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Emissive Pulse Intensity:</span>
+                                <span id="val-emissive-intensity" style="color: #00e5ff; font-weight: 600;">0.08</span>
+                            </div>
+                            <input id="slider-emissive-intensity" type="range" min="0.0" max="0.5" value="0.08" step="0.01" style="width: 100%;">
+                        </div>
+
+                        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Model Height Scale:</span>
+                                <span id="val-model-height" style="color: #00e5ff; font-weight: 600;">1.72 m</span>
+                            </div>
+                            <input id="slider-model-height" type="range" min="1.30" max="2.10" value="1.72" step="0.02" style="width: 100%;">
+                        </div>
+
+                        <div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                <span>Floor Grounding Offset:</span>
+                                <span id="val-floor-offset" style="color: #00e5ff; font-weight: 600;">0.00 m</span>
+                            </div>
+                            <input id="slider-floor-offset" type="range" min="-0.15" max="0.15" value="0.00" step="0.01" style="width: 100%;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Profiles & Export -->
+                <div id="tab-content-profile" style="display: none;">
+                    <div style="background: rgba(18,24,38,0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+                        <button id="btn-save-rig-profile" style="padding: 10px; background: rgba(0,229,255,0.15); color: #00e5ff; border: 1px solid rgba(0,229,255,0.4); border-radius: 6px; font-weight: 700; cursor: pointer;">💾 Save Rig Profile to Browser</button>
+                        <button id="btn-load-rig-profile" style="padding: 10px; background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; font-weight: 600; cursor: pointer;">📂 Reload Saved Profile</button>
+                        <button id="btn-reset-rig-factory" style="padding: 10px; background: rgba(255,75,75,0.15); color: #ff8080; border: 1px solid rgba(255,75,75,0.3); border-radius: 6px; font-weight: 600; cursor: pointer;">🔄 Reset Factory Defaults</button>
+                        
+                        <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 6px 0;"></div>
+
+                        <button id="btn-export-rig-json" style="padding: 10px; background: rgba(0,255,136,0.12); color: #00ff88; border: 1px solid rgba(0,255,136,0.3); border-radius: 6px; font-weight: 600; cursor: pointer;">📤 Export Rig Config JSON</button>
+                        <button id="btn-import-rig-json" style="padding: 10px; background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; font-weight: 600; cursor: pointer;">📥 Import Rig Config JSON</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js?v=37"></script>
+</body>
+</html>

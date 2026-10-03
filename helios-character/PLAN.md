@@ -1,19 +1,20 @@
-# HELIOS Live2D Integration Plan
+# HELIOS Character Addon Integration Plan
 
-This document outlines the step-by-step plan to add a Live2D visual avatar to the HELIOS desktop application. We are keeping this in a separate folder so you can develop and test the Live2D viewer in isolation before merging it into the main `ai-router` codebase.
+This document outlines the step-by-step plan to provide an optional VRM / Live2D visual character addon for the HELIOS desktop application. We keep this in `helios-character` so the presentation layer remains decoupled from `ai-router`.
 
-## 📁 Suggested Directory Structure
-Inside this `helios-live2d` folder, we will structure the standalone viewer:
+## 📁 Directory Structure
+Inside this `helios-character` folder:
 ```text
-helios-live2d/
+helios-character/
 ├── PLAN.md                 # This document
-├── server.py               # A simple Python web server to test the viewer locally
-├── viewer/                 # The frontend Live2D web viewer
+├── ai_server.py            # Stateless Character Protocol bridge server
+├── viewer/                 # The frontend VRM & Live2D web viewer
 │   ├── index.html          # Main HTML for the transparent canvas
-│   ├── app.js              # PixiJS + Live2D logic & WebSocket listener
+│   ├── app.js              # VRM + Live2D logic & WebSocket listener
+│   ├── vrm/                # Modular VRM renderer, animation, expressions, humanizer, lip_sync
+│   ├── live2d/             # Live2D renderer adapter
 │   ├── style.css           # CSS to ensure transparent, borderless rendering
-│   └── models/             # Directory to store Live2D character assets
-│       └── example_waifu/  # Example Live2D model folder (moc3, textures, physics)
+│   └── models/             # Directory to store VRM & Live2D character assets + manifest.json
 ```
 
 ## 🛠️ Implementation Steps

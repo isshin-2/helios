@@ -75,8 +75,22 @@ class Supervisor:
         self._contract: Optional[TaskContract] = None
         self._fsm: Optional[TaskStateMachine] = None
         self._active = False
+        self._repair_source: Optional[TaskState] = None
 
     # ─── Properties ──────────────────────────────────────────────────
+
+    @property
+    def is_coding_task(self) -> bool:
+        """Whether this task follows the coding swarm lifecycle."""
+        if not self._contract:
+            return False
+        meta = self._contract.metadata or {}
+        return (
+            bool(meta.get("is_coding_task"))
+            or meta.get("workflow") == "coding"
+            or meta.get("task_type") == "coding"
+            or self._contract.objective.lower().startswith("coding:")
+        )
 
     @property
     def contract(self) -> Optional[TaskContract]:
@@ -279,6 +293,11 @@ class Supervisor:
                 reason="Analysis complete, moving to planning",
             )
         elif current == TaskState.PLAN:
+            if self.is_coding_task:
+                return SupervisorDecision(
+                    next_state=TaskState.ARCHITECT,
+                    reason="Planning complete, moving to architectural design",
+                )
             risk = self._contract.risk_level if self._contract else RiskLevel.LOW
             if risk in (RiskLevel.HIGH, RiskLevel.CRITICAL):
                 return SupervisorDecision(
@@ -289,17 +308,53 @@ class Supervisor:
                 next_state=TaskState.EXECUTE,
                 reason="Plan approved (auto), moving to execution",
             )
+        elif current == TaskState.ARCHITECT:
+            risk = self._contract.risk_level if self._contract else RiskLevel.LOW
+            if risk in (RiskLevel.HIGH, RiskLevel.CRITICAL):
+                return SupervisorDecision(
+                    next_state=TaskState.WAITING_APPROVAL,
+                    reason=f"High-risk architecture requires approval (risk={risk.value})",
+                )
+            return SupervisorDecision(
+                next_state=TaskState.EXECUTE,
+                reason="Architecture complete, moving to execution",
+            )
         elif current == TaskState.EXECUTE:
             return SupervisorDecision(
                 next_state=TaskState.VERIFY,
                 reason="Execution complete, moving to verification",
             )
         elif current == TaskState.VERIFY:
+            if self.is_coding_task:
+                return SupervisorDecision(
+                    next_state=TaskState.REVIEW,
+                    reason="Verification passed, moving to code review",
+                )
             return SupervisorDecision(
                 next_state=TaskState.FINALIZE,
                 reason="Verification passed, finalizing",
             )
+        elif current == TaskState.REVIEW:
+            if self.is_coding_task:
+                return SupervisorDecision(
+                    next_state=TaskState.SECURITY_REVIEW,
+                    reason="Code review passed, moving to security review",
+                )
+            return SupervisorDecision(
+                next_state=TaskState.FINALIZE,
+                reason="Review passed, finalizing",
+            )
+        elif current == TaskState.SECURITY_REVIEW:
+            return SupervisorDecision(
+                next_state=TaskState.FINALIZE,
+                reason="Security review passed, finalizing",
+            )
         elif current == TaskState.REPAIR:
+            if self._repair_source == TaskState.SECURITY_REVIEW:
+                return SupervisorDecision(
+                    next_state=TaskState.VERIFY,
+                    reason="Security repair completed, verifying",
+                )
             return SupervisorDecision(
                 next_state=TaskState.EXECUTE,
                 reason="Repair succeeded, re-executing",
@@ -332,6 +387,7 @@ class Supervisor:
         self, current: TaskState, result: AgentResult, contract: TaskContract
     ) -> SupervisorDecision:
         """Decide next state after a failure."""
+        self._repair_source = current
         failure_sig = f"{result.agent_type}:{result.error or result.summary}"
         contract.record_failure(failure_sig)
 

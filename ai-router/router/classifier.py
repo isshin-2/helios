@@ -209,10 +209,11 @@ async def classify_request(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         
     last_user_msg = next((m for m in reversed(messages) if m["role"] == "user"), None)
     prompt = last_user_msg["content"] if last_user_msg else ""
-    
-    from router.micro_classifier import classify_intent
-    intent = await classify_intent(prompt)
-    detail = detect_detail_level(prompt)
+    if isinstance(prompt, list):
+        prompt = next((item.get("text", "") for item in prompt if item.get("type") == "text"), str(prompt))
+
+    intent = classify_category(str(prompt), messages)
+    detail = detect_detail_level(str(prompt))
     
     requires_vision = intent == "vision"
     requires_tools = intent in ("tool_use", "system") or check_requires_tools(prompt)

@@ -1,2 +1,3 @@
-echo starting command line interface for helios
- venv\Scripts\python.exe cli.py
+powershell -NoProfile -Command "if (-not (Test-NetConnection -ComputerName 192.168.100.254 -Port 3389 -InformationLevel Quiet -WarningAction SilentlyContinue)) { Write-Host '[HELIOS] AI PC is offline. Launching AI-PC.ps1 wake script...' -ForegroundColor Yellow; Start-Process powershell -ArgumentList '-ExecutionPolicy Bypass -File \"C:\Users\krithik\Desktop\AI-PC.ps1\"' }"
+echo Starting HELIOS Terminal Chat...
+venv\Scripts\python.exe cli.py %*

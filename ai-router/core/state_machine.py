@@ -21,15 +21,18 @@ logger = logging.getLogger("helios.state_machine")
 
 class TaskState(str, Enum):
     """
-    The twelve formal states of a HELIOS task.
-    Mirrors the specification's lifecycle diagram.
+    The formal states of a HELIOS task.
+    Includes core and coding swarm states.
     """
     IDLE = "IDLE"                       # Contract created, not yet started
     ANALYZE = "ANALYZE"                 # Breaking down the objective
     PLAN = "PLAN"                       # Building an execution plan
+    ARCHITECT = "ARCHITECT"             # Architectural specification and contract design
     EXECUTE = "EXECUTE"                 # Running agents/tools
-    VERIFY = "VERIFY"                   # Checking results
+    VERIFY = "VERIFY"                   # Checking results / test execution
     REPAIR = "REPAIR"                   # Recovering from verified failure
+    REVIEW = "REVIEW"                   # Code quality and regression review
+    SECURITY_REVIEW = "SECURITY_REVIEW" # Security and vulnerability review
     WAITING_APPROVAL = "WAITING_APPROVAL"  # Blocked on human approval
     WAITING_USER = "WAITING_USER"       # Blocked on user input
     PAUSED = "PAUSED"                   # Manually paused
@@ -59,12 +62,21 @@ TRANSITION_MATRIX: Dict[TaskState, Set[TaskState]] = {
     },
     TaskState.ANALYZE: {
         TaskState.PLAN,
+        TaskState.ARCHITECT,
         TaskState.EXECUTE,      # Simple tasks skip planning
         TaskState.FAILED,
         TaskState.CANCELLED,
     },
     TaskState.PLAN: {
+        TaskState.ARCHITECT,
         TaskState.EXECUTE,
+        TaskState.WAITING_APPROVAL,
+        TaskState.FAILED,
+        TaskState.CANCELLED,
+    },
+    TaskState.ARCHITECT: {
+        TaskState.EXECUTE,
+        TaskState.PLAN,
         TaskState.WAITING_APPROVAL,
         TaskState.FAILED,
         TaskState.CANCELLED,
@@ -79,7 +91,8 @@ TRANSITION_MATRIX: Dict[TaskState, Set[TaskState]] = {
         TaskState.CANCELLED,
     },
     TaskState.VERIFY: {
-        TaskState.FINALIZE,     # Success → finalize
+        TaskState.REVIEW,       # Coding swarm: verify -> review
+        TaskState.FINALIZE,     # Standard: success → finalize
         TaskState.REPAIR,       # Failure → repair
         TaskState.EXECUTE,      # Re-execute with changes
         TaskState.FAILED,
@@ -87,13 +100,32 @@ TRANSITION_MATRIX: Dict[TaskState, Set[TaskState]] = {
     },
     TaskState.REPAIR: {
         TaskState.EXECUTE,      # Retry after repair
+        TaskState.VERIFY,       # Quick verification
         TaskState.ANALYZE,      # Re-analyze after repair
         TaskState.FAILED,       # Unrecoverable
+        TaskState.CANCELLED,
+    },
+    TaskState.REVIEW: {
+        TaskState.SECURITY_REVIEW, # Coding swarm: review -> security review
+        TaskState.FINALIZE,        # Review passed -> finalize
+        TaskState.REPAIR,          # Review rejected -> repair
+        TaskState.EXECUTE,         # Direct changes requested
+        TaskState.WAITING_APPROVAL,
+        TaskState.FAILED,
+        TaskState.CANCELLED,
+    },
+    TaskState.SECURITY_REVIEW: {
+        TaskState.FINALIZE,        # Security passed -> finalize
+        TaskState.REPAIR,          # Security vulnerability -> repair
+        TaskState.WAITING_APPROVAL,# Requires human sign-off
+        TaskState.FAILED,
         TaskState.CANCELLED,
     },
     TaskState.WAITING_APPROVAL: {
         TaskState.EXECUTE,      # Approved
         TaskState.PLAN,         # Approved, continue planning
+        TaskState.ARCHITECT,    # Approved, continue architecting
+        TaskState.FINALIZE,     # Approved for finalization
         TaskState.CANCELLED,    # Rejected
         TaskState.FAILED,
     },

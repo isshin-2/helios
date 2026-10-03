@@ -80,12 +80,15 @@ class KokoroTTS:
                     self._resolved_voice = voice
                 self._resolved_voice_request = voice
 
-            # Using the async create_stream
-            stream = self._kokoro.create_stream(text, voice=self._resolved_voice, speed=speed)
-            
-            async for chunk in stream:
-                # chunk contains samples (numpy array) and sample_rate
-                samples, sample_rate = chunk
+            import asyncio
+            loop = asyncio.get_running_loop()
+            samples, sample_rate = await loop.run_in_executor(
+                None,
+                lambda: self._kokoro.create(
+                    text, voice=self._resolved_voice, speed=speed
+                ),
+            )
+            if samples is not None:
                 yield samples, sample_rate
                 
         except Exception as e:

@@ -1,0 +1,51 @@
+agent_profiles:
+  planner:
+    model: "qwen2.5-coder:14b"
+    temperature: 0.2
+    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b", "llama3.2:3b"]
+
+  architect:
+    model: "qwen2.5-coder:14b"
+    temperature: 0.1
+    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b"]
+
+  repo_mapper:
+    model: "qwen2.5-coder:7b"
+    temperature: 0.1
+    fallback_models: ["llama3.2:3b"]
+
+  coder:
+    model: "devstral-small-2:24b"
+    temperature: 0.1
+    fallback_models: ["qwen2.5-coder:14b", "qwen2.5-coder:7b"]
+
+  tester:
+    model: "qwen2.5-coder:14b"
+    temperature: 0.0
+    fallback_models: ["qwen2.5-coder:7b", "llama3.2:3b"]
+
+  repair:
+    model: "devstral-small-2:24b"
+    temperature: 0.1
+    fallback_models: ["qwen2.5-coder:14b", "qwen2.5-coder:7b"]
+
+  reviewer:
+    model: "qwen2.5-coder:14b"
+    temperature: 0.0
+    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b"]
+
+  security_reviewer:
+    model: "qwen2.5-coder:14b"
+    temperature: 0.0
+    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b"]
+
+hardware_limits:
+  target_device: "RTX 5060 Ti"
+  max_vram_gb: 16.0
+  system_ram_gb: 64.0
+  cpu: "AMD Ryzen 5 7600X"
+  max_concurrent_large_models: 3
+  large_model_threshold_gb: 8.0
+  default_context_tokens: 16384
+  ram_offload_enabled: true
+

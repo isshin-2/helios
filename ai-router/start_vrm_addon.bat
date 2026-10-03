@@ -1,10 +1,10 @@
 @echo off
-title HELIOS 3D VRM Companion Add-On (Port 8080)
+title HELIOS Character Add-On (Port 8080)
 echo ============================================================
-echo   HELIOS 3D VRM Companion Add-On (Riko Architecture)
-echo   - Add-On Viewer Server : http://localhost:8080
-echo   - HELIOS Core Bridge   : http://localhost:8000 (Auto-Connect)
+echo   HELIOS Character Presentation Add-On (VRM / Live2D)
+echo   - Character Viewer Server : http://localhost:8080
+echo   - HELIOS Core Protocol    : ws://localhost:8000/ws/character
 echo ============================================================
-cd /d "%~dp0..\helios-live2d"
+cd /d "%~dp0..\helios-character"
 "%~dp0venv\Scripts\python.exe" ai_server.py
 pause

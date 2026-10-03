@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
-
+import config
 from config import OLLAMA_HOST, SYSTEM_PROMPTS, CONTEXT_SIZES, LLM_PROVIDER
 from providers.ollama import OllamaProvider
 from providers.vllm import VLLMProvider
@@ -63,19 +63,25 @@ async def lifespan(app: FastAPI):
     
     # Ensure database is initialized
     init_db()
+
+    # Verify AI PC reachability if using local cluster/PAIR
+    try:
+        from core.ai_pc_manager import ensure_ai_pc_ready
+        ensure_ai_pc_ready()
+    except Exception as e:
+        logger.warning(f"[AI-PC] Startup reachability check: {e}")
     
-    # Disabled backend hot-mic auto-start to prevent random transcription popups from background noise.
-    # if VOICE_ENABLED:
-    #     voice_input.start()
-    #     logger.info("Voice input auto-started on server startup.")
+    # Backend continuous wake-word hot-mic:
+    # Set ENABLE_HOT_MIC=true in .env to enable 24/7 background microphone listening.
+    ENABLE_HOT_MIC = os.environ.get("ENABLE_HOT_MIC", "false").lower() == "true"
+    if VOICE_ENABLED and ENABLE_HOT_MIC:
+        voice_input.start()
+        logger.info(f"Voice input hot-mic started with wake-word: '{config.WAKE_WORD}'")
     
     import threading
     if hasattr(voice_manager.tts, 'initialize'):
           threading.Thread(target=voice_manager.tts.initialize, daemon=True).start()
     logger.info("Eagerly loading Kokoro TTS in background...")
-    
-    import config
-    import os
     
     # --- First-Start Model Provisioning ---
     try:
@@ -231,6 +237,7 @@ class HeadlessRequest(BaseModel):
     user_id: int
     session_id: int
     message: str
+    agent_mode: bool = False
 
 @app.post("/api/chat/headless")
 async def chat_headless(req: HeadlessRequest):
@@ -244,14 +251,28 @@ async def chat_headless(req: HeadlessRequest):
     rows = cursor.fetchall()
     conn.close()
     
-    messages = [dict(r) for r in rows]
+    from core.trained_body_model import parse_and_strip_inline_body_tags
+    messages = []
+    for r in rows[-6:]:
+        item = dict(r)
+        if item.get("role") == "assistant" and isinstance(item.get("content"), str):
+            item["content"], _ = parse_and_strip_inline_body_tags(item["content"])
+        messages.append(item)
     messages.append({"role": "user", "content": req.message})
     
+    # Stop any leftover TTS from a previous turn so CPU threads are dedicated to the new response
+    if VOICE_ENABLED:
+        try:
+            voice_manager.interrupt()
+        except Exception:
+            pass
+
     # Custom EventBus to capture events synchronously-ish for the HTTP response
     class CaptureEventBus(EventBus):
         def __init__(self):
             super().__init__()
             self.events = []
+            self._forwards_to_global = True
             
         async def publish(self, event_type: str, data: Any = None):
             self.events.append({"type": event_type, "data": data})
@@ -264,8 +285,11 @@ async def chat_headless(req: HeadlessRequest):
         bus.subscribe("done", voice_manager._on_done)
         bus.subscribe("status", voice_manager._on_status)
     
+    from core.character_manager import character_manager
+    character_manager.set_user_turn_text(req.message)
+
     # Process through the standard pipeline
-    await orchestrator.process_request(req.session_id, req.user_id, messages, bus, headless=True, agent_mode=True)
+    await orchestrator.process_request(req.session_id, req.user_id, messages, bus, headless=True, agent_mode=req.agent_mode)
     
     full_response = ""
     tool_activity = []
@@ -284,11 +308,18 @@ async def chat_headless(req: HeadlessRequest):
             tool_activity.append(f"Requires Approval: {ev['data']['operation']} on {ev['data']['target']}")
             full_response += f"\n\n[Action blocked pending approval: {ev['data']['operation']} on {ev['data']['target']}]"
             
+    from core.trained_body_model import parse_and_strip_inline_body_tags
+    from core.pose_generator import pose_generator
+    directed_state = await character_manager.direct_turn_body(req.message, full_response)
+    clean_response, _ = parse_and_strip_inline_body_tags(full_response)
+    clean_response, _ = pose_generator.extract_inline_pose_json(clean_response)
+            
     return {
         "status": "success",
-        "response": full_response,
+        "response": clean_response or full_response,
         "tools_used": tool_activity,
-        "meta": meta
+        "meta": meta,
+        "character_state": directed_state or character_manager.state.to_protocol_dict(),
     }
 
 class SkillCreate(BaseModel):
@@ -547,6 +578,9 @@ async def websocket_endpoint(websocket: WebSocket):
     def on_approval_request(d): asyncio.create_task(ws_sender({"type": "approval_request", **d}))
     def on_done(d=None): asyncio.create_task(ws_sender({"type": "done"}))
     def on_ui_state(d): asyncio.create_task(ws_sender({"type": "ui_state", "state": d}))
+    def on_character_event(d):
+        if isinstance(d, dict):
+            asyncio.create_task(ws_sender(d))
             
     # Subscribe to request-local event bus
     event_bus.subscribe("status", on_status)
@@ -556,12 +590,16 @@ async def websocket_endpoint(websocket: WebSocket):
     event_bus.subscribe("approval_request", on_approval_request)
     event_bus.subscribe("done", on_done)
 
-    # Subscribe to global event bus for background tasks
+    # Subscribe to global event bus for background tasks & character protocol
     from core.events import global_bus
     global_bus.subscribe("status", on_status)
     global_bus.subscribe("chunk", on_chunk)
     global_bus.subscribe("meta", on_meta)
     global_bus.subscribe("ui_state", on_ui_state)
+    global_bus.subscribe("character_state", on_character_event)
+    global_bus.subscribe("character_activity", on_character_event)
+    global_bus.subscribe("character_speech", on_character_event)
+    global_bus.subscribe("character_stop", on_character_event)
     
     if getattr(voice_manager, "_on_chunk", None):
         try:
@@ -583,8 +621,16 @@ async def websocket_endpoint(websocket: WebSocket):
                 session_id = request_data.get("session_id")
                 if session_id:
                     orchestrator.cancel_current_request(session_id)
+                voice_manager.interrupt()
                 continue
-            
+
+            # Handle character state sync requests over /ws
+            if request_data.get("type") == "character_sync":
+                from core.character_manager import character_manager
+                if character_manager.enabled:
+                    await ws_sender(character_manager.get_sync_payload())
+                    await ws_sender(character_manager.state.to_protocol_dict())
+                continue
 
             # Handle input responses
             if request_data.get("type") == "input_response":
@@ -614,9 +660,14 @@ async def websocket_endpoint(websocket: WebSocket):
             
             if not messages or not user_id or not session_id:
                 continue
+
+            from core.character_manager import character_manager
+            last_user_msg = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
+            character_manager.set_user_turn_text(last_user_msg if isinstance(last_user_msg, str) else str(last_user_msg))
                 
             # Delegate all complex logic to the orchestrator
             await orchestrator.process_request(session_id, user_id, messages, event_bus, agent_mode=agent_mode)
+            await character_manager.direct_turn_body(last_user_msg if isinstance(last_user_msg, str) else str(last_user_msg))
                 
     except WebSocketDisconnect:
         logger.info("Client disconnected")
@@ -628,10 +679,157 @@ async def websocket_endpoint(websocket: WebSocket):
         global_bus.unsubscribe("chunk", on_chunk)
         global_bus.unsubscribe("meta", on_meta)
         global_bus.unsubscribe("ui_state", on_ui_state)
+        global_bus.unsubscribe("character_state", on_character_event)
+        global_bus.unsubscribe("character_activity", on_character_event)
+        global_bus.unsubscribe("character_speech", on_character_event)
+        global_bus.unsubscribe("character_stop", on_character_event)
+
+
+@app.websocket("/ws/character")
+async def character_websocket_endpoint(websocket: WebSocket):
+    """
+    Dedicated, low-privilege WebSocket endpoint for the isolated character renderer process.
+    Exposes ONLY the Character Protocol (state, activity, speech, stop) — never tools, DB, or secrets.
+    Supports automatic state resynchronization upon connection or reconnection.
+    """
+    from core.character_manager import character_manager
+    await websocket.accept()
+    await character_manager.register_client(websocket)
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except Exception:
+                continue
+            msg_type = msg.get("type")
+            if msg_type in ("character_sync", "request_state", "ping"):
+                if character_manager.enabled:
+                    await websocket.send_json(character_manager.get_sync_payload())
+                    await websocket.send_json(character_manager.state.to_protocol_dict())
+                else:
+                    await websocket.send_json({"type": "character_sync", "enabled": False})
+    except WebSocketDisconnect:
+        logger.info("Character renderer disconnected (HELIOS continuing normally)")
+    except Exception as e:
+        logger.debug(f"Character WebSocket closed: {e}")
+    finally:
+        character_manager.unregister_client(websocket)
+
+
+@app.get("/api/character/state")
+async def get_character_state():
+    """Return current character synchronization snapshot."""
+    from core.character_manager import character_manager
+    return character_manager.get_sync_payload()
+
+
+@app.post("/api/character/direct-body")
+async def direct_character_body(payload: Dict[str, Any]):
+    """
+    Ask HELIOS Core's Pose Synthesizer + Trained 3-Head Neural Body Director
+    to move the character's 3D body and spatial position.
+    """
+    from core.character_manager import character_manager
+    user_text = str(payload.get("user_text") or payload.get("prompt") or "").strip()
+    assistant_text = str(payload.get("assistant_text") or payload.get("reply") or "").strip()
+    state = await character_manager.direct_turn_body(user_text, assistant_text)
+    return state or character_manager.state.to_protocol_dict()
+
+
+@app.post("/api/character/generate-pose")
+async def generate_character_pose(payload: Dict[str, Any]):
+    """
+    Have HELIOS Core synthesize a brand-new 3D VRM pose (normalized humanoid bones + 2-Bone IK)
+    and broadcast it to the character renderer.
+    """
+    from core.character_manager import character_manager
+    prompt = str(payload.get("prompt") or payload.get("user_text") or "make a confident cyber pose").strip()
+    state = await character_manager.generate_custom_pose(prompt)
+    return state or character_manager.state.to_protocol_dict()
+
+
+@app.get("/api/character/poses")
+async def list_character_poses():
+    """Return all procedural and AI-synthesized custom poses in HELIOS's Pose Library."""
+    from core.pose_generator import pose_generator
+    return {"poses": pose_generator.get_library()}
+
+
+@app.get("/api/character/rl-status")
+async def get_character_rl_status():
+    """Return Human-Reference RL Pose Policy status, reward percentages, and award counters."""
+    from core.character_manager import character_manager
+    return character_manager.get_rl_status()
+
+
+@app.post("/api/character/rl-train")
+async def train_character_rl_pose(payload: Dict[str, Any]):
+    """
+    Train HELIOS Core's RL Human-Reference Pose Policy Network on one or all
+    human reference poses, award points on match, and broadcast the trained 3D pose.
+    """
+    from core.character_manager import character_manager
+    pose_name = str(payload.get("pose_name") or payload.get("prompt") or "all").strip()
+    episodes = int(payload.get("episodes", 20))
+    simulate_curriculum = bool(payload.get("simulate_curriculum", True))
+    res = await character_manager.train_rl_pose(
+        pose_name=pose_name,
+        episodes=episodes,
+        simulate_curriculum=simulate_curriculum,
+    )
+    return {
+        **res,
+        "character_state": character_manager.state.to_protocol_dict(),
+    }
+
+
+@app.post("/api/character/rl-feedback")
+async def apply_character_rl_feedback(payload: Dict[str, Any]):
+    """
+    Apply online Reinforcement Learning reward (+100 pts) or penalty (-50 pts)
+    plus live 3D VRM browser biomechanical telemetry to update the RL policy.
+    """
+    from core.character_manager import character_manager
+    pose_name = str(payload.get("pose_name") or "").strip()
+    user_award_delta = float(payload.get("user_award_delta", 100.0))
+    browser_telemetry = payload.get("browser_telemetry") if isinstance(payload.get("browser_telemetry"), dict) else None
+    res = await character_manager.apply_rl_pose_feedback(
+        pose_name=pose_name,
+        user_award_delta=user_award_delta,
+        browser_telemetry=browser_telemetry,
+    )
+    return {
+        **res,
+        "character_state": character_manager.state.to_protocol_dict(),
+    }
+
+
+@app.post("/api/character/config")
+async def update_character_config(payload: Dict[str, Any]):
+    """Enable/disable character addon or switch renderer/model at runtime."""
+    from core.character_manager import character_manager
+    import config
+    if "enabled" in payload:
+        enabled = bool(payload["enabled"])
+        config.CHARACTER_ENABLED = enabled
+        if enabled:
+            character_manager.enable()
+        else:
+            character_manager.disable()
+    if "renderer" in payload and payload["renderer"] in ("vrm", "live2d"):
+        character_manager.renderer = payload["renderer"]
+        config.CHARACTER_RENDERER = payload["renderer"]
+    if "model" in payload and isinstance(payload["model"], str):
+        character_manager.model_id = payload["model"]
+        config.CHARACTER_MODEL = payload["model"]
+    return character_manager.get_sync_payload()
+
 
 @app.post("/api/chat/cancel/{session_id}")
 async def cancel_chat(session_id: int):
     orchestrator.cancel_current_request(session_id)
+    voice_manager.interrupt()
     return {"status": "cancelled"}
 
 @app.post("/api/interrupt")
@@ -652,6 +850,19 @@ async def get_personalities():
     cards = []
     pers_dir = Path("personalities")
     if pers_dir.exists():
+        for file in pers_dir.glob("*.yaml"):
+            try:
+                import yaml
+                with open(file, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f) or {}
+                cards.append({
+                    "id": file.stem,
+                    "name": data.get("name", file.stem.upper()),
+                    "prompt": data.get("identity", {}).get("archetype", "friendly_engineering_companion"),
+                    "structured": data,
+                })
+            except Exception:
+                pass
         for file in pers_dir.glob("*.md"):
             with open(file, "r", encoding="utf-8") as f:
                 cards.append({
@@ -726,6 +937,181 @@ async def update_settings(settings: SettingsUpdate):
                     f.write(f'\nVOICE_NAME="{settings.voice}"\n')
             
     return {"status": "success"}
+
+
+def _reload_all_system_prompts():
+    import config
+    new_prompts = {
+        "coding": config.load_prompt("coding.md", f"You are {config.BOT_NAME}, an expert programming assistant."),
+        "general": config.load_prompt("general.md", f"You are {config.BOT_NAME}, an advanced AI assistant."),
+        "reasoning": config.load_prompt("reasoning.md", f"You are {config.BOT_NAME}, an expert engineer and problem solver."),
+        "vision": config.load_prompt("vision.md", f"You are {config.BOT_NAME}, a visual analysis assistant."),
+        "ui": config.load_prompt("ui.md", f"You are {config.BOT_NAME}, a UI designer."),
+        "agent": config.load_prompt("agent.md", f"You are {config.BOT_NAME}, an autonomous agent."),
+    }
+    config.SYSTEM_PROMPTS.clear()
+    config.SYSTEM_PROMPTS.update(new_prompts)
+
+
+def _safe_read_text(path: Path) -> str:
+    if not path.exists():
+        return ""
+    raw = path.read_bytes()
+    for enc in ("utf-8-sig", "utf-8", "utf-16", "latin-1"):
+        try:
+            txt = raw.decode(enc)
+            if "\x00" not in txt:
+                return txt
+        except Exception:
+            pass
+    return ""
+
+
+@app.get("/api/character/personality-studio")
+async def get_personality_studio_state():
+    """Return the active YAML personality card, preset cards, and raw/compiled system prompts."""
+    import config
+    import yaml
+    from core.character_manager import character_manager
+    from core.emotion_engine import load_personality_card
+
+    base_dir = Path(__file__).resolve().parent
+    pers_dir = base_dir / "personalities"
+    prompts_dir = base_dir / "prompts"
+    helios_yaml_path = pers_dir / "helios.yaml"
+
+    active_card = load_personality_card(str(helios_yaml_path))
+    raw_yaml = (
+        _safe_read_text(helios_yaml_path)
+        if helios_yaml_path.exists()
+        else yaml.safe_dump(active_card, sort_keys=False, allow_unicode=True)
+    )
+
+    presets = []
+    if pers_dir.exists():
+        for file in sorted(pers_dir.iterdir()):
+            if file.suffix.lower() in (".yaml", ".yml"):
+                try:
+                    txt = _safe_read_text(file)
+                    data = yaml.safe_load(txt) or {}
+                    presets.append({
+                        "id": file.stem,
+                        "filename": file.name,
+                        "format": "yaml",
+                        "name": data.get("name") or data.get("identity", {}).get("name") or file.stem.upper(),
+                        "content": txt,
+                        "structured": data,
+                    })
+                except Exception:
+                    pass
+            elif file.suffix.lower() in (".md", ".json"):
+                presets.append({
+                    "id": file.stem,
+                    "filename": file.name,
+                    "format": file.suffix.lstrip(".").lower(),
+                    "name": file.stem.upper(),
+                    "content": _safe_read_text(file),
+                })
+
+    prompt_keys = ["general", "coding", "reasoning", "agent", "vision", "ui"]
+    raw_prompts = {}
+    for pk in prompt_keys:
+        p_file = prompts_dir / f"{pk}.md"
+        raw_prompts[pk] = _safe_read_text(p_file)
+
+    return {
+        "ok": True,
+        "status": "ok",
+        "bot_name": config.BOT_NAME,
+        "personality_tagline": config.PERSONALITY,
+        "card": active_card,
+        "active_card": active_card,
+        "raw_yaml": raw_yaml,
+        "active_card_yaml": raw_yaml,
+        "presets": presets,
+        "prompts": raw_prompts,
+        "compiled_prompts": dict(config.SYSTEM_PROMPTS),
+        "character_state": character_manager.state.to_protocol_dict(),
+    }
+
+
+@app.post("/api/character/personality-studio")
+async def save_personality_studio_state(payload: Dict[str, Any]):
+    """Save and hot-reload the personality card (YAML/structured) and/or system prompts (`prompts/*.md`)."""
+    import config
+    import yaml
+    from core.character_manager import character_manager
+    from core.emotion_engine import EmotionEngine
+
+    base_dir = Path(__file__).resolve().parent
+    pers_dir = base_dir / "personalities"
+    prompts_dir = base_dir / "prompts"
+    pers_dir.mkdir(parents=True, exist_ok=True)
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    helios_yaml_path = pers_dir / "helios.yaml"
+    char_mirror_path = base_dir.parent / "helios-character" / "helios_personality_card.yaml"
+
+    yaml_input = payload.get("card_yaml") or payload.get("raw_yaml")
+    updated_card = None
+    if isinstance(yaml_input, str) and yaml_input.strip():
+        parsed = yaml.safe_load(yaml_input)
+        if isinstance(parsed, dict):
+            updated_card = parsed
+            raw_yaml_out = yaml_input.strip() + "\n"
+            helios_yaml_path.write_text(raw_yaml_out, encoding="utf-8")
+            try:
+                char_mirror_path.write_text(raw_yaml_out, encoding="utf-8")
+            except Exception:
+                pass
+    elif isinstance(payload.get("card"), dict):
+        updated_card = payload["card"]
+        raw_yaml_out = yaml.safe_dump(updated_card, sort_keys=False, allow_unicode=True)
+        helios_yaml_path.write_text(raw_yaml_out, encoding="utf-8")
+        try:
+            char_mirror_path.write_text(raw_yaml_out, encoding="utf-8")
+        except Exception:
+            pass
+
+    if updated_card:
+        character_manager.personality = updated_card
+        character_manager.emotion_engine = EmotionEngine(updated_card)
+        resolved_name = (
+            updated_card.get("name")
+            or (updated_card.get("identity", {}).get("name") if isinstance(updated_card.get("identity"), dict) else None)
+        )
+        if isinstance(resolved_name, str) and resolved_name.strip():
+            config.BOT_NAME = resolved_name.strip()
+        emb = updated_card.get("embodied_expression") if isinstance(updated_card.get("embodied_expression"), dict) else {}
+        default_style = emb.get("default_posture_style") or emb.get("default_style")
+        if default_style:
+            await character_manager.set_state(
+                character_manager.state.mode,
+                emotion=character_manager.state.emotion,
+                intensity=character_manager.state.intensity,
+                expression=character_manager.state.expression,
+                animation=character_manager.state.animation,
+                movement=character_manager.state.movement,
+                style=str(default_style).lower(),
+                custom_pose=character_manager.state.custom_pose,
+                speaking=character_manager.state.speaking,
+            )
+
+    if isinstance(payload.get("bot_name"), str) and payload["bot_name"].strip():
+        config.BOT_NAME = payload["bot_name"].strip()
+
+    if isinstance(payload.get("personality_tagline"), str) and payload["personality_tagline"].strip():
+        config.PERSONALITY = payload["personality_tagline"].strip()
+
+    if isinstance(payload.get("prompts"), dict):
+        valid_keys = {"general", "coding", "reasoning", "agent", "vision", "ui"}
+        for pk, content in payload["prompts"].items():
+            if pk in valid_keys and isinstance(content, str) and content.strip():
+                (prompts_dir / f"{pk}.md").write_text(content.strip() + "\n", encoding="utf-8")
+
+    _reload_all_system_prompts()
+    sync_payload = character_manager.get_sync_payload()
+    await character_manager._dispatch_protocol_message(sync_payload)
+    return await get_personality_studio_state()
 
 
 @app.websocket("/sidecar/ws")
