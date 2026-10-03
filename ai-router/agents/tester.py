@@ -188,6 +188,28 @@ Provide a concise, 2-3 sentence diagnosis of why the test failed and the root ca
             exit_code = res.returncode
             stdout = res.stdout
             stderr = res.stderr
+
+            # If unittest failed or found no tests, retry with pytest if standalone functions exist
+            if exit_code != 0 and "unittest" in command:
+                pytest_cmd = command.replace("-m unittest", "-m pytest")
+                try:
+                    res_retry = subprocess.run(
+                        pytest_cmd,
+                        shell=True,
+                        cwd=workspace_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=180,
+                    )
+                    if res_retry.returncode == 0:
+                        self.logger.info(f"[TESTER] Pytest fallback passed successfully: '{pytest_cmd}'")
+                        res = res_retry
+                        command = pytest_cmd
+                        exit_code = 0
+                        stdout = res.stdout
+                        stderr = res.stderr
+                except Exception as retry_err:
+                    self.logger.debug(f"[TESTER] Pytest fallback attempt failed: {retry_err}")
         except subprocess.TimeoutExpired as e:
             duration = time.time() - start_time
             exit_code = -1
