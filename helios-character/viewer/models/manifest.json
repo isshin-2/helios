@@ -1,55 +1,40 @@
 {
-  "id": "helios-v1",
-  "name": "Airi Techwear",
+  "id": "helios_airi",
+  "name": "HELIOS Airi",
   "format": "vrm",
   "version": "2.0",
-  "model_path": "models/Helios_Techwear.vrm",
-  "base_reference_model": "models/Yu1_1.vrm",
-  "concept_sheet": "models/helios_concept_sheet.jpg",
+  "model_path": "models/Helios_Airi.vrm",
   "available_models": [
     {
-      "id": "helios-v2-techwear",
-      "name": "HELIOS Techwear (Wolf-Cut / Cyberpunk)",
-      "path": "models/Helios_Techwear.vrm"
+      "id": "helios_airi",
+      "name": "HELIOS Airi (Wolf-Cut / Cyberpunk Techwear)",
+      "path": "models/Helios_Airi.vrm"
     },
     {
-      "id": "helios-twin-techwear",
-      "name": "HELIOS Twin (Male / Techwear)",
+      "id": "helios_twin",
+      "name": "HELIOS Twin (Ren - Older Brother)",
       "path": "models/Helios_Twin.vrm",
-      "concept_sheet": "models/helios_twin_concept_sheet.jpg",
-      "description": "Cool, sharp-eyed male twin. Silver-gray wolf-cut hair with subtle cyan underlayer tips, glowing cyan-blue eyes (#00e5ff), dark slate techwear hoodie with cybernetic cyan neon trim, cargo joggers, and chunky runner sneakers."
-    },
-    {
-      "id": "helios-meshy-techwear",
-      "name": "Meshy Techwear (FBX Model)",
-      "format": "fbx",
-      "path": "models/Meshy_Male_Techwear.fbx",
-      "description": "Tactical techwear male character generated via Meshy AI, rigged with HELIOS VRM-compatible humanoid skeleton and cybernetic neon accents."
-    },
-    {
-      "id": "helios-v1-base",
-      "name": "Yu1_1 (Base Reference)",
-      "path": "models/Yu1_1.vrm"
+      "relation": "Older male sibling to Airi",
+      "height_scale": 1.82
     }
   ],
   "aesthetic": {
     "original": {
-      "name": "HELIOS Techwear (Original)",
-      "character_type": "Female Cyberpunk / Techwear",
+      "name": "HELIOS Airi",
+      "character_type": "Female Cyberpunk / Techwear Companion",
       "hair": "silver-gray layered wolf-cut with subtle cyan underlayer tips",
       "eyes": "piercing glowing cyan-blue (#00e5ff)",
       "details": "subtle metallic ear piercings (3D helix cuffs + earlobe ring & cyan stud), fingerless tactical gloves",
-      "outfit": "dark slate (#0D0E12) and charcoal (#2C3038) oversized tactical techwear hoodie with cybernetic seamlines, off-white accents, glowing cyan neon trim, dark pleated tech-skirt, dark thigh-high socks, and futuristic runner sneakers",
-      "concept_sheet": "models/helios_concept_sheet.jpg"
+      "outfit": "dark slate (#0D0E12) and charcoal (#2C3038) oversized tactical techwear hoodie with cybernetic seamlines, off-white accents, glowing cyan neon trim, dark pleated tech-skirt, dark thigh-high socks, and futuristic runner sneakers"
     },
     "twin": {
-      "name": "HELIOS Twin (Brother)",
-      "character_type": "Male Cyberpunk / Techwear",
-      "hair": "silver-gray layered wolf-cut with subtle cyan underlayer tips",
-      "eyes": "piercing glowing cyan-blue (#00e5ff)",
-      "details": "matching metallic ear piercings & cuffs, fingerless tactical gloves",
-      "outfit": "dark slate (#0D0E12) and charcoal (#2C3038) oversized tactical techwear hoodie with cybernetic seamlines, glowing cyan neon trim, tapered techwear cargo joggers with buckle straps, and futuristic runner sneakers",
-      "concept_sheet": "models/helios_twin_concept_sheet.jpg"
+      "name": "HELIOS Twin (Ren)",
+      "relation": "Older male sibling to Airi",
+      "character_type": "Tall Athletic Male Cyberpunk / Tactical Techwear Operative",
+      "hair": "silver-slate textured crop with subtle cyan underlayer tips",
+      "eyes": "piercing glowing cybernetic cyan-blue (#00e5ff) with deep limbal ring",
+      "details": "tactical comms earpiece, high-collar armor, fingerless tactical gauntlets, broader shoulders",
+      "outfit": "dark stealth slate (#0B0D11) and reinforced charcoal (#1B1E26) tactical operative combat jacket with glowing cyan power conduits, utility cargo trousers, and armored combat runners"
     },
     "style": "anime aesthetic, clean cel-shaded lines, high detail, studio lighting"
   },

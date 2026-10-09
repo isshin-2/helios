@@ -40,10 +40,8 @@
 
             <span class="preset-label" style="margin-top: 6px;">Avatar Model (VRM / FBX):</span>
             <div class="sidebar-btn-grid">
-                <button id="btn-model-helios" class="active" title="Load HELIOS Techwear VRM">⚡ HELIOS Techwear</button>
-                <button id="btn-model-twin" title="Load HELIOS Twin (Male Techwear) VRM">🔷 HELIOS Twin</button>
-                <button id="btn-model-meshy" title="Load Meshy AI Male Techwear (Auto-Rigged FBX Model)">🦾 Meshy Techwear (FBX)</button>
-                <button id="btn-model-base" title="Load Base Reference VRM (Yu1_1.vrm)">🧬 Base VRM (Yu1_1)</button>
+                <button id="btn-model-helios" class="active" title="Load HELIOS Airi (Wolf-Cut Cyberpunk Techwear) VRM">⚡ HELIOS Airi</button>
+                <button id="btn-model-twin" title="Load HELIOS Twin (Ren - Older Brother) VRM">🔷 HELIOS Twin (Brother)</button>
                 <label class="btn-import">
                     📁 Import Model
                     <input type="file" id="vrm-file-input" accept=".vrm,.glb">
@@ -244,12 +242,38 @@
                 🎭 Just the Character
             </button>
         </div>
+        <button id="btn-call-mode" class="btn-call-mode" title="Start Hands-Free Voice Call with Airi">
+            📞 Call Mode
+        </button>
         <button id="btn-floating-personality" style="cursor: pointer; background: rgba(15, 19, 28, 0.88); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.45); border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 600; backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
             🧠 Personality & Prompts
         </button>
         <a href="personality.html" target="_blank" style="text-decoration: none; background: rgba(15, 19, 28, 0.88); color: #edf2f7; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 600; backdrop-filter: blur(10px);" title="Open Standalone Personality & Prompts Studio Page">
             ↗️ Studio Page
         </a>
+    </div>
+
+    <!-- Fullscreen Hands-Free Voice Call Mode Overlay -->
+    <div id="call-mode-overlay">
+        <div class="call-header-hud">
+            <div class="call-caller-badge">
+                <span class="call-pulse-dot" id="call-pulse-indicator"></span>
+                <span class="call-caller-name">Airi</span>
+                <span class="call-timer" id="call-timer-display">00:00</span>
+            </div>
+            <div class="call-status-pill" id="call-status-display">Connected · Listening</div>
+        </div>
+
+        <div class="call-live-caption-box" id="call-caption-box">
+            <span class="speaker-tag" id="call-speaker-tag">Airi:</span>
+            <span id="call-caption-text">"Kehehe, call connected! Hands-free goblin hotline is live—what technical mess are we untangling?"</span>
+        </div>
+
+        <div class="call-controls-bar">
+            <button id="btn-call-mute" class="call-ctrl-btn call-ctrl-mic" title="Mute / Unmute Microphone">🎤</button>
+            <button id="btn-call-interrupt" class="call-ctrl-btn call-ctrl-interrupt" title="Interrupt Airi Speaking">🛑</button>
+            <button id="btn-call-end" class="call-ctrl-btn call-ctrl-end" title="End Call">📞</button>
+        </div>
     </div>
 
     <!-- In-Viewer Slide-Over Personality & Prompts Studio Modal -->
