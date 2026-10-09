@@ -46,20 +46,36 @@ export class Humanizer {
     }
 
     setStyle(styleName = 'natural') {
-        const valid = ['natural', 'energetic', 'confident', 'relaxed', 'shy', 'dramatic'];
+        const valid = ['natural', 'energetic', 'confident', 'relaxed', 'shy', 'dramatic', 'tactical'];
         const clean = String(styleName || 'natural').toLowerCase();
         this.currentStyle = valid.includes(clean) ? clean : 'natural';
     }
 
     /**
      * Returns continuous biomechanical posture bias for the active Human Style
-     * (`natural`, `energetic`, `confident`, `relaxed`, `shy`, `dramatic`).
+     * (`natural`, `energetic`, `confident`, `relaxed`, `shy`, `dramatic`, `tactical`).
      */
     getStylePostureBias(styleName = this.currentStyle, elapsed = this.elapsed) {
         const fwd = this.rigMetrics?.forwardX ?? -1;
         const rSide = this.rigMetrics?.rSide ?? 1;
         const lSide = this.rigMetrics?.lSide ?? -1;
         const s = String(styleName || this.currentStyle || 'natural').toLowerCase();
+
+        if (s === 'tactical') {
+            return {
+                hipsDrop: 0.003,
+                hipsRoll: 0.0,
+                spinePitch: -0.015 * fwd,
+                chestPitch: -0.035 * fwd,
+                headPitch: -0.010 * fwd,
+                headRoll: 0.0,
+                leftShoulderZ: lSide * -0.035,
+                rightShoulderZ: rSide * -0.035,
+                swayScale: 0.45,
+                breathRateScale: 0.88,
+                breathAmpScale: 0.95,
+            };
+        }
 
         if (s === 'confident') {
             return {
@@ -419,20 +435,27 @@ export class Humanizer {
         if (this.saccadeTimer >= this.nextSaccade) {
             this.saccadeTimer = 0;
 
-            if (currentMode === 'thinking') {
-                // Cognitive recall gaze: occasional upward-lateral reflection glances
+            if (currentMode === 'thinking' || currentMode === 'thoughtful_gaze_aversion') {
+                // Cognitive recall gaze / Seamless Interaction gaze aversion: upward-lateral reflection glances
                 this.nextSaccade = 0.55 + Math.random() * 0.95;
-                const glanceAway = Math.random() < 0.65;
+                const glanceAway = currentMode === 'thoughtful_gaze_aversion' ? true : Math.random() < 0.65;
                 this.saccadeOffset.set(
-                    glanceAway ? (Math.random() < 0.5 ? -1 : 1) * (0.04 + Math.random() * 0.035) : (Math.random() - 0.5) * 0.02,
-                    glanceAway ? 0.03 + Math.random() * 0.025 : (Math.random() - 0.5) * 0.015
+                    glanceAway ? (Math.random() < 0.5 ? -1 : 1) * (0.05 + Math.random() * 0.04) : (Math.random() - 0.5) * 0.02,
+                    glanceAway ? 0.04 + Math.random() * 0.03 : (Math.random() - 0.5) * 0.015
                 );
-            } else if (currentMode === 'listening') {
+            } else if (currentMode === 'listening' || currentMode === 'active_listening_nod') {
                 // Attentive listener eye contact: tight fixation around user's eyes/mouth
                 this.nextSaccade = 0.65 + Math.random() * 1.1;
                 this.saccadeOffset.set(
                     (Math.random() - 0.5) * 0.016,
                     (Math.random() - 0.5) * 0.012
+                );
+            } else if (this.currentStyle === 'tactical') {
+                // Sibling Ren Tactical Composure: steady disciplined forward gaze with minimal flutter
+                this.nextSaccade = 0.75 + Math.random() * 1.2;
+                this.saccadeOffset.set(
+                    (Math.random() - 0.5) * 0.012,
+                    (Math.random() - 0.5) * 0.009
                 );
             } else {
                 // Natural conversational/idle micro-saccades

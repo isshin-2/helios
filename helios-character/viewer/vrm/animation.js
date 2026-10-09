@@ -140,6 +140,11 @@ export const PROTOCOL_ANIMATION_MAP = {
     flip: 'backflip',
     backflip: 'backflip',
     walk: 'walk',
+    active_listening_nod: 'active_listening_nod',
+    thoughtful_gaze_aversion: 'thoughtful_gaze_aversion',
+    turn_yield_inquiry: 'turn_yield_inquiry',
+    barge_in_alert: 'barge_in_alert',
+    tactical_composure: 'tactical_composure',
 };
 
 export function mapProtocolAnimationToPose(animName, emotion = 'neutral') {

@@ -1658,6 +1658,105 @@ function applyProceduralPose(time, speed) {
         lPole.set(lSide * 0.92, -0.1, camZ * 0.35);
         lFDir.set(-lSide * 0.25, 0.94, camZ * 0.18).normalize();
         lPalm.set(-lSide * 0.15, 0.82, camZ * 0.55).normalize();
+
+    // -----------------------------------------------------------------
+    // 6. SEAMLESS INTERACTION & DYADIC POSES (Meta Seamless Dataset Priors)
+    // -----------------------------------------------------------------
+    } else if (currentPose === 'active_listening_nod') {
+        // Expressive backchannel: rhythmic head nodding with slight tilt, attentive relaxed arms
+        const nodWave = Math.sin(time * 6.2) * 0.09;
+        const tiltWave = Math.sin(time * 2.1) * 0.05 * rSide;
+        headRot = [fwd * (0.07 + nodWave), tiltWave * 0.5, tiltWave];
+        spineRot = [fwd * 0.03, 0, 0];
+        chestRot = [fwd * 0.02, 0, 0];
+        rightHandShape = 'relaxed';
+        leftHandShape = 'relaxed';
+
+        rWrist.set(hipsP.x + rSide * 0.11, hipsP.y + 0.04, hipsP.z + camZ * 0.08);
+        rPole.set(rSide * 0.75, -0.4, camZ * 0.25);
+        rFDir.set(-rSide * 0.25, -0.85, camZ * 0.35).normalize();
+        rPalm.set(-rSide * 0.75, -0.2, camZ * 0.6).normalize();
+
+        lWrist.set(hipsP.x + lSide * 0.11, hipsP.y + 0.04, hipsP.z + camZ * 0.08);
+        lPole.set(lSide * 0.75, -0.4, camZ * 0.25);
+        lFDir.set(-lSide * 0.25, -0.85, camZ * 0.35).normalize();
+        lPalm.set(-lSide * 0.75, -0.2, camZ * 0.6).normalize();
+
+    } else if (currentPose === 'thoughtful_gaze_aversion') {
+        // Formulating thoughts: head tilts upward and lateral, hand raised near chin/cheek
+        const subtleDrift = Math.sin(time * 1.5) * 0.02;
+        headRot = [fwd * -0.09 + subtleDrift, rSide * 0.18, rSide * 0.12];
+        neckRot = [fwd * -0.04, rSide * 0.08, rSide * 0.05];
+        spineRot = [fwd * 0.02, -rSide * 0.03, 0];
+        rightHandShape = 'cupped';
+        leftHandShape = 'relaxed';
+
+        rWrist.set(headP.x + rSide * 0.10, headP.y - 0.07, headP.z + camZ * 0.14);
+        rPole.set(rSide * 0.8, -0.5, camZ * 0.3);
+        rFDir.set(-rSide * 0.3, 0.85, camZ * 0.4).normalize();
+        rPalm.set(-rSide * 0.5, 0.3, -camZ * 0.8).normalize();
+
+        lWrist.set(hipsP.x + lSide * 0.12, hipsP.y + 0.06, hipsP.z + camZ * 0.05);
+        lPole.set(lSide * 0.9, 0.0, -camZ * 0.2);
+        lFDir.set(-lSide * 0.3, -0.8, camZ * 0.4).normalize();
+        lPalm.set(-lSide * 0.8, -0.2, -camZ * 0.4).normalize();
+
+    } else if (currentPose === 'turn_yield_inquiry') {
+        // Yielding turn: slight open-palm inquiry gesture leaning toward user
+        scenePosY = -0.008;
+        spineRot = [fwd * 0.04, 0, 0];
+        chestRot = [fwd * 0.03, 0, 0];
+        headRot = [fwd * 0.03, 0, rSide * 0.04];
+        rightHandShape = 'open';
+        leftHandShape = 'open';
+
+        rWrist.set(S_R.x + rSide * 0.08, chestP.y - 0.02, chestP.z + camZ * 0.22);
+        rPole.set(rSide * 0.7, -0.5, camZ * 0.3);
+        rFDir.set(-rSide * 0.2, 0.4, camZ * 0.88).normalize();
+        rPalm.set(0, 0.9, camZ * 0.4).normalize();
+
+        lWrist.set(S_L.x + lSide * 0.08, chestP.y - 0.02, chestP.z + camZ * 0.22);
+        lPole.set(lSide * 0.7, -0.5, camZ * 0.3);
+        lFDir.set(-lSide * 0.2, 0.4, camZ * 0.88).normalize();
+        lPalm.set(0, 0.9, camZ * 0.4).normalize();
+
+    } else if (currentPose === 'barge_in_alert') {
+        // Immediate conversational yield upon interruption: subtle surprise recoil and attentiveness
+        headRot = [fwd * -0.06, 0, 0];
+        spineRot = [fwd * -0.04, 0, 0];
+        chestRot = [fwd * -0.03, 0, 0];
+        rightHandShape = 'cupped';
+        leftHandShape = 'cupped';
+
+        rWrist.set(S_R.x + rSide * 0.06, chestP.y + 0.04, chestP.z + camZ * 0.16);
+        rPole.set(rSide * 0.85, -0.3, camZ * 0.3);
+        rFDir.set(-rSide * 0.3, 0.7, camZ * 0.6).normalize();
+        rPalm.set(-rSide * 0.6, 0.2, camZ * 0.7).normalize();
+
+        lWrist.set(S_L.x + lSide * 0.06, chestP.y + 0.04, chestP.z + camZ * 0.16);
+        lPole.set(lSide * 0.85, -0.3, camZ * 0.3);
+        lFDir.set(-lSide * 0.3, 0.7, camZ * 0.6).normalize();
+        lPalm.set(-lSide * 0.6, 0.2, camZ * 0.7).normalize();
+
+    } else if (currentPose === 'tactical_composure') {
+        // Ren (Older brother tactical discipline): Broad shoulders, upright spine, disciplined ready stance
+        spineRot = [fwd * -0.03, 0, 0];
+        chestRot = [fwd * -0.04, 0, 0];
+        headRot = [fwd * -0.02, 0, 0];
+        rShoulderRot = [0, 0, rSide * 0.06];
+        lShoulderRot = [0, 0, lSide * 0.06];
+        rightHandShape = 'fist';
+        leftHandShape = 'fist';
+
+        rWrist.set(hipsP.x + rSide * 0.14, hipsP.y + 0.05, hipsP.z + camZ * 0.04);
+        rPole.set(rSide * 0.95, 0.0, -camZ * 0.2);
+        rFDir.set(-rSide * 0.25, -0.9, camZ * 0.3).normalize();
+        rPalm.set(-rSide * 0.9, -0.15, camZ * 0.35).normalize();
+
+        lWrist.set(hipsP.x + lSide * 0.14, hipsP.y + 0.05, hipsP.z + camZ * 0.04);
+        lPole.set(lSide * 0.95, 0.0, -camZ * 0.2);
+        lFDir.set(-lSide * 0.25, -0.9, camZ * 0.3).normalize();
+        lPalm.set(-lSide * 0.9, -0.15, camZ * 0.35).normalize();
     }
 
     let pendingCustomIkSpec = null;
