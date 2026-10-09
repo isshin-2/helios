@@ -108,6 +108,12 @@ VALID_ANIMATIONS = {
     "idle_waiting_patient",
     "idle_waiting_look",
     "idle_waiting_stretch",
+    # Seamless Interaction Dyadic Conversational Dynamics
+    "active_listening_nod",
+    "thoughtful_gaze_aversion",
+    "turn_yield_inquiry",
+    "barge_in_alert",
+    "tactical_composure",
 }
 
 # Default renderer-independent expression & animation per mode/emotion

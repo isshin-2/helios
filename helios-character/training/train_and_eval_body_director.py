@@ -471,6 +471,52 @@ TRAINING_SCENARIOS: List[Tuple[str, str, str, str, str, str, List[Dict[str, Any]
         "natural",
         [{"movement": "stay", "animation": "nod", "emotion": "happy", "style": "natural", "duration_ms": 2200}],
     ),
+    # --- 13. META SEAMLESS INTERACTION DYADIC CONVERSATIONAL DYNAMICS ---
+    (
+        "I have an idea for the design, listen to this",
+        "I'm listening closely, go ahead.",
+        "curious",
+        "active_listening_nod",
+        "stay",
+        "natural",
+        [{"movement": "stay", "animation": "active_listening_nod", "emotion": "curious", "style": "natural", "duration_ms": 2500}],
+    ),
+    (
+        "How would you approach solving this complex architecture problem?",
+        "Let me analyze that carefully and weigh the tradeoffs.",
+        "neutral",
+        "thoughtful_gaze_aversion",
+        "stay",
+        "natural",
+        [{"movement": "stay", "animation": "thoughtful_gaze_aversion", "emotion": "neutral", "style": "natural", "duration_ms": 2800}],
+    ),
+    (
+        "What are your thoughts on this direction? Do you agree?",
+        "What do you think we should prioritize next? The floor is yours.",
+        "curious",
+        "turn_yield_inquiry",
+        "stay",
+        "confident",
+        [{"movement": "stay", "animation": "turn_yield_inquiry", "emotion": "curious", "style": "confident", "duration_ms": 2400}],
+    ),
+    (
+        "Wait stop hold on a moment",
+        "Pausing immediately. Standing by for your instructions.",
+        "neutral",
+        "barge_in_alert",
+        "stay",
+        "natural",
+        [{"movement": "stay", "animation": "barge_in_alert", "emotion": "neutral", "style": "natural", "duration_ms": 1900}],
+    ),
+    (
+        "Ren, tactical briefing and status check",
+        "All systems secure. Standing by with tactical readiness.",
+        "serious",
+        "tactical_composure",
+        "stay",
+        "confident",
+        [{"movement": "stay", "animation": "tactical_composure", "emotion": "serious", "style": "confident", "duration_ms": 2600}],
+    ),
 ]
 
 AUGMENT_VARIATIONS = [
