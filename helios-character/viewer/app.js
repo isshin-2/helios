@@ -391,9 +391,8 @@ const rigMetrics = {
 const FINGER_NAMES = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'];
 const FINGER_SEGMENTS = ['Proximal', 'Intermediate', 'Distal'];
 
-const DEFAULT_VRM_URL = 'models/Helios_Techwear.vrm';
-const BASE_VRM_URL = 'models/Yu1_1.vrm';
-const MESHY_FBX_URL = 'models/Meshy_Male_Techwear.fbx';
+const DEFAULT_VRM_URL = 'models/Helios_Airi.vrm';
+const BASE_VRM_URL = 'models/Helios_Airi.vrm';
 
 function disposeCurrentAvatar() {
     if (!currentVrm) return;
@@ -1992,6 +1991,23 @@ function focusOnModel(vrm, resetAvatarPos = false) {
     }
 }
 
+function focusCallCamera(vrm) {
+    if (!vrm) return;
+    const head = vrm.humanoid?.getNormalizedBoneNode('head');
+    if (head) {
+        vrm.scene.updateMatrixWorld(true);
+        const headPos = new THREE.Vector3();
+        head.getWorldPosition(headPos);
+        const isFBX = Boolean(vrm.isFBXModel);
+        const targetY = headPos.y - (isFBX ? 0.22 : 0.10);
+        const camY = headPos.y - (isFBX ? 0.08 : 0.02);
+        const camZ = headPos.z + (isFBX ? 1.45 : 1.05);
+        controls.target.set(headPos.x, targetY, headPos.z);
+        camera.position.set(headPos.x, camY, camZ);
+        controls.update();
+    }
+}
+
 function setPose(poseName, autoReturnMs = 0) {
     const cleanPose = poseName || 'idle';
     const nowTime = typeof clock !== 'undefined' && clock ? clock.getElapsedTime() : 0;
@@ -2214,6 +2230,9 @@ function finishSpeakingProcedure() {
             setPose('idle');
         }
         updateStatus(`State: Idle (#2C3038) | Pose: ${currentPose}`);
+    }
+    if (typeof handleCallAiriFinishedSpeaking === 'function') {
+        handleCallAiriFinishedSpeaking();
     }
 }
 window.finishSpeakingProcedure = finishSpeakingProcedure;
@@ -4011,6 +4030,9 @@ function connectAI() {
             if (activeRendererType === 'live2d') {
                 live2dAdapter.applyCharacterSpeech(data);
             }
+            if (typeof handleCallAiriSpeaking === 'function') {
+                handleCallAiriSpeaking(data.text);
+            }
             if (!data.speaking) {
                 pendingSpeechChunks = 0;
                 if (audioLipSync) audioLipSync.stopCurrent();
@@ -4037,7 +4059,7 @@ function connectAI() {
                             data.visemes,
                             data.duration || 2.0,
                             data.mime_type || 'audio/wav',
-                            false
+                            !voiceMuted
                         );
                     }
                 } finally {
@@ -4058,6 +4080,9 @@ function connectAI() {
             if (audioLipSync) {
                 audioLipSync.stopCurrent();
             }
+            if (typeof handleCallAiriFinishedSpeaking === 'function') {
+                handleCallAiriFinishedSpeaking();
+            }
             updateActivityBanner('');
             setTestState('idle', 'idle');
             return;
@@ -4066,6 +4091,9 @@ function connectAI() {
         if (data.type === 'helios_reply') {
             currentChatBubble = null;
             const replyText = data.reply || data.text || '';
+            if (typeof handleCallHeliosReply === 'function') {
+                handleCallHeliosReply(replyText);
+            }
             const cs = data.character_state || null;
             const moveLabel =
                 cs && cs.movement && cs.movement !== 'stay' && cs.movement !== 'idle'
@@ -4112,6 +4140,9 @@ function sendMessage(customText = null) {
     if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
 
     if (audioLipSync) audioLipSync.ensureContext();
+    if (typeof handleCallUserSentMessage === 'function') {
+        handleCallUserSentMessage(text);
+    }
     appendToChat(text, true);
     setTestState('thinking', 'think_pose');
     ws.send(JSON.stringify({
@@ -4184,6 +4215,320 @@ if (chatMic && SpeechRecognition) {
 }
 
 // ----------------------------------------------------
+// HANDS-FREE VOICE CALL MODE CONTROLLER
+// ----------------------------------------------------
+const btnCallMode = document.getElementById('btn-call-mode');
+const callModeOverlay = document.getElementById('call-mode-overlay');
+const callTimerDisplay = document.getElementById('call-timer-display');
+const callStatusDisplay = document.getElementById('call-status-display');
+const callCaptionBox = document.getElementById('call-caption-box');
+const callCaptionText = document.getElementById('call-caption-text');
+const callSpeakerTag = document.getElementById('call-speaker-tag');
+const callPulseIndicator = document.getElementById('call-pulse-indicator');
+const btnCallMute = document.getElementById('btn-call-mute');
+const btnCallInterrupt = document.getElementById('btn-call-interrupt');
+const btnCallEnd = document.getElementById('btn-call-end');
+
+let isCallModeActive = false;
+let isCallMuted = false;
+let callDurationSeconds = 0;
+let callTimerInterval = null;
+let callRecognition = null;
+let callRecognitionRunning = false;
+let callSavedCameraPos = null;
+let callSavedCameraTarget = null;
+let callListenDebounceTimer = null;
+
+function setCallPulseColor(color) {
+    if (callPulseIndicator) {
+        callPulseIndicator.style.background = color;
+        callPulseIndicator.style.boxShadow = `0 0 10px ${color}`;
+    }
+}
+
+function updateCallTimerUI() {
+    if (!callTimerDisplay) return;
+    const mins = Math.floor(callDurationSeconds / 60).toString().padStart(2, '0');
+    const secs = (callDurationSeconds % 60).toString().padStart(2, '0');
+    callTimerDisplay.innerText = `${mins}:${secs}`;
+}
+
+function initCallRecognition() {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+        console.warn('SpeechRecognition not available in this browser');
+        return null;
+    }
+    const rec = new SpeechRec();
+    rec.lang = 'en-US';
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+        callRecognitionRunning = true;
+        if (callStatusDisplay) callStatusDisplay.innerText = 'Connected · Listening';
+        if (callSpeakerTag) callSpeakerTag.innerText = 'Listening:';
+        setCallPulseColor('#00ffaa');
+    };
+
+    rec.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript;
+            } else {
+                interimTranscript += event.results[i][0].transcript;
+            }
+        }
+        const textToDisplay = finalTranscript || interimTranscript;
+        if (textToDisplay && callCaptionText) {
+            callCaptionText.innerText = `"${textToDisplay}"`;
+        }
+        if (finalTranscript.trim().length > 0) {
+            if (callSpeakerTag) callSpeakerTag.innerText = 'You:';
+            if (callStatusDisplay) callStatusDisplay.innerText = 'Airi is thinking...';
+            setCallPulseColor('#00e5ff');
+            sendMessage(finalTranscript.trim());
+        }
+    };
+
+    rec.onerror = (e) => {
+        callRecognitionRunning = false;
+        if (isCallModeActive && !isCallMuted && currentState !== 'speaking' && pendingSpeechChunks === 0) {
+            clearTimeout(callListenDebounceTimer);
+            callListenDebounceTimer = setTimeout(() => {
+                if (isCallModeActive && !isCallMuted && currentState !== 'speaking') {
+                    startCallListening();
+                }
+            }, 500);
+        }
+    };
+
+    rec.onend = () => {
+        callRecognitionRunning = false;
+        if (isCallModeActive && !isCallMuted && currentState !== 'speaking' && pendingSpeechChunks === 0) {
+            clearTimeout(callListenDebounceTimer);
+            callListenDebounceTimer = setTimeout(() => {
+                if (isCallModeActive && !isCallMuted && currentState !== 'speaking') {
+                    startCallListening();
+                }
+            }, 300);
+        }
+    };
+
+    return rec;
+}
+
+function startCallListening() {
+    if (!isCallModeActive || isCallMuted || callRecognitionRunning) return;
+    if (currentState === 'speaking' || pendingSpeechChunks > 0 || (audioLipSync && audioLipSync.isPlaying)) {
+        return;
+    }
+    if (!callRecognition) {
+        callRecognition = initCallRecognition();
+    }
+    if (callRecognition) {
+        try {
+            callRecognition.start();
+            callRecognitionRunning = true;
+            if (callStatusDisplay) callStatusDisplay.innerText = 'Connected · Listening';
+            if (callSpeakerTag) callSpeakerTag.innerText = 'Listening:';
+            setCallPulseColor('#00ffaa');
+        } catch (e) {
+            // Already started or busy
+        }
+    }
+}
+
+function stopCallListening() {
+    clearTimeout(callListenDebounceTimer);
+    if (callRecognition && callRecognitionRunning) {
+        try {
+            callRecognition.stop();
+        } catch (e) {}
+    }
+    callRecognitionRunning = false;
+}
+
+function startCallMode() {
+    if (isCallModeActive) return;
+    isCallModeActive = true;
+    isCallMuted = false;
+    callDurationSeconds = 0;
+
+    if (audioLipSync) audioLipSync.ensureContext();
+
+    // Preserve previous camera position and focus on portrait
+    callSavedCameraPos = camera.position.clone();
+    callSavedCameraTarget = controls.target.clone();
+    if (currentVrm) {
+        focusCallCamera(currentVrm);
+    }
+
+    if (callModeOverlay) callModeOverlay.classList.add('active');
+    if (btnCallMode) btnCallMode.classList.add('active');
+
+    if (btnCallMute) {
+        btnCallMute.classList.remove('muted');
+        btnCallMute.innerText = '🎤';
+    }
+
+    updateCallTimerUI();
+    clearInterval(callTimerInterval);
+    callTimerInterval = setInterval(() => {
+        if (!isCallModeActive) return;
+        callDurationSeconds++;
+        updateCallTimerUI();
+    }, 1000);
+
+    if (callStatusDisplay) callStatusDisplay.innerText = 'Connected · Airi is greeting';
+    if (callSpeakerTag) callSpeakerTag.innerText = 'Airi:';
+    if (callCaptionText) callCaptionText.innerText = '"Kehehe, call connected! Hands-free goblin hotline is live—what technical mess are we untangling?"';
+    setCallPulseColor('#00ffaa');
+
+    // Trigger initial greeting from Airi if websocket is active
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        sendMessage("Hey Airi! We're on a hands-free voice call now! Greet me with your trademark chaotic gremlin energy, and ask what technical problem or code we're tackling today!");
+    } else {
+        if (audioLipSync) {
+            audioLipSync.startSimulatedLipSync(3200);
+        }
+        setTimeout(() => {
+            if (isCallModeActive) {
+                startCallListening();
+            }
+        }, 3400);
+    }
+}
+
+function endCallMode() {
+    if (!isCallModeActive) return;
+    isCallModeActive = false;
+    clearInterval(callTimerInterval);
+    stopCallListening();
+
+    if (audioLipSync && audioLipSync.isPlaying) {
+        audioLipSync.stopCurrent();
+    }
+    pendingSpeechChunks = 0;
+
+    if (callModeOverlay) callModeOverlay.classList.remove('active');
+    if (btnCallMode) btnCallMode.classList.remove('active');
+
+    if (callSavedCameraPos && callSavedCameraTarget) {
+        camera.position.copy(callSavedCameraPos);
+        controls.target.copy(callSavedCameraTarget);
+        controls.update();
+    } else if (currentVrm) {
+        focusOnModel(currentVrm);
+    }
+
+    setTestState('idle', 'idle');
+    updateStatus('📞 Voice Call Ended. Standby.');
+}
+
+function interruptCallSpeaking() {
+    if (!isCallModeActive) return;
+    if (audioLipSync) audioLipSync.stopCurrent();
+    pendingSpeechChunks = 0;
+    ttsPlaybackQueue = Promise.resolve();
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'character_stop' }));
+    }
+
+    setTestState('listening', 'listen_pose');
+    applyExpressionState('surprised', 0.6);
+
+    if (callSpeakerTag) callSpeakerTag.innerText = 'Interrupted:';
+    if (callCaptionText) callCaptionText.innerText = '"Whoa, cut off! Spill it—what\'s the emergency?"';
+    if (callStatusDisplay) callStatusDisplay.innerText = 'Connected · Listening';
+    setCallPulseColor('#ffd60a');
+
+    setTimeout(() => {
+        if (isCallModeActive && !isCallMuted) {
+            startCallListening();
+        }
+    }, 250);
+}
+
+function toggleCallMute() {
+    if (!isCallModeActive) return;
+    isCallMuted = !isCallMuted;
+    if (btnCallMute) {
+        btnCallMute.classList.toggle('muted', isCallMuted);
+        btnCallMute.innerText = isCallMuted ? '🔇' : '🎤';
+    }
+    if (isCallMuted) {
+        stopCallListening();
+        if (callStatusDisplay) callStatusDisplay.innerText = 'Microphone Muted';
+        setCallPulseColor('#ff4444');
+    } else {
+        if (callStatusDisplay) callStatusDisplay.innerText = 'Connected · Listening';
+        setCallPulseColor('#00ffaa');
+        startCallListening();
+    }
+}
+
+function handleCallAiriSpeaking(text) {
+    if (!isCallModeActive) return;
+    stopCallListening();
+    if (callStatusDisplay) callStatusDisplay.innerText = 'Airi is speaking...';
+    if (callSpeakerTag) callSpeakerTag.innerText = 'Airi:';
+    setCallPulseColor('#ff00aa');
+    if (text && callCaptionText) {
+        callCaptionText.innerText = `"${text}"`;
+    }
+}
+
+function handleCallHeliosReply(text) {
+    if (!isCallModeActive) return;
+    stopCallListening();
+    if (callStatusDisplay) callStatusDisplay.innerText = 'Airi is speaking...';
+    if (callSpeakerTag) callSpeakerTag.innerText = 'Airi:';
+    setCallPulseColor('#ff00aa');
+    if (text && callCaptionText) {
+        callCaptionText.innerText = `"${text}"`;
+    }
+}
+
+function handleCallUserSentMessage(text) {
+    if (!isCallModeActive) return;
+    stopCallListening();
+    if (callSpeakerTag) callSpeakerTag.innerText = 'You:';
+    if (callCaptionText) callCaptionText.innerText = `"${text}"`;
+    if (callStatusDisplay) callStatusDisplay.innerText = 'Airi is thinking...';
+    setCallPulseColor('#00e5ff');
+}
+
+function handleCallAiriFinishedSpeaking() {
+    if (!isCallModeActive) return;
+    if (callStatusDisplay) callStatusDisplay.innerText = 'Connected · Listening';
+    if (callSpeakerTag) callSpeakerTag.innerText = 'Listening:';
+    setCallPulseColor('#00ffaa');
+    if (!isCallMuted) {
+        setTimeout(() => {
+            if (isCallModeActive && !isCallMuted && currentState !== 'speaking') {
+                startCallListening();
+            }
+        }, 250);
+    }
+}
+
+if (btnCallMode) btnCallMode.onclick = () => {
+    if (isCallModeActive) {
+        endCallMode();
+    } else {
+        startCallMode();
+    }
+};
+if (btnCallMute) btnCallMute.onclick = toggleCallMute;
+if (btnCallInterrupt) btnCallInterrupt.onclick = interruptCallSpeaking;
+if (btnCallEnd) btnCallEnd.onclick = endCallMode;
+
+// ----------------------------------------------------
 // PERSONALITY CARD & SYSTEM PROMPTS STUDIO MODAL SYNC
 // ----------------------------------------------------
 const personalityModal = document.getElementById('personality-studio-modal');
@@ -4223,13 +4568,22 @@ window.addEventListener('message', (e) => {
     }
 });
 
-// Initialize default model, render loop & HELIOS Character Protocol connection
-loadVRM(DEFAULT_VRM_URL);
+// Initialize model selection, render loop & HELIOS Character Protocol connection
+const urlParams = new URLSearchParams(window.location.search);
+const requestedModel = (urlParams.get('model') || '').toLowerCase();
+if (requestedModel === 'twin' || requestedModel === 'ren' || requestedModel === 'brother') {
+    clearModelActiveStates();
+    if (btnModelTwin) btnModelTwin.classList.add('active');
+    loadVRM(TWIN_VRM_URL);
+} else {
+    clearModelActiveStates();
+    if (btnModelHelios) btnModelHelios.classList.add('active');
+    loadVRM(DEFAULT_VRM_URL);
+}
 animate();
 connectAI();
 fetchRlPoseStatus();
 
-const urlParams = new URLSearchParams(window.location.search);
 const urlEdition = (urlParams.get('edition') || '').toLowerCase();
 if (urlEdition === 'character_only' || urlEdition === 'standalone' || urlEdition === 'character') {
     selectHeliosEdition('character_only');

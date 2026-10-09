@@ -1,7 +1,7 @@
 # HELIOS Handover & Orchestration Spec
 
 ## 🎯 Primary Goal
-**Finalize & stabilize the uncommitted Vision-Language-Action (VLA) computer control, GPT-SoVITS TTS, and Mobile V2 streaming integration.**
+**Finalize & stabilize the uncommitted Vision-Language-Action (VLA) computer control, GPT-SoVITS TTS, and Mobile V2 streaming integration, and configure the Airi / Helios Twin older brother model selection.**
 
 ---
 
@@ -21,76 +21,43 @@
 
 | Task ID | Component | Description | Status | Assignee |
 | :--- | :--- | :--- | :--- | :--- |
-| **TASK-01** | `ai-router/tests` | Fix `test_computer_control_move` assertion for structured JSON | `@IDE-Agent READY` | IDE Agent |
-| **TASK-02** | `ai-router/tools` | Update `mss.mss()` to `mss.MSS()` deprecation warning | `@IDE-Agent READY` | IDE Agent |
-| **TASK-03** | `ai-router/vla` | Ensure root `vla_engine.py` and `SYSTEM_AUDIT.md` path alignment | `@IDE-Agent READY` | IDE Agent |
+| **TASK-01** | `ai-router/tests` | Fix `test_computer_control_move` assertion for structured JSON | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-02** | `ai-router/tools` | Update `mss.mss()` to `mss.MSS()` deprecation warning | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-03** | `ai-router/vla` | Ensure root `vla_engine.py` and `SYSTEM_AUDIT.md` path alignment | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-04** | `ai-router/tts` | Stabilize GPT-SoVITS audio normalizer & resource policy contracts | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-05** | `mobile_v2` | Type check and verify `/ws/hikari` terminal streaming client | `@Orchestrator VERIFIED` | Orchestrator |
-| **TASK-06** | `ai-router/core` | Run unified regression suite (Core Suite + VLA + TTS + Computer) | `BLOCKED` on TASK-01 | Orchestrator |
+| **TASK-06** | `ai-router/core` | Run unified regression suite (Core Suite + VLA + TTS + Computer) | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-07** | `helios-character` | Airi & Twin older brother VRM generation & model selection | `@Orchestrator VERIFIED` | Orchestrator |
 
 ---
 
-## 🛠️ Detailed Engineering Task Specifications
+## 🛠️ Detailed Engineering Task Specifications & Outcomes
 
 ### [TASK-01] Fix `test_computer_control_move` assertion for structured JSON
-- **Status:** `@IDE-Agent READY`
-- **File:** `ai-router/tests/test_computer_control.py` (Line 20-30)
-- **Problem Statement:**
-  `ComputerControlTool.execute` was upgraded to return a JSON-serialized `ActionResult` model (`model_dump_json()`). The test `test_computer_control_move()` fails with:
-  ```text
-  assert 'Moved mouse to (500, 400)' in '{"success": true, "action": "move", "target": {"x": 500, "y": 400}, ...}'
-  ```
-- **Required Action:**
-  1. Open `ai-router/tests/test_computer_control.py`.
-  2. Parse the return value `res` using `json.loads(res)` (or verify with `ActionResult.model_validate_json(res)`).
-  3. Assert `data["success"] is True`.
-  4. Assert `data["action"] == "move"`.
-  5. Assert `data["target"] == {"x": 500, "y": 400}`.
-- **Verification Command:**
-  ```powershell
-  .\ai-router\venv\Scripts\python.exe -m pytest ai-router/tests/test_computer_control.py -k test_computer_control_move
-  ```
-- **Tag on Completion:** Change status to `@IDE-Agent COMPLETED`.
+- **Status:** `@Orchestrator VERIFIED`
+- **File:** `ai-router/tests/test_computer_control.py`
+- **Resolution:** Updated assertion to parse JSON and validate `data["success"] is True`, `data["action"] == "move"`, and `data["target"] == {"x": 500, "y": 400}`.
+- **Verification:** `pytest ai-router/tests/test_computer_control.py` passed 6/6.
 
 ---
 
 ### [TASK-02] Update `mss.mss()` to `mss.MSS()` deprecation warning
-- **Status:** `@IDE-Agent READY`
+- **Status:** `@Orchestrator VERIFIED`
 - **Files:**
-  - `ai-router/tools/screen_vision.py` (Line ~45)
-  - `ai-router/tests/test_computer_control.py` (Line ~52)
-- **Problem Statement:**
-  The `mss` library outputs:
-  ```text
-  DeprecationWarning: mss.mss is deprecated and will be removed in a future release; use mss.MSS instead
-  ```
-- **Required Action:**
-  1. In `ai-router/tools/screen_vision.py`, change `with mss.mss() as sct:` to `with mss.MSS() as sct:`.
-  2. In `ai-router/tests/test_computer_control.py`, change `with mss.mss() as sct:` to `with mss.MSS() as sct:`.
-- **Verification Command:**
-  ```powershell
-  .\ai-router\venv\Scripts\python.exe -m pytest ai-router/tests/test_computer_control.py
-  ```
-- **Tag on Completion:** Change status to `@IDE-Agent COMPLETED`.
+  - `ai-router/tools/screen_vision.py`
+  - `ai-router/tests/test_computer_control.py`
+- **Resolution:** Replaced all `mss.mss()` context manager calls with `mss.MSS()`.
+- **Verification:** Zero deprecation warnings in test suite.
 
 ---
 
 ### [TASK-03] Ensure root `vla_engine.py` and `SYSTEM_AUDIT.md` path alignment
-- **Status:** `@IDE-Agent READY`
+- **Status:** `@Orchestrator VERIFIED`
 - **Files:**
-  - `vla_engine.py` (root)
-  - `ai-router/vla_engine.py`
-  - `SYSTEM_AUDIT.md` (root)
-- **Problem Statement:**
-  Verify that the root wrapper `vla_engine.py` correctly bootstraps `ai-router/vla_engine.py` and points to the root `SYSTEM_AUDIT.md` hash cache without duplicate drift.
-- **Required Action:**
-  1. Inspect `vla_engine.py` at root and in `ai-router/vla_engine.py`.
-  2. Ensure default path to `SYSTEM_AUDIT.md` gracefully checks both `SYSTEM_AUDIT.md` (root) and `ai-router/SYSTEM_AUDIT.md`.
-- **Verification Command:**
-  ```powershell
-  .\ai-router\venv\Scripts\python.exe -m pytest ai-router/tests/test_vla_framework.py
-  ```
-- **Tag on Completion:** Change status to `@IDE-Agent COMPLETED`.
+  - `ai-router/system_audit.py`
+  - `vla_engine.py`
+  - `SYSTEM_AUDIT.md`
+- **Resolution:** Updated `AuditSyncManager` to automatically resolve both root and subproject `SYSTEM_AUDIT.md` paths.
 
 ---
 
@@ -106,11 +73,29 @@
 
 ---
 
-### [TASK-06] Unified Ecosystem Regression Run
-- **Status:** `BLOCKED` (Waiting for TASK-01 and TASK-02)
-- **Goal:** Execute all unit, contract, and subsystem test suites in one master run.
-- **Target Suites:**
-  - `test_helios_core_suite.py` (6 tests)
-  - `test_computer_control.py` + `test_computer_system.py` (28 tests)
-  - `test_tts_pipeline.py` + `test_gpt_sovits_resource_manager.py` (26 tests)
-  - `test_vla_framework.py` (12 tests)
+### [TASK-06] Unified Ecosystem Master Regression Run
+- **Status:** `@Orchestrator VERIFIED`
+- **Result:** **72 / 72 tests passed (100%) in 39.99s**.
+  - `test_helios_core_suite.py`: 6 passed
+  - `test_computer_control.py`: 6 passed
+  - `test_computer_system.py`: 22 passed
+  - `test_tts_pipeline.py`: 17 passed
+  - `test_gpt_sovits_resource_manager.py`: 9 passed
+  - `test_vla_framework.py`: 12 passed
+
+---
+
+### [TASK-07] Airi & Twin Older Brother VRM Generation & Model Selection
+- **Status:** `@Orchestrator VERIFIED`
+- **Files:**
+  - `helios-character/viewer/models/Helios_Twin.vrm`
+  - `helios-character/viewer/vrm/twin.vrm`
+  - `helios-character/viewer/models/manifest.json`
+  - `helios-character/viewer/index.html`
+  - `helios-character/viewer/app.js`
+- **Changes Implemented:**
+  1. **Physique / Bone Hierarchy:** Transformed VRM skeleton for a tall (1.82m), broad-shouldered athletic masculine build (broadened shoulders/chest, elongated limbs, athletic tapered hips, mature head-to-body scale).
+  2. **Sibling Aesthetic DNA:** Inherited Airi's piercing cyan cybernetic eyes (`#00E5FF`) and silver-slate hair with matching cyan highlight undertones, complemented by mature graphite eyebrows.
+  3. **Stealth Techwear:** Re-textured into dark stealth slate (`#0B0D11`) and reinforced charcoal carbon armor with glowing cyan power conduits and cargo trousers.
+  4. **Viewer Model Selector:** Fixed avatar buttons in `index.html` to clearly select `⚡ HELIOS Airi` and `🔷 HELIOS Twin (Brother)`, eliminating missing legacy asset buttons.
+  5. **Startup & Query URL:** Added URL query parameter support (`?model=twin` or `?model=airi`) in `app.js` with dynamic active button states.

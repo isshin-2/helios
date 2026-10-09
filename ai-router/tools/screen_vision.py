@@ -34,16 +34,25 @@ class ScreenVisionTool(BaseTool):
             return ("Error: Pillow is not installed. Run `pip install Pillow` to use screen vision.", self.name)
             
         try:
+            from tools.desktop_utils import ensure_desktop_access
+            ensure_desktop_access()
+
             # Capture the screen
-            import mss
-            import numpy as np
             from PIL import Image
-            
-            with mss.mss() as sct:
-                # monitor 1 is the primary monitor
-                sct_img = sct.grab(sct.monitors[1])
-                # Convert to PIL Image
-                screenshot = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+            screenshot = None
+            try:
+                import mss
+                with mss.MSS() as sct:
+                    # monitor 1 is the primary monitor
+                    sct_img = sct.grab(sct.monitors[1])
+                    screenshot = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+            except Exception as mss_err:
+                logger.debug(f"mss capture failed ({mss_err}), falling back to PIL ImageGrab")
+                screenshot = ImageGrab.grab()
+
+            if screenshot is None:
+                screenshot = ImageGrab.grab()
+
             
             element_map = {}
             grid_map = {}
@@ -117,4 +126,6 @@ class ScreenVisionTool(BaseTool):
                 
         except Exception as e:
             logger.error(f"Vision model error: {e}")
-            return (f"Error from vision model: {e}", self.name)
+            preview = img_markdown if ('img_markdown' in locals() and img_markdown) else ""
+            return (f"{preview}Screenshot captured, but vision analysis failed: {e}", self.name)
+
