@@ -90,11 +90,19 @@ async def test_adjuster_menu():
             const sliderSpeed = document.getElementById('slider-prop-speed');
             const btnSave = document.getElementById('btn-save-props-calib');
 
+            // Verify reactive auto-apply on prop selection
+            if (selectProp) {
+                selectProp.value = 'butterfly';
+                selectProp.dispatchEvent(new Event('change'));
+            }
+            const poseAfterButterfly = typeof window.getCurrentPose === 'function' ? window.getCurrentPose() : null;
+
             // Switch to katana
             if (selectProp) {
                 selectProp.value = 'katana';
                 selectProp.dispatchEvent(new Event('change'));
             }
+            const poseAfterKatana = typeof window.getCurrentPose === 'function' ? window.getCurrentPose() : null;
 
             // Adjust scale
             if (sliderScale) {
@@ -107,6 +115,7 @@ async def test_adjuster_menu():
                 selectProp.value = 'drone';
                 selectProp.dispatchEvent(new Event('change'));
             }
+            const poseAfterDrone = typeof window.getCurrentPose === 'function' ? window.getCurrentPose() : null;
             if (selectPath) {
                 selectPath.value = 'figure8';
                 selectPath.dispatchEvent(new Event('change'));
@@ -123,6 +132,9 @@ async def test_adjuster_menu():
             const storageItem = localStorage.getItem('helios_props_calibration');
 
             return {
+                poseAfterButterfly,
+                poseAfterKatana,
+                poseAfterDrone,
                 katanaScale: calib.katana?.scale,
                 dronePath: calib.drone?.pathMode,
                 droneSpeed: calib.drone?.speed,
@@ -130,6 +142,9 @@ async def test_adjuster_menu():
             };
         }""")
         print("  Prop Tuner Result:", prop_tuner_res)
+        assert prop_tuner_res['poseAfterButterfly'] == 'idle_airi_butterfly', f"Expected idle_airi_butterfly, got {prop_tuner_res['poseAfterButterfly']}"
+        assert prop_tuner_res['poseAfterKatana'] == 'sword_guard_ready', f"Expected sword_guard_ready, got {prop_tuner_res['poseAfterKatana']}"
+        assert prop_tuner_res['poseAfterDrone'] == 'idle_ren_drone', f"Expected idle_ren_drone, got {prop_tuner_res['poseAfterDrone']}"
         assert prop_tuner_res['katanaScale'] == 1.26, f"Expected katana scale 1.26, got {prop_tuner_res['katanaScale']}"
         assert prop_tuner_res['dronePath'] == 'figure8', f"Expected drone path figure8, got {prop_tuner_res['dronePath']}"
         assert prop_tuner_res['droneSpeed'] == 1.75, f"Expected drone speed 1.75, got {prop_tuner_res['droneSpeed']}"

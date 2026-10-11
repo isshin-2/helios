@@ -49,6 +49,7 @@
 | **TASK-27** | `helios-character` | Universal 3D Props Calibration Suite, Movement Paths & Persistent Storage | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-28** | `helios-character` | High-Rendered PBR 3D Objects, Zero Blue Light Drone Optics & Dual Twin Synergy Mode | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-29** | `helios-character` | Dedicated 3D Prop & Biomechanical Body Pose Adjustment Studio Menu | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-30** | `helios-character` | Dual Twin Synergy Stabilization, Bone Kinematics & Reactive Auto-Apply System | `@Orchestrator VERIFIED` | Orchestrator |
 
 ---
 
@@ -533,4 +534,27 @@ otation.x = +0.68 rad ~ 39 deg) with hands and wrists ergonomically holding the 
   - `python test_adjuster_menu.py`: 100% passed (top studio button, sub-tab switching, prop calibration, body pose sliders, live capture & reset, zero UI bounding-box overlap).
   - `python test_menu_states.py`: 100% passed (regression invariant maintained).
   - `python test_props_and_dual_twin.py`: 100% passed.
+
+---
+
+### [TASK-30] Dual Twin Synergy Stabilization, Bone Kinematics & Reactive Auto-Apply System
+- **Status:** `@Orchestrator VERIFIED`
+- **Component:** `helios-character/viewer/app.js`, `viewer/index.html`, `test_adjuster_menu.py`, & `test_props_and_dual_twin.py`
+- **Resolution:**
+  1. **Dual Twin Rig & Kinematic Stabilization**:
+     - **Rig Metrics Isolation**: Refactored `calibrateSkeletonAndRestPose(vrm, isPrimary = true)` so Ren's larger body dimensions (1.82m) do not overwrite the primary `rigMetrics` used by Airi's two-bone analytic IK solver.
+     - **Full-Body Bone Lerping**: Upgraded `applySecondaryTwinPose()` with comprehensive joint kinematic tracking across hips, spine, chest, neck, head, shoulders, upper/lower arms, hands, upper/lower legs, and feet using `lerpBoneEuler` to eliminate all jitter, limb flipping, and spring-bone floating.
+     - **Contrapposto & Ground Anchoring**: Smoothly lerps Airi to `x: -0.42` in dual mode (or `0.0` in single mode) and grounds Ren at `x: 0.42, y: currentVrm.scene.position.y`.
+     - **Dual Plasma Blades**: Added secondary amber plasma blade (`bladeGroupRen` `#ff9900`) matching Ren's tactical palette during `twin_synergy_combat`.
+     - **Ren Prop Anchoring**: Anchored Recon Drone and Cyber Monocle HUD directly to `secondaryVrm`'s head/eye in dual mode.
+     - **Natural Blinking**: Integrated synchronized eye blinks via `secondaryVrm.expressionManager`.
+  2. **Reactive Auto-Apply on Adjuster Selection**:
+     - **Prop Tuner Auto-Apply**: Implemented `applySelectedPropToTwins(propId)`. Selecting any prop from `#select-active-prop` automatically equips and deploys the prop, applies the corresponding pose/stance, updates status notifications, and syncs the tuner sliders in real time.
+     - **Body Pose Target Auto-Apply**: Switching `#select-body-target` (`active`, `airi`, `ren`, `both`) immediately enables live adjustments (`activeBodyPoseAdjustments.enabled = true`), switches badge to `⚡ Live: ON`, and routes transformations to the chosen twin(s).
+     - **Idle Director Protection**: Pauses autonomous idle transitions while `#tab-adjust` is open, preventing procedural idle jitter from overriding manual adjustments.
+- **Verification:**
+  - Automated tests in `test_adjuster_menu.py` verified auto-apply on prop selection (`butterfly` -> `idle_airi_butterfly`, `katana` -> `sword_guard_ready`, `drone` -> `idle_ren_drone`).
+  - `python test_props_and_dual_twin.py` passed 100% (zero blue light on drone, 9 high-rendered objects, dual twin synergy mode).
+  - `python test_menu_states.py` passed 100% (all state buttons, gender-specific pose pools, zero UI bounding-box overlap).
+
 

@@ -945,6 +945,57 @@ function createInteractiveIdleObjects(parentScene) {
     bladeGroup.add(bladeEdgeMesh);
     parentScene.add(bladeGroup);
 
+    // 8b. Ren's Cyber Tactical Plasma Blade (HEL-BLD-02 Amber Variant for Dual Synergy)
+    const bladeGroupRen = new THREE.Group();
+    bladeGroupRen.name = 'CyberTacticalBlade3D_Ren';
+    bladeGroupRen.visible = false;
+
+    const hiltMatRen = hiltMat.clone();
+    const hiltMeshRen = new THREE.Mesh(hiltGeo, hiltMatRen);
+    hiltMeshRen.position.set(0, -0.09, 0);
+    bladeGroupRen.add(hiltMeshRen);
+
+    const pommelMeshRen = new THREE.Mesh(pommelGeo, hiltMatRen);
+    pommelMeshRen.position.set(0, -0.185, 0);
+    bladeGroupRen.add(pommelMeshRen);
+
+    const guardMatRen = new THREE.MeshStandardMaterial({
+        color: 0xff9900,
+        roughness: 0.25,
+        metalness: 0.9,
+        emissive: 0xff9900,
+        emissiveIntensity: 1.4,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const guardMeshRen = new THREE.Mesh(guardGeo, guardMatRen);
+    guardMeshRen.position.set(0, 0, 0);
+    bladeGroupRen.add(guardMeshRen);
+
+    const bladeMatRen = new THREE.MeshStandardMaterial({
+        color: 0xff9900,
+        roughness: 0.15,
+        metalness: 0.3,
+        emissive: 0xff9900,
+        emissiveIntensity: 2.2,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const bladeMeshRen = new THREE.Mesh(bladeGeo, bladeMatRen);
+    bladeGroupRen.add(bladeMeshRen);
+
+    const spineMeshRen = new THREE.Mesh(spineGeo, spineMat);
+    bladeGroupRen.add(spineMeshRen);
+
+    const bladeEdgeMatRen = new THREE.LineBasicMaterial({
+        color: 0xffe082,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const bladeEdgeMeshRen = new THREE.LineSegments(bladeEdgeGeo, bladeEdgeMatRen);
+    bladeGroupRen.add(bladeEdgeMeshRen);
+    parentScene.add(bladeGroupRen);
+
     // 9. Ren's Cyber Tactical Monocle HUD & Collar Mic — Models: HEL-MIC-02 / MN-01
     // High-Rendered titanium ocular optic, anti-reflective sapphire prism lens,
     // retinal HUD targeting reticle, lateral sensor pod, and articulated collar boom mic
@@ -1241,6 +1292,11 @@ function createInteractiveIdleObjects(parentScene) {
         bladeMesh,
         bladeMat,
         bladeEdgeMat,
+        bladeGroupRen,
+        hiltMatRen,
+        guardMatRen,
+        bladeMatRen,
+        bladeEdgeMatRen,
         monocleGroup,
         monocleLensMesh,
         monocleLensMat,
@@ -1609,7 +1665,7 @@ function getRigSpacePos(bone, rootBone, outVec = new THREE.Vector3()) {
     return rootBone.worldToLocal(outVec);
 }
 
-function calibrateSkeletonAndRestPose(vrm) {
+function calibrateSkeletonAndRestPose(vrm, isPrimary = true) {
     if (!vrm || !vrm.humanoid) return;
     const h = vrm.humanoid;
 
@@ -1620,6 +1676,10 @@ function calibrateSkeletonAndRestPose(vrm) {
     }
     vrm.humanoid.update();
     vrm.scene.updateMatrixWorld(true);
+
+    if (!isPrimary || (currentVrm && vrm !== currentVrm)) {
+        return;
+    }
 
     const rootNode = hips ? hips.parent || hips : vrm.scene;
 
@@ -3261,7 +3321,12 @@ function applyProceduralPose(time, speed) {
         }
     }
 
+    const targetAiriX = dualTwinModeActive ? -0.42 : 0;
+    const targetAiriYaw = dualTwinModeActive ? (baseFacingYaw + 0.12) : baseFacingYaw;
+    currentVrm.scene.position.x = THREE.MathUtils.lerp(currentVrm.scene.position.x, targetAiriX, speed);
     currentVrm.scene.position.y = THREE.MathUtils.lerp(currentVrm.scene.position.y, scenePosY, speed);
+    currentVrm.scene.position.z = THREE.MathUtils.lerp(currentVrm.scene.position.z, 0, speed);
+    currentVrm.scene.rotation.y = THREE.MathUtils.lerp(currentVrm.scene.rotation.y, targetAiriYaw, speed);
     lerpBoneEuler(hips, ...hipsRot, speed);
 
     // Apply Lower Body Leg Kinematics
@@ -4379,7 +4444,9 @@ function startDualTwinSynergy() {
     clearModelActiveStates();
     if (btnModelDual) btnModelDual.classList.add('active');
     activeModelId = 'dual';
+    window.activeModelId = 'dual';
     dualTwinModeActive = true;
+    window.dualTwinModeActive = true;
     updatePoseButtonsForActiveModel();
     updateStatus('👥 Synchronizing Dual Twin System: Loading Airi & Ren side-by-side...');
 
@@ -4429,7 +4496,7 @@ function startDualTwinSynergy() {
                 scene.add(vrm.scene);
                 VRMUtils.rotateVRM0(vrm);
                 setupRenPosition(vrm);
-                calibrateSkeletonAndRestPose(vrm);
+                calibrateSkeletonAndRestPose(vrm, false);
                 adjustDualCamera();
                 setPose('twin_synergy_briefing');
                 updateStatus('👥 Dual Twin Synergy Active: Airi & Ren Synchronized (Tactical Link Established)');
@@ -4464,6 +4531,9 @@ if (btnModelHelios) {
         clearModelActiveStates();
         btnModelHelios.classList.add('active');
         activeModelId = 'airi';
+        window.activeModelId = 'airi';
+        dualTwinModeActive = false;
+        window.dualTwinModeActive = false;
         updatePoseButtonsForActiveModel();
         loadVRM(DEFAULT_VRM_URL);
         fetchRlPoseStatus();
@@ -4475,6 +4545,9 @@ if (btnModelTwin) {
         clearModelActiveStates();
         btnModelTwin.classList.add('active');
         activeModelId = 'twin';
+        window.activeModelId = 'twin';
+        dualTwinModeActive = false;
+        window.dualTwinModeActive = false;
         updatePoseButtonsForActiveModel();
         loadVRM(TWIN_VRM_URL);
         fetchRlPoseStatus();
@@ -4492,6 +4565,9 @@ if (btnModelMeshy) {
         clearModelActiveStates();
         btnModelMeshy.classList.add('active');
         activeModelId = 'airi';
+        window.activeModelId = 'airi';
+        dualTwinModeActive = false;
+        window.dualTwinModeActive = false;
         updatePoseButtonsForActiveModel();
         loadFBXModel(MESHY_FBX_URL);
         fetchRlPoseStatus();
@@ -4503,6 +4579,9 @@ if (btnModelBase) {
         clearModelActiveStates();
         btnModelBase.classList.add('active');
         activeModelId = 'airi';
+        window.activeModelId = 'airi';
+        dualTwinModeActive = false;
+        window.dualTwinModeActive = false;
         updatePoseButtonsForActiveModel();
         loadVRM(BASE_VRM_URL);
         fetchRlPoseStatus();
@@ -4927,14 +5006,41 @@ document.querySelectorAll('.pose-tab-btn').forEach(btn => {
                 pane.classList.remove('active');
             }
         });
+
+        if (targetTabId === 'tab-adjust' && typeof applySelectedPropToTwins === 'function') {
+            applySelectedPropToTwins(activePropId);
+        }
     };
 });
+
+const POSE_TO_PROP_MAP = {
+    idle_gaming_console: 'console',
+    sword_guard_ready: 'katana',
+    sword_sheathe_flourish: 'katana',
+    idle_airi_butterfly: 'butterfly',
+    idle_ren_drone: 'drone',
+    idle_popup_curious: 'popup',
+    idle_orb_curious: 'orb',
+    idle_airi_holodice: 'holodice',
+    idle_ren_datapad: 'datapad',
+    twin_synergy_combat: 'katana',
+    twin_synergy_briefing: 'datapad'
+};
 
 document.querySelectorAll('#idle-interaction-buttons button').forEach(btn => {
     btn.onclick = () => {
         const p = btn.getAttribute('data-pose');
         autoIdleTimer = 0;
         triggerIdleObjectOrWaitingAnimation(p, true);
+        if (POSE_TO_PROP_MAP[p]) {
+            activePropId = POSE_TO_PROP_MAP[p];
+            if (selectActiveProp) {
+                selectActiveProp.value = activePropId;
+            }
+            if (typeof syncActivePropSlidersUI === 'function') {
+                syncActivePropSlidersUI();
+            }
+        }
     };
 });
 
@@ -5874,7 +5980,17 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
     const lEyeBone = h?.getNormalizedBoneNode('leftEye') || headBone;
     const lShoulderBone = h?.getNormalizedBoneNode('leftShoulder') || h?.getNormalizedBoneNode('leftUpperArm');
 
-    if (isRenDrone && droneGroup) {
+    const isDual = activeModelId === 'dual' && secondaryVrm?.humanoid;
+    const renHeadBone = isDual
+        ? secondaryVrm.humanoid.getNormalizedBoneNode('head')
+        : (isRenActive() ? headBone : headBone);
+    const renEyeBone = isDual
+        ? (secondaryVrm.humanoid.getNormalizedBoneNode('leftEye') || renHeadBone)
+        : (isRenActive() ? lEyeBone : lEyeBone);
+
+    const isDroneActive = isRenDrone || (activeModelId === 'dual' && currentPose === 'twin_synergy_briefing');
+
+    if (isDroneActive && droneGroup) {
         droneGroup.visible = true;
 
         const droneCalib = propsCalibration.drone || { x: 0, y: 0, z: 0, scale: 1, pathMode: 'recon_orbit', speed: 1 };
@@ -5883,7 +5999,9 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
 
         // Center orbit around Ren's upper chest / head position
         const centerPos = new THREE.Vector3();
-        if (headBone) {
+        if (renHeadBone) {
+            renHeadBone.getWorldPosition(centerPos);
+        } else if (headBone) {
             headBone.getWorldPosition(centerPos);
         } else {
             centerPos.set(0, 1.25, 0);
@@ -5952,15 +6070,15 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         droneRingMat2.opacity = THREE.MathUtils.lerp(droneRingMat2.opacity, 0.85, delta * 8.0);
 
         // Update Ren's Cyber Tactical Monocle HUD (mounted directly over left eye)
-        if (monocleGroup && (headBone || lEyeBone)) {
+        if (monocleGroup && (renHeadBone || renEyeBone)) {
             monocleGroup.visible = true;
             const mCalib = propsCalibration.monocle || { x: 0.0336, y: 0.0575, z: 0.0760, scale: 1.0 };
 
-            if (headBone) {
+            if (renHeadBone) {
                 const headPos = new THREE.Vector3();
                 const headRotQ = new THREE.Quaternion();
-                headBone.getWorldPosition(headPos);
-                headBone.getWorldQuaternion(headRotQ);
+                renHeadBone.getWorldPosition(headPos);
+                renHeadBone.getWorldQuaternion(headRotQ);
                 monocleGroup.quaternion.copy(headRotQ);
 
                 // Calibrated anatomical offset in Ren's head local coordinates:
@@ -5972,15 +6090,14 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
                 localOffset.applyQuaternion(headRotQ);
                 monocleGroup.position.copy(headPos).add(localOffset);
                 monocleGroup.scale.setScalar(mCalib.scale);
-            } else {
+            } else if (renEyeBone) {
                 const eyePos = new THREE.Vector3();
-                lEyeBone.getWorldPosition(eyePos);
+                renEyeBone.getWorldPosition(eyePos);
                 monocleGroup.position.set(
                     eyePos.x + mCalib.x,
                     eyePos.y + mCalib.y,
                     eyePos.z + mCalib.z
                 );
-                monocleGroup.scale.setScalar(mCalib.scale);
             }
 
             // Aim telemetry tracking beam from monocle towards orbiting drone
@@ -6079,8 +6196,10 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
     }
 
     // 8. Update Cyber Tactical Plasma Blade (CyberTacticalBlade3D)
-    // ONLY visible during sword_guard_ready or sword_sheathe_flourish
-    const isSwordActive = currentPose === 'sword_guard_ready' || currentPose === 'sword_sheathe_flourish';
+    // ONLY visible during sword_guard_ready, sword_sheathe_flourish, or twin_synergy_combat
+    const isSwordActive = currentPose === 'sword_guard_ready' ||
+                          currentPose === 'sword_sheathe_flourish' ||
+                          (activeModelId === 'dual' && currentPose === 'twin_synergy_combat');
     if (isSwordActive && rHandBone && interactiveSceneObjects.bladeGroup) {
         const {
             bladeGroup,
@@ -6096,7 +6215,7 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         const rHandRotQ = new THREE.Quaternion();
         rHandBone.getWorldQuaternion(rHandRotQ);
 
-        const isGuard = currentPose === 'sword_guard_ready';
+        const isGuard = currentPose === 'sword_guard_ready' || (activeModelId === 'dual' && currentPose === 'twin_synergy_combat');
 
         if (isGuard) {
             // Guard: Two-handed combat stance.
@@ -6154,6 +6273,61 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         bladeEdgeMat.opacity = THREE.MathUtils.lerp(bladeEdgeMat.opacity, 0.0, delta * 8.0);
         if (bladeMat.opacity <= 0.01) {
             bladeGroup.visible = false;
+        }
+    }
+
+    // 8b. Update Ren's Amber Cyber Tactical Plasma Blade in Dual Synergy Combat
+    const renRHandBone = (activeModelId === 'dual' && secondaryVrm?.humanoid)
+        ? secondaryVrm.humanoid.getNormalizedBoneNode('rightHand')
+        : null;
+
+    if (activeModelId === 'dual' && currentPose === 'twin_synergy_combat' && renRHandBone && interactiveSceneObjects.bladeGroupRen) {
+        const {
+            bladeGroupRen,
+            hiltMatRen,
+            guardMatRen,
+            bladeMatRen,
+            bladeEdgeMatRen,
+        } = interactiveSceneObjects;
+        bladeGroupRen.visible = true;
+
+        const kCalib = propsCalibration.katana || { x: 0, y: 0, z: 0, scale: 1 };
+        const renPos = new THREE.Vector3();
+        const renRotQ = new THREE.Quaternion();
+        renRHandBone.getWorldPosition(renPos);
+        renRHandBone.getWorldQuaternion(renRotQ);
+
+        const hiltOffset = new THREE.Vector3(
+            0.035 + kCalib.x,
+            -0.015 + kCalib.y,
+            0.010 + kCalib.z
+        );
+        hiltOffset.applyQuaternion(renRotQ);
+        bladeGroupRen.position.copy(renPos).add(hiltOffset);
+
+        const qGrip = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -Math.PI * 0.5));
+        bladeGroupRen.quaternion.copy(renRotQ).multiply(qGrip);
+        bladeGroupRen.scale.setScalar(kCalib.scale || 1.0);
+
+        const plasmaPulseRen = 0.88 + Math.sin((elapsed + 0.5) * 12.0) * 0.12;
+        hiltMatRen.opacity = THREE.MathUtils.lerp(hiltMatRen.opacity, 0.95, delta * 8.0);
+        guardMatRen.opacity = THREE.MathUtils.lerp(guardMatRen.opacity, 0.95, delta * 8.0);
+        bladeMatRen.opacity = THREE.MathUtils.lerp(bladeMatRen.opacity, plasmaPulseRen, delta * 8.0);
+        bladeEdgeMatRen.opacity = THREE.MathUtils.lerp(bladeEdgeMatRen.opacity, 0.95, delta * 8.0);
+    } else if (interactiveSceneObjects.bladeGroupRen) {
+        const {
+            bladeGroupRen,
+            hiltMatRen,
+            guardMatRen,
+            bladeMatRen,
+            bladeEdgeMatRen,
+        } = interactiveSceneObjects;
+        hiltMatRen.opacity = THREE.MathUtils.lerp(hiltMatRen.opacity, 0.0, delta * 8.0);
+        guardMatRen.opacity = THREE.MathUtils.lerp(guardMatRen.opacity, 0.0, delta * 8.0);
+        bladeMatRen.opacity = THREE.MathUtils.lerp(bladeMatRen.opacity, 0.0, delta * 8.0);
+        bladeEdgeMatRen.opacity = THREE.MathUtils.lerp(bladeEdgeMatRen.opacity, 0.0, delta * 8.0);
+        if (bladeMatRen.opacity <= 0.01) {
+            bladeGroupRen.visible = false;
         }
     }
 
@@ -6224,7 +6398,9 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
 }
 
 function updateAutonomousIdleDirector(delta) {
+    const isAdjustTabOpen = document.getElementById('tab-adjust')?.classList.contains('active');
     if (
+        isAdjustTabOpen ||
         !autoIdleEnabled ||
         currentState !== 'idle' ||
         (audioLipSync && audioLipSync.isPlaying) ||
@@ -6262,65 +6438,198 @@ function applySecondaryTwinPose(vrm, time, speed, delta) {
     const hips = h.getNormalizedBoneNode('hips');
     const spine = h.getNormalizedBoneNode('spine');
     const chest = h.getNormalizedBoneNode('chest');
+    const neck = h.getNormalizedBoneNode('neck');
     const head = h.getNormalizedBoneNode('head');
+    const rShoulder = h.getNormalizedBoneNode('rightShoulder');
+    const lShoulder = h.getNormalizedBoneNode('leftShoulder');
     const rUpper = h.getNormalizedBoneNode('rightUpperArm');
     const rLower = h.getNormalizedBoneNode('rightLowerArm');
     const rHand = h.getNormalizedBoneNode('rightHand');
     const lUpper = h.getNormalizedBoneNode('leftUpperArm');
     const lLower = h.getNormalizedBoneNode('leftLowerArm');
     const lHand = h.getNormalizedBoneNode('leftHand');
+    const lUpperLeg = h.getNormalizedBoneNode('leftUpperLeg');
+    const rUpperLeg = h.getNormalizedBoneNode('rightUpperLeg');
+    const lLowerLeg = h.getNormalizedBoneNode('leftLowerLeg');
+    const rLowerLeg = h.getNormalizedBoneNode('rightLowerLeg');
+    const lFoot = h.getNormalizedBoneNode('leftFoot');
+    const rFoot = h.getNormalizedBoneNode('rightFoot');
 
     const breath = Math.sin(time * 2.2) * 0.02;
 
+    // Smoothly maintain Ren's world anchor position alongside Airi
+    const targetRenY = (currentVrm?.scene ? currentVrm.scene.position.y : 0);
+    vrm.scene.position.x = THREE.MathUtils.lerp(vrm.scene.position.x, 0.42, speed);
+    vrm.scene.position.y = THREE.MathUtils.lerp(vrm.scene.position.y, targetRenY, speed);
+    vrm.scene.position.z = THREE.MathUtils.lerp(vrm.scene.position.z, 0, speed);
+    vrm.scene.rotation.y = THREE.MathUtils.lerp(vrm.scene.rotation.y, baseFacingYaw - 0.12, speed);
+
+    let hipsRot = [0, 0, 0];
+    let spineRot = [-0.02, 0, 0];
+    let chestRot = [-0.02 + breath, 0, 0];
+    let neckRot = [0, 0, 0];
+    let headRot = [-0.015, Math.sin(time * 0.8) * 0.04, 0];
+    let rShoulderRot = [0, 0, 0];
+    let lShoulderRot = [0, 0, 0];
+    let rUpperArmRot = [0, 0, 0.12];
+    let rLowerArmRot = [0, 0.35, 0];
+    let rHandRot = [0, 0, 0];
+    let lUpperArmRot = [0, 0, -0.12];
+    let lLowerArmRot = [0, -0.35, 0];
+    let lHandRot = [0, 0, 0];
+
+    // Solid grounded leg kinematics with natural posture
+    let lUpperLegRot = [0.02, 0.02, -0.07];
+    let rUpperLegRot = [0.02, -0.02, 0.07];
+    let lLowerLegRot = [0.06, 0, 0];
+    let rLowerLegRot = [0.06, 0, 0];
+    let lFootRot = [-0.05, 0, 0.02];
+    let rFootRot = [-0.05, 0, -0.02];
+
+    let rHandShape = 'relaxed';
+    let lHandShape = 'relaxed';
+
     if (isCombat) {
-        if (hips) hips.rotation.set(0, -0.15, 0.02);
-        if (spine) spine.rotation.set(-0.04, -0.08, 0);
-        if (chest) chest.rotation.set(0.04 + breath, 0, 0);
-        if (head) head.rotation.set(-0.02, 0.12, -0.03);
-        if (rUpper) rUpper.rotation.set(0.35, -0.15, 0.45);
-        if (rLower) rLower.rotation.set(0, 0.85, 0);
-        if (lUpper) lUpper.rotation.set(-0.25, 0.20, -0.35);
-        if (lLower) lLower.rotation.set(0, -0.45, 0);
+        // High-readiness tactical combat guard
+        hipsRot = [0.02, -0.15, 0.02];
+        spineRot = [-0.04, -0.08, 0];
+        chestRot = [0.04 + breath, -0.02, 0];
+        headRot = [-0.02, 0.12, -0.03];
+        rShoulderRot = [0.08, 0, 0.06];
+        lShoulderRot = [0.06, 0, -0.05];
+        rUpperArmRot = [0.35, -0.15, 0.45];
+        rLowerArmRot = [0.15, 0.85, 0];
+        rHandRot = [0, 0.10, 0];
+        lUpperArmRot = [-0.25, 0.20, -0.35];
+        lLowerArmRot = [0.10, -0.45, 0];
+        lHandRot = [0, -0.10, 0];
+        rHandShape = 'fist';
+        lHandShape = 'fist';
+
+        // Braced, grounded combat stance
+        lUpperLegRot = [-0.12, 0.05, -0.10];
+        lLowerLegRot = [0.22, 0, 0];
+        lFootRot = [-0.10, 0, 0.03];
+        rUpperLegRot = [0.10, -0.05, 0.12];
+        rLowerLegRot = [0.18, 0, 0];
+        rFootRot = [-0.08, 0, -0.03];
     } else if (isBriefing) {
-        if (hips) hips.rotation.set(0, -0.06, 0);
-        if (spine) spine.rotation.set(0.02, -0.04, 0);
-        if (chest) chest.rotation.set(0.02 + breath, 0, 0);
-        if (head) head.rotation.set(0.12, -0.08, 0.02);
-        if (lUpper) lUpper.rotation.set(0.45, 0.15, -0.25);
-        if (lLower) lLower.rotation.set(0, -0.95, 0);
-        if (rUpper) rUpper.rotation.set(0.35, -0.10, 0.20);
-        if (rLower) rLower.rotation.set(0, 0.70, 0);
-    } else {
-        if (hips) hips.rotation.set(0, 0, 0);
-        if (spine) spine.rotation.set(-0.025, 0, 0);
-        if (chest) chest.rotation.set(-0.02 + breath, 0, 0);
-        if (head) head.rotation.set(-0.015, Math.sin(time * 0.8) * 0.04, 0);
-        if (rUpper) rUpper.rotation.set(0, 0, 0.12);
-        if (rLower) rLower.rotation.set(0, 0.35, 0);
-        if (lUpper) lUpper.rotation.set(0, 0, -0.12);
-        if (lLower) lLower.rotation.set(0, -0.35, 0);
+        // Tactical briefing posture: holding datapad in left hand, pointing with right
+        hipsRot = [0, -0.06, 0];
+        spineRot = [0.02, -0.04, 0];
+        chestRot = [0.02 + breath, 0, 0];
+        headRot = [0.10, -0.10, 0.02];
+        lShoulderRot = [0.05, 0, -0.04];
+        rShoulderRot = [0.04, 0, 0.03];
+        lUpperArmRot = [0.45, 0.15, -0.25];
+        lLowerArmRot = [0, -0.95, 0];
+        lHandRot = [-0.12, 0.18, 0];
+        rUpperArmRot = [0.35, -0.10, 0.20];
+        rLowerArmRot = [0, 0.70, 0];
+        rHandRot = [0.08, -0.08, 0];
+        lHandShape = 'cupped';
+        rHandShape = 'point';
+
+        lUpperLegRot = [0.02, 0.02, -0.08];
+        lLowerLegRot = [0.08, 0, 0];
+        lFootRot = [-0.06, 0, 0.02];
+        rUpperLegRot = [0.02, -0.02, 0.08];
+        rLowerLegRot = [0.08, 0, 0];
+        rFootRot = [-0.06, 0, -0.02];
+    } else if (currentPose === 'idle_ren_drone') {
+        headRot = [-0.08, 0.06, 0];
+        lUpperArmRot = [0.55, 0.22, -0.20];
+        lLowerArmRot = [0, -1.20, 0];
+        lHandRot = [0.10, 0.15, 0];
+        lHandShape = 'relaxed';
+        rUpperArmRot = [0.06, 0, 0.12];
+        rLowerArmRot = [0, 0.30, 0];
+        rHandShape = 'relaxed';
+    } else if (currentPose === 'idle_ren_datapad') {
+        headRot = [0.14, -0.04, 0];
+        lUpperArmRot = [0.45, 0.15, -0.22];
+        lLowerArmRot = [0, -0.92, 0];
+        lHandRot = [-0.12, 0.18, 0];
+        lHandShape = 'cupped';
+        rUpperArmRot = [0.32, -0.10, 0.18];
+        rLowerArmRot = [0, 0.68, 0];
+        rHandShape = 'point';
     }
 
+    // Parametric Biomechanical Body Pose Tuner live overrides
     if (typeof activeBodyPoseAdjustments !== 'undefined' && activeBodyPoseAdjustments.enabled) {
-        if (activeBodyPoseAdjustments.target === 'both' || activeBodyPoseAdjustments.target === 'ren') {
-            if (head) {
-                head.rotation.x += activeBodyPoseAdjustments.headPitch * Math.PI / 180;
-                head.rotation.y += activeBodyPoseAdjustments.headYaw * Math.PI / 180;
+        const appliesToRen = activeBodyPoseAdjustments.target === 'both' ||
+                             activeBodyPoseAdjustments.target === 'ren' ||
+                             activeBodyPoseAdjustments.target === 'active';
+
+        if (appliesToRen) {
+            headRot[0] += activeBodyPoseAdjustments.headPitch * Math.PI / 180;
+            headRot[1] += activeBodyPoseAdjustments.headYaw * Math.PI / 180;
+            headRot[2] += activeBodyPoseAdjustments.headRoll * Math.PI / 180;
+            neckRot[0] += activeBodyPoseAdjustments.neckPitch * Math.PI / 180;
+
+            spineRot[0] += activeBodyPoseAdjustments.spineLean * Math.PI / 180;
+            spineRot[1] += activeBodyPoseAdjustments.spineTwist * Math.PI / 180;
+            spineRot[2] += activeBodyPoseAdjustments.spineRoll * Math.PI / 180;
+            chestRot[0] += activeBodyPoseAdjustments.chestBreath;
+
+            hipsRot[1] += activeBodyPoseAdjustments.pelvisSway * Math.PI / 180;
+            hipsRot[2] += activeBodyPoseAdjustments.pelvisTilt * Math.PI / 180;
+
+            const sWidthRad = (activeBodyPoseAdjustments.stanceWidth * Math.PI / 180);
+            lUpperLegRot[2] -= sWidthRad;
+            rUpperLegRot[2] += sWidthRad;
+            const kneeRad = (activeBodyPoseAdjustments.kneeBend * Math.PI / 180);
+            lLowerLegRot[0] += kneeRad;
+            rLowerLegRot[0] += kneeRad;
+
+            rUpperArmRot[0] += activeBodyPoseAdjustments.rArmLift * 0.8;
+            rUpperArmRot[1] += activeBodyPoseAdjustments.rArmReach * 0.6;
+            rUpperArmRot[2] += activeBodyPoseAdjustments.rArmSide * 0.8;
+            rLowerArmRot[1] += activeBodyPoseAdjustments.rElbow * 0.8;
+
+            lUpperArmRot[0] += activeBodyPoseAdjustments.lArmLift * 0.8;
+            lUpperArmRot[1] -= activeBodyPoseAdjustments.lArmReach * 0.6;
+            lUpperArmRot[2] -= activeBodyPoseAdjustments.lArmSide * 0.8;
+            lLowerArmRot[1] -= activeBodyPoseAdjustments.lElbow * 0.8;
+
+            if (activeBodyPoseAdjustments.rHandShape && activeBodyPoseAdjustments.rHandShape !== 'auto') {
+                rHandShape = activeBodyPoseAdjustments.rHandShape;
             }
-            if (spine) {
-                spine.rotation.x += activeBodyPoseAdjustments.spineLean * Math.PI / 180;
-                spine.rotation.y += activeBodyPoseAdjustments.spineTwist * Math.PI / 180;
-            }
-            if (hips) {
-                hips.rotation.y += activeBodyPoseAdjustments.pelvisSway * Math.PI / 180;
-            }
-            if (rUpper) {
-                rUpper.rotation.x += activeBodyPoseAdjustments.rArmLift * 0.5;
-            }
-            if (lUpper) {
-                lUpper.rotation.x += activeBodyPoseAdjustments.lArmLift * 0.5;
+            if (activeBodyPoseAdjustments.lHandShape && activeBodyPoseAdjustments.lHandShape !== 'auto') {
+                lHandShape = activeBodyPoseAdjustments.lHandShape;
             }
         }
+    }
+
+    // Lerp all joints smoothly
+    lerpBoneEuler(hips, ...hipsRot, speed);
+    lerpBoneEuler(spine, ...spineRot, speed);
+    lerpBoneEuler(chest, ...chestRot, speed);
+    lerpBoneEuler(neck, ...neckRot, speed);
+    lerpBoneEuler(head, ...headRot, speed);
+    lerpBoneEuler(rShoulder, ...rShoulderRot, speed);
+    lerpBoneEuler(lShoulder, ...lShoulderRot, speed);
+    lerpBoneEuler(rUpper, ...rUpperArmRot, speed);
+    lerpBoneEuler(rLower, ...rLowerArmRot, speed);
+    lerpBoneEuler(rHand, ...rHandRot, speed);
+    lerpBoneEuler(lUpper, ...lUpperArmRot, speed);
+    lerpBoneEuler(lLower, ...lLowerArmRot, speed);
+    lerpBoneEuler(lHand, ...lHandRot, speed);
+
+    lerpBoneEuler(lUpperLeg, ...lUpperLegRot, speed);
+    lerpBoneEuler(rUpperLeg, ...rUpperLegRot, speed);
+    lerpBoneEuler(lLowerLeg, ...lLowerLegRot, speed);
+    lerpBoneEuler(rLowerLeg, ...rLowerLegRot, speed);
+    lerpBoneEuler(lFoot, ...lFootRot, speed);
+    lerpBoneEuler(rFoot, ...rFootRot, speed);
+
+    applyHandShape(h, 'right', rHandShape, speed, time);
+    applyHandShape(h, 'left', lHandShape, speed, time);
+
+    if (vrm.expressionManager) {
+        const blinkVal = Math.sin(time * 0.7) > 0.96 ? 1.0 : 0.0;
+        vrm.expressionManager.setValue('blink', blinkVal);
     }
 }
 
@@ -7183,10 +7492,97 @@ function syncActivePropSlidersUI() {
 }
 window.syncActivePropSlidersUI = syncActivePropSlidersUI;
 
+function applySelectedPropToTwins(propId) {
+    if (!propId) return;
+    activePropId = propId;
+    if (selectActiveProp && selectActiveProp.value !== propId) {
+        selectActiveProp.value = propId;
+    }
+    syncActivePropSlidersUI();
+
+    const isDual = activeModelId === 'dual';
+    const isRen = isRenActive();
+
+    switch (propId) {
+        case 'monocle':
+            if (isDual) {
+                setPose('twin_synergy_briefing');
+                updateStatus('👥 Monocle active on Ren in Dual Twin Tactical Briefing');
+            } else if (isRen) {
+                setPose('idle_ren_drone');
+                updateStatus("🥽 Ren's Neural Monocle HUD Active");
+            } else {
+                triggerIdleObjectOrWaitingAnimation('idle_ren_drone', true);
+                updateStatus("🥽 Monocle Telemetry Link Active");
+            }
+            break;
+
+        case 'drone':
+            if (isDual) {
+                setPose('twin_synergy_briefing');
+                updateStatus('👥 Tactical Recon Drone deployed in Dual Twin Briefing');
+            } else {
+                triggerIdleObjectOrWaitingAnimation('idle_ren_drone', true);
+                updateStatus('🛸 Tactical Recon Drone (Ghosteye) Deployed');
+            }
+            break;
+
+        case 'butterfly':
+            triggerIdleObjectOrWaitingAnimation('idle_airi_butterfly', true);
+            updateStatus("🦋 Airi's Bio-Quantum Butterfly Deployed");
+            break;
+
+        case 'console':
+            triggerIdleObjectOrWaitingAnimation('idle_gaming_console', true);
+            updateStatus('🎮 Arcade Cyber Deck Equipped');
+            break;
+
+        case 'katana':
+            if (isDual) {
+                setPose('twin_synergy_combat');
+                updateStatus('👥 Dual Twin Combat Ready: Tactical Plasma Blades Drawn');
+            } else {
+                setPose('sword_guard_ready');
+                updateStatus('⚔️ Tactical Plasma Blade Drawn (Combat Guard)');
+            }
+            break;
+
+        case 'holodice':
+            if (isDual) {
+                setPose('twin_synergy_briefing');
+                updateStatus('👥 Airi generating Quantum Holo-Dice in Dual Briefing');
+            } else {
+                triggerIdleObjectOrWaitingAnimation('idle_airi_holodice', true);
+                updateStatus("🎲 Airi's Quantum Holo-Dice Active");
+            }
+            break;
+
+        case 'datapad':
+            if (isDual) {
+                setPose('twin_synergy_briefing');
+                updateStatus('👥 Ren accessing Tactical Datapad in Dual Briefing');
+            } else {
+                triggerIdleObjectOrWaitingAnimation('idle_ren_datapad', true);
+                updateStatus("📱 Ren's Tactical Datapad Deployed");
+            }
+            break;
+
+        case 'orb':
+            triggerIdleObjectOrWaitingAnimation('idle_orb_curious', true);
+            updateStatus('🔮 HELIOS Singularity Core Orb Active');
+            break;
+
+        case 'popup':
+            triggerIdleObjectOrWaitingAnimation('idle_popup_curious', true);
+            updateStatus('📑 Wrist Holographic HUD Projected');
+            break;
+    }
+}
+window.applySelectedPropToTwins = applySelectedPropToTwins;
+
 if (selectActiveProp) {
     selectActiveProp.addEventListener('change', (e) => {
-        activePropId = e.target.value;
-        syncActivePropSlidersUI();
+        applySelectedPropToTwins(e.target.value);
     });
 }
 
@@ -7303,6 +7699,16 @@ document.querySelectorAll('.adjust-subtab-btn').forEach(btn => {
         document.querySelectorAll('.adjust-subpane').forEach(p => {
             p.classList.toggle('active', p.id === targetSubpaneId);
         });
+
+        if (targetSubpaneId === 'adjust-subpane-props') {
+            applySelectedPropToTwins(activePropId);
+        } else if (targetSubpaneId === 'adjust-subpane-body') {
+            activeBodyPoseAdjustments.enabled = true;
+            if (btnBodyToggleApply) {
+                btnBodyToggleApply.classList.add('active');
+                btnBodyToggleApply.innerText = '⚡ Live: ON';
+            }
+        }
     });
 });
 
@@ -7319,6 +7725,7 @@ if (btnOpenAdjustMenu) {
         if (adjustTabBtn) adjustTabBtn.click();
         const drawer = document.getElementById('poses-segmented-drawer');
         if (drawer) drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        applySelectedPropToTwins(activePropId);
     });
 }
 
@@ -7453,6 +7860,18 @@ window.syncBodyPoseSlidersUI = syncBodyPoseSlidersUI;
 if (selectBodyTarget) {
     selectBodyTarget.addEventListener('change', (e) => {
         activeBodyPoseAdjustments.target = e.target.value;
+        activeBodyPoseAdjustments.enabled = true;
+        if (btnBodyToggleApply) {
+            btnBodyToggleApply.classList.add('active');
+            btnBodyToggleApply.innerText = '⚡ Live: ON';
+        }
+        const targetLabel = {
+            both: 'BOTH TWINS (Synchronized Kinematics)',
+            airi: 'AIRI (Sister)',
+            ren: 'REN (Brother)',
+            active: 'ACTIVE AVATAR'
+        }[e.target.value] || e.target.value;
+        updateStatus(`🦾 Pose Adjuster: Target set to ${targetLabel} (Live Kinematics Active)`);
     });
 }
 if (btnBodyToggleApply) {
@@ -7469,6 +7888,13 @@ function bindBodySlider(sliderEl, valEl, key, formatFn) {
     sliderEl.addEventListener('input', (e) => {
         const num = parseFloat(e.target.value);
         activeBodyPoseAdjustments[key] = num;
+        if (!activeBodyPoseAdjustments.enabled) {
+            activeBodyPoseAdjustments.enabled = true;
+            if (btnBodyToggleApply) {
+                btnBodyToggleApply.classList.add('active');
+                btnBodyToggleApply.innerText = '⚡ Live: ON';
+            }
+        }
         if (valEl) valEl.innerText = formatFn ? formatFn(num) : num;
     });
 }
