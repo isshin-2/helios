@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0D0E12">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>HELIOS — Character Presentation Add-On (VRM / Live2D)</title>
-    <link rel="stylesheet" href="style.css?v=13">
+    <link rel="stylesheet" href="style.css?v=14">
     <!-- Import map for Three.js and @pixiv/three-vrm -->
     <script type="importmap">
     {
@@ -36,12 +39,14 @@
                 <button id="btn-listening" title="Listening State (#00E5FF Cyan)">🔵 Listening</button>
                 <button id="btn-thinking" title="Thinking / Executing State (#FFCC00 Amber)">🟡 Thinking</button>
                 <button id="btn-speaking" title="Speaking State (#3296FA Electric Blue)">🔷 Speaking</button>
+                <button id="btn-error" title="Error / Exception State (#FF3B30 Alert Crimson)">🔴 Error</button>
             </div>
 
             <span class="preset-label" style="margin-top: 6px;">Avatar Model (VRM / FBX):</span>
             <div class="sidebar-btn-grid">
                 <button id="btn-model-helios" class="active" title="Load HELIOS Airi (Wolf-Cut Cyberpunk Techwear) VRM">⚡ HELIOS Airi</button>
                 <button id="btn-model-twin" title="Load HELIOS Twin (Ren - Older Brother) VRM">🔷 HELIOS Twin (Brother)</button>
+                <button id="btn-model-dual" title="Render Both Twins On-Screen simultaneously with Dyadic Synapse interaction">👥 Dual Twin Synergy</button>
                 <label class="btn-import">
                     📁 Import Model
                     <input type="file" id="vrm-file-input" accept=".vrm,.glb">
@@ -58,6 +63,7 @@
                 <button id="btn-toggle-skeleton" title="Toggle 3D Skeleton & Bone Visualizer">🦴 Skeleton: OFF</button>
                 <button id="btn-toggle-xray" title="Toggle Semi-Transparent Mesh to see internal rig">🩻 X-Ray: OFF</button>
                 <button id="btn-open-rig-studio" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(0, 229, 255, 0.22), rgba(138, 43, 226, 0.25)); border-color: rgba(0, 229, 255, 0.5); color: #00e5ff; font-weight: 600;" title="Open Rigging & Model Inspector/Editor">🛠️ Rig & Model Studio</button>
+                <button id="btn-open-adjust-menu" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(0, 255, 136, 0.22)); border-color: rgba(0, 255, 136, 0.45); color: #00ff88; font-weight: 600;" title="Open Prop Calibration & Biomechanical Body Pose Adjustment Studio">🎛️ Prop & Body Pose Studio</button>
             </div>
         </div>
 
@@ -83,121 +89,433 @@
             </div>
         </div>
 
-        <!-- HELIOS Autonomous AI Pose Synthesizer (ChatVRM / Amica / Kalidokit Normalized Bone + IK) -->
-        <div id="ai-pose-creator-controls" class="sidebar-section">
-            <span class="preset-label">✨ HELIOS AI Pose Synthesizer (24 Human Poses):</span>
-            <div style="display: flex; gap: 5px; width: 100%; margin-bottom: 6px;">
-                <input id="custom-pose-input" type="text" placeholder="e.g. heart hands, crossed arms, salute..." style="flex: 1; min-width: 0; background: rgba(13,14,18,0.85); color: #ebf0f5; border: 1px solid rgba(255,255,255,0.14); border-radius: 7px; padding: 5px 8px; font-size: 11px; outline: none;">
-                <button id="btn-create-pose" title="Ask HELIOS Core AI to synthesize and execute this custom 3D VRM pose">✨ Pose</button>
+        <!-- Consolidated Segmented Poses & Studio Drawer (Zero-Overlay Tabbed Architecture) -->
+        <div id="poses-segmented-drawer" class="sidebar-section" style="padding: 6px 10px;">
+            <div class="pose-drawer-tabs-header">
+                <button type="button" class="pose-tab-btn active" data-tab="tab-core" id="tab-btn-core">⭐ Core</button>
+                <button type="button" class="pose-tab-btn" data-tab="tab-exclusives" id="tab-btn-exclusives">✨ Exclusives</button>
+                <button type="button" class="pose-tab-btn" data-tab="tab-props" id="tab-btn-props">🕹️ Props</button>
+                <button type="button" class="pose-tab-btn" data-tab="tab-rl" id="tab-btn-rl">🎓 RL Pose</button>
+                <button type="button" class="pose-tab-btn" data-tab="tab-adjust" id="tab-btn-adjust">🎛️ Adjust</button>
             </div>
-            <div id="custom-pose-buttons" class="sidebar-btn-grid">
-                <button data-custom-pose="cyber_salute">🫡 Salute</button>
-                <button data-custom-pose="superhero_landing">🦸 Hero Land</button>
-                <button data-custom-pose="martial_arts_guard">🥋 Guard</button>
-                <button data-custom-pose="double_biceps_flex">💪 Flex</button>
-                <button data-custom-pose="crossed_arms_think">🤔 Cross Arms</button>
-                <button data-custom-pose="hands_on_hips_power">👑 Power Hips</button>
-                <button data-custom-pose="thumbs_up_approval">👍 Thumbs Up</button>
-                <button data-custom-pose="heart_hands_love">🫶 Heart Hands</button>
-                <button data-custom-pose="polite_namaste_bow">🙏 Namaste</button>
-                <button data-custom-pose="excited_victory_jump">🎉 Victory</button>
-                <button data-custom-pose="shy_bashful_tuck">🌸 Bashful</button>
-                <button data-custom-pose="sassy_hip_pop">💃 Sassy Hip</button>
-                <button data-custom-pose="hand_to_heart_sincere">🤍 Sincere</button>
-                <button data-custom-pose="thinking_chin_rest">🧐 Chin Rest</button>
-                <button data-custom-pose="tired_stretch_yawn">🥱 Stretch</button>
-                <button data-custom-pose="wave_greeting_friendly">👋 Hi Wave</button>
-                <button data-custom-pose="shrug_confused_expressive">🤷 Open Shrug</button>
-                <button data-custom-pose="facepalm">🤦 Facepalm</button>
-                <button data-custom-pose="zen_meditation">🧘 Meditate</button>
-                <button data-custom-pose="point_forward">👉 Point</button>
-            </div>
-        </div>
 
-        <!-- Human Posture & Expressive Motion Style Selector -->
-        <div id="style-controls" class="sidebar-section">
-            <span class="preset-label">🎭 Human Posture & Expressive Style:</span>
-            <div id="style-buttons" class="sidebar-btn-grid">
-                <button data-style="natural" class="active" title="Balanced everyday human posture, breathing, and eye contact">✨ Natural</button>
-                <button data-style="energetic" title="Lively rhythmic bounce, open chest, upbeat breathing">⚡ Energetic</button>
-                <button data-style="confident" title="Broad proud chest, lifted chin, grounded power stance">👑 Confident</button>
-                <button data-style="relaxed" title="Calm slow breathing, soft shoulders, easy contrapposto">🍃 Relaxed</button>
-                <button data-style="shy" title="Modest inward shoulder tuck, gentle head tilt, bashful gaze">🌸 Shy</button>
-                <button data-style="dramatic" title="Expressive thoracic extension, dynamic weight shift, intense focus">🎬 Dramatic</button>
+            <!-- Tab 1: Core Poses & Motions -->
+            <div id="tab-core" class="pose-tab-pane active">
+                <span class="preset-label" style="margin-bottom: 2px;">Core Expressions & Movements:</span>
+                <div id="pose-buttons" class="sidebar-btn-grid">
+                    <button data-pose="idle" class="active">🧍 Idle</button>
+                    <button data-pose="listen_pose">👂 Listening</button>
+                    <button data-pose="talk_explain">🗣️ Explain</button>
+                    <button data-pose="talk_excited">✨ Happy</button>
+                    <button data-pose="talk_smug">😏 Smirk</button>
+                    <button data-pose="talk_angry">💢 Serious</button>
+                    <button data-pose="talk_sad">🥺 Concerned</button>
+                    <button data-pose="talk_surprised">😲 Confused</button>
+                    <button data-pose="natural_weight_shift">⚖️ Weight Shift</button>
+                    <button data-pose="arms_folded_relaxed">🪢 Folded Arms</button>
+                    <button data-pose="hands_pocket_relaxed">👖 Pocket Relax</button>
+                    <button data-pose="tactical_stand_at_ease">🛡️ At Ease</button>
+                    <button data-pose="walk">🚶 Walk</button>
+                    <button data-pose="wave">👋 Wave</button>
+                    <button data-pose="think_pose">🤔 Thinking</button>
+                    <button data-pose="smug_pose">😤 Smirk Pose</button>
+                    <button data-pose="hug_attempt">🤗 Welcome</button>
+                    <button data-pose="refuse">🙅‍♀️ Refuse</button>
+                    <button data-pose="peace">✌️ Peace</button>
+                    <button data-pose="cheer">🙌 Cheer</button>
+                    <button data-pose="shrug">🤷 Shrug</button>
+                    <button data-pose="bow">🙇 Bow</button>
+                    <button data-pose="nod">👍 Nod</button>
+                    <button data-pose="confident">😎 Confident</button>
+                    <button data-pose="shy">👉👈 Shy</button>
+                </div>
+                <span class="preset-label" style="margin-top: 8px;">Spatial Navigation:</span>
+                <div id="nav-buttons" class="sidebar-btn-grid">
+                    <button data-nav="walk_to_user">🚶‍♀️ Walk to Me</button>
+                    <button data-nav="step_back">↩️ Step Back</button>
+                    <button data-nav="circle_user">🔄 Circle Me</button>
+                    <button data-nav="return_center">🎯 Center</button>
+                    <button data-nav="stay" class="active">🛑 Stay</button>
+                </div>
             </div>
-        </div>
 
-        <!-- Human-Reference Reinforcement Learning (RL) Pose Trainer & Reward System -->
-        <div id="rl-trainer-controls" class="sidebar-section">
-            <span class="preset-label">🏆 Human-Ref RL Pose & Style Trainer (24):</span>
-            <div id="rl-reward-badge" style="font-size: 11px; color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 7px; padding: 5px 8px; margin-bottom: 5px; font-weight: 600;">
-                🏆 RL Match: 100.0% | Awards: -- (+-- pts)
+            <!-- Tab 2: Exclusives & Human Synthesizer (Filtered dynamically for Airi vs Ren) -->
+            <div id="tab-exclusives" class="pose-tab-pane">
+                <span id="exclusives-tab-title" class="preset-label" style="margin-bottom: 2px;">✨ Twin Exclusive & Synthesized Poses:</span>
+                <div style="display: flex; gap: 5px; width: 100%; margin-bottom: 6px;">
+                    <input id="custom-pose-input" type="text" placeholder="e.g. heart hands, crossed arms, salute..." style="flex: 1; min-width: 0; background: rgba(13,14,18,0.85); color: #ebf0f5; border: 1px solid rgba(255,255,255,0.14); border-radius: 7px; padding: 5px 8px; font-size: 11px; outline: none;">
+                    <button id="btn-create-pose" title="Ask HELIOS Core AI to synthesize and execute this custom 3D VRM pose">✨ Pose</button>
+                </div>
+                <div id="custom-pose-buttons" class="sidebar-btn-grid">
+                    <button data-custom-pose="natural_weight_shift">⚖️ Weight Shift</button>
+                    <button data-custom-pose="arms_folded_relaxed">🪢 Folded Arms</button>
+                    <button data-custom-pose="hands_pocket_relaxed">👖 Pocket Relax</button>
+                    <button data-custom-pose="thoughtful_chin_touch">🧐 Chin Touch</button>
+                    <button data-custom-pose="tactical_stand_at_ease">🛡️ At Ease</button>
+                    <button data-custom-pose="cyber_salute">🫡 Salute</button>
+                    <button data-custom-pose="crossed_arms_think">🤔 Cross Arms</button>
+                    <button data-custom-pose="hands_on_hips_power">👑 Power Hips</button>
+                    <button data-custom-pose="thumbs_up_approval">👍 Thumbs Up</button>
+                    <button data-custom-pose="heart_hands_love">🫶 Heart Hands</button>
+                    <button data-custom-pose="polite_namaste_bow">🙏 Namaste</button>
+                    <button data-custom-pose="excited_victory_jump">🎉 Victory</button>
+                    <button data-custom-pose="shy_bashful_tuck">🌸 Bashful</button>
+                    <button data-custom-pose="sassy_hip_pop">💃 Sassy Hip</button>
+                    <button data-custom-pose="hand_to_heart_sincere">🤍 Sincere</button>
+                    <button data-custom-pose="thinking_chin_rest">🧐 Chin Rest</button>
+                    <button data-custom-pose="tired_stretch_yawn">🥱 Stretch</button>
+                    <button data-custom-pose="wave_greeting_friendly">👋 Hi Wave</button>
+                    <button data-custom-pose="shrug_confused_expressive">🤷 Open Shrug</button>
+                    <button data-custom-pose="facepalm">🤦 Facepalm</button>
+                    <button data-custom-pose="zen_meditation">🧘 Meditate</button>
+                    <button data-custom-pose="point_forward">👉 Point</button>
+                    <button data-custom-pose="hands_up_surrender">🙌 Surrender</button>
+                    <button data-custom-pose="rock_on_pose">🤘 Rock On</button>
+                </div>
+                <span class="preset-label" style="margin-top: 8px;">🎭 Expressive Motion Style:</span>
+                <div id="style-buttons" class="sidebar-btn-grid">
+                    <button data-style="natural" class="active">✨ Natural</button>
+                    <button data-style="energetic">⚡ Energetic</button>
+                    <button data-style="confident">👑 Confident</button>
+                    <button data-style="relaxed">🍃 Relaxed</button>
+                    <button data-style="shy">🌸 Shy</button>
+                    <button data-style="dramatic">🎬 Dramatic</button>
+                </div>
             </div>
-            <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
-                <div id="rl-reward-bar-fill" style="width: 100%; height: 100%; background: linear-gradient(90deg, #00e5ff, #00ff88); transition: width 0.3s ease;"></div>
-            </div>
-            <div id="rl-telemetry-detail" style="font-size: 10px; color: rgba(235,240,245,0.75); margin-bottom: 6px; line-height: 1.35;">
-                Pose: 100% · IK: 100% · Wrist: 100% · Gaze: 100% · Style: 100%
-            </div>
-            <div class="sidebar-btn-grid">
-                <button id="btn-rl-train" title="Run RL Policy Gradient training on active pose with 3-stage curriculum (Exploratory -> Mid -> Human Match)">⚡ Train RL Pose</button>
-                <button id="btn-rl-train-all" title="Train RL Policy across all 24 Human Reference Poses & Expressive Styles">🎓 Train All (24)</button>
-                <button id="btn-rl-award" title="Award +100 RL points for matching human reference anatomy & style">🏆 Award (+100)</button>
-                <button id="btn-rl-penalize" title="Penalize -50 RL points and trigger immediate corrective policy update">⚠️ Fix / Penalize</button>
-            </div>
-        </div>
 
-        <!-- Spatial Navigation -->
-        <div id="nav-controls" class="sidebar-section">
-            <span class="preset-label">Spatial Navigation:</span>
-            <div id="nav-buttons" class="sidebar-btn-grid">
-                <button data-nav="walk_to_user">🚶‍♀️ Walk to Me</button>
-                <button data-nav="step_back">↩️ Step Back</button>
-                <button data-nav="circle_user">🔄 Circle Me</button>
-                <button data-nav="return_center">🎯 Center</button>
-                <button data-nav="stay" class="active">🛑 Stay</button>
+            <!-- Tab 3: Interactive 3D Objects & Props -->
+            <div id="tab-props" class="pose-tab-pane">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 4px;">
+                    <span class="preset-label" style="margin-bottom: 0;">🕹️ Twin 3D Props & Gadgets:</span>
+                    <button id="btn-auto-idle" class="active" style="padding: 2px 7px; font-size: 10px; border-radius: 5px;" title="Automatically cycle curious object interactions and waiting animations when idle">🔄 Auto-Idle: ON</button>
+                </div>
+                <div id="idle-interaction-buttons" class="sidebar-btn-grid">
+                    <button data-pose="idle_gaming_console" title="HEL-DCK-01 / Arcade-Style Cyber Deck with reactive retro HUD and thumbsticks">🎮 Arcade Deck (HEL-DCK-01)</button>
+                    <button data-pose="sword_guard_ready" title="HEL-BLD-01 / HEL-BLD-02 Two-handed tactical combat ready guard">⚔️ Tactical Blade Guard</button>
+                    <button data-pose="sword_sheathe_flourish" title="HEL-BLD-01 / HEL-BLD-02 High-frequency energy blade drawn flourish">🗡️ Tactical Blade Flourish</button>
+                    <button data-pose="idle_airi_butterfly" title="Airi: Playful interaction with floating Bio-Quantum Butterfly (SD-01)">🦋 Bio Butterfly (SD-01)</button>
+                    <button data-pose="idle_ren_drone" title="Ren: Tactical gesture directing hovering Recon Drone (SD-04 Ghosteye)">🛰️ Recon Drone (SD-04)</button>
+                    <button data-pose="idle_popup_curious" title="Curiously inspect & poke the floating HELIOS Popup HUD">🪟 Inspect Popup</button>
+                    <button data-pose="idle_orb_curious" title="Curiously reach toward & cradle the floating HELIOS Core Orb">🔮 Curious Orb</button>
+                    <button data-pose="idle_screen_curious" title="Lean forward and curiously tap the viewer glass">👆 Tap Glass</button>
+                    <button data-pose="idle_waiting_patient" title="Wait patiently with clasped hands and gentle rhythmic sway">⏳ Wait Patient</button>
+                    <button data-pose="idle_waiting_look" title="Wait while glancing around the room and checking wrist HUD">👀 Wait & Look</button>
+                    <button data-pose="idle_waiting_stretch" title="Wait with a relaxed shoulder roll and wrist stretch">🙆‍♀️ Wait Stretch</button>
+                    <button data-pose="natural_weight_shift" title="Natural contrapposto weight shift with gentle relaxed breathing">⚖️ Weight Shift</button>
+                    <button data-pose="arms_folded_relaxed" title="Natural folded arms across lower chest with relaxed shoulders">🪢 Folded Arms</button>
+                    <button data-pose="hands_pocket_relaxed" title="Casual relaxed stance with hands resting near pocket level">👖 Pocket Rest</button>
+                    <button data-pose="thoughtful_chin_touch" title="Thoughtful conversational chin and jaw resting gesture">🧐 Chin Touch</button>
+                    <button data-pose="tactical_stand_at_ease" title="Disciplined military/tactical stand-at-ease with clasped hands">🛡️ Stand at Ease</button>
+                    <button data-pose="twin_synergy_combat" title="Dual Twin: Synchronized tactical combat readiness with drawn blades">⚔️ Twin Combat Stance</button>
+                    <button data-pose="twin_synergy_briefing" title="Dual Twin: Strategic command briefing with drone telemetry and holographic projection">👥 Twin Tactical Briefing</button>
+                </div>
+                    <button id="btn-goto-prop-adjust" style="grid-column: 1 / -1; margin-top: 6px; padding: 6px; font-size: 10.5px; background: rgba(0, 229, 255, 0.12); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 6px; cursor: pointer; font-weight: 600;">🎛️ Open Full Prop & Body Adjuster Studio ➔</button>
+                </div>
             </div>
-        </div>
 
-        <!-- 3D Body, Hand & Full-Body Animations Bar -->
-        <div id="pose-controls" class="sidebar-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span class="preset-label" style="margin-bottom: 0;">✨ Curious & Waiting Idle Interactions:</span>
-                <button id="btn-auto-idle" class="active" style="padding: 2px 7px; font-size: 10px; border-radius: 5px;" title="Automatically cycle curious object interactions and waiting animations when idle">🔄 Auto-Idle: ON</button>
+            <!-- Tab 4: Reinforcement Learning Pose Trainer -->
+            <div id="tab-rl" class="pose-tab-pane">
+                <span class="preset-label" style="margin-bottom: 2px;">🏆 Dual RL Human Pose Policy:</span>
+                <div id="rl-reward-badge" style="font-size: 11px; color: #00e5ff; background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 7px; padding: 5px 8px; margin-bottom: 5px; font-weight: 600; width: 100%; box-sizing: border-box;">
+                    🏆 RL Match: 100.0% | Awards: -- (+-- pts)
+                </div>
+                <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
+                    <div id="rl-reward-bar-fill" style="width: 100%; height: 100%; background: linear-gradient(90deg, #00e5ff, #00ff88); transition: width 0.3s ease;"></div>
+                </div>
+                <div id="rl-telemetry-detail" style="font-size: 10px; color: rgba(235,240,245,0.75); margin-bottom: 6px; line-height: 1.35;">
+                    Pose: 100% · IK: 100% · Wrist: 100% · Gaze: 100% · Style: 100%
+                </div>
+                <div class="sidebar-btn-grid">
+                    <button id="btn-rl-train" title="Run RL Policy Gradient training on active pose with 3-stage curriculum">⚡ Train RL Pose</button>
+                    <button id="btn-rl-train-all" title="Train RL Policy across all character-specific Human Reference Poses">🎓 Train All (19)</button>
+                    <button id="btn-rl-award" title="Award +100 RL points for matching human reference anatomy & style">🏆 Award (+100)</button>
+                    <button id="btn-rl-penalize" title="Penalize -50 RL points and trigger immediate corrective policy update">⚠️ Fix / Penalize</button>
+                </div>
             </div>
-            <div id="idle-interaction-buttons" class="sidebar-btn-grid" style="margin-bottom: 8px;">
-                <button data-pose="idle_popup_curious" title="Curiously inspect & poke the floating HELIOS Popup HUD">🪟 Inspect Popup</button>
-                <button data-pose="idle_orb_curious" title="Curiously reach toward & cradle the floating HELIOS Core Orb">🔮 Curious Orb</button>
-                <button data-pose="idle_screen_curious" title="Lean forward and curiously tap the viewer glass">👆 Tap Glass</button>
-                <button data-pose="idle_waiting_patient" title="Wait patiently with clasped hands and gentle rhythmic sway">⏳ Wait Patient</button>
-                <button data-pose="idle_waiting_look" title="Wait while glancing around the room and checking wrist HUD">👀 Wait & Look</button>
-                <button data-pose="idle_waiting_stretch" title="Wait with a relaxed shoulder roll and wrist stretch">🙆‍♀️ Wait Stretch</button>
-            </div>
-            <span class="preset-label">HELIOS Poses & Animations:</span>
-            <div id="pose-buttons" class="sidebar-btn-grid">
-                <button data-pose="idle" class="active">🧍 Idle</button>
-                <button data-pose="listen_pose">👂 Listening</button>
-                <button data-pose="talk_explain">🗣️ Explain</button>
-                <button data-pose="talk_excited">✨ Happy</button>
-                <button data-pose="talk_smug">😏 Smirk</button>
-                <button data-pose="talk_angry">💢 Serious</button>
-                <button data-pose="talk_sad">🥺 Concerned</button>
-                <button data-pose="talk_surprised">😲 Confused</button>
-                <button data-pose="walk">🚶 Walk</button>
-                <button data-pose="wave">👋 Wave</button>
-                <button data-pose="think_pose">🤔 Thinking</button>
-                <button data-pose="smug_pose">😤 Smirk Pose</button>
-                <button data-pose="backflip">🤸 Backflip</button>
-                <button data-pose="dance_shikano">🦌 Dance</button>
-                <button data-pose="hug_attempt">🤗 Welcome</button>
-                <button data-pose="refuse">🙅‍♀️ Refuse</button>
-                <button data-pose="peace">✌️ Peace</button>
-                <button data-pose="cheer">🙌 Cheer</button>
-                <button data-pose="shrug">🤷 Shrug</button>
-                <button data-pose="bow">🙇 Bow</button>
-                <button data-pose="nod">👍 Nod</button>
-                <button data-pose="confident">😎 Confident</button>
-                <button data-pose="shy">👉👈 Shy</button>
+
+            <!-- Tab 5: Dedicated 3D Prop & Biomechanical Body Pose Studio -->
+            <div id="tab-adjust" class="pose-tab-pane">
+                <div class="adjust-subtabs-header">
+                    <button type="button" class="adjust-subtab-btn active" id="subtab-btn-props" data-subtab="adjust-subpane-props">🕹️ Prop Tuner</button>
+                    <button type="button" class="adjust-subtab-btn" id="subtab-btn-body" data-subtab="adjust-subpane-body">🦾 Body Pose Tuner</button>
+                </div>
+
+                <!-- Subpane 1: 3D Props & Gadgets Tuner -->
+                <div id="adjust-subpane-props" class="adjust-subpane active">
+                    <div id="props-adjust-panel" style="width: 100%; box-sizing: border-box; padding: 10px; background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.22); border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 11px; font-weight: 700; color: #00e5ff;">🛠️ 3D Props & Gadgets Tuner:</span>
+                            <div style="display: flex; gap: 4px;">
+                                <button id="btn-save-props-calib" style="padding: 2px 7px; font-size: 9px; border-radius: 4px; background: rgba(0,255,136,0.18); color: #00ff88; border: 1px solid rgba(0,255,136,0.4); cursor: pointer; font-weight: 700;" title="Save all prop calibrations to browser storage">💾 Save</button>
+                                <button id="btn-reset-props-calib" style="padding: 2px 6px; font-size: 9px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;" title="Reset active prop to defaults">↺ Reset</button>
+                            </div>
+                        </div>
+
+                        <!-- Target Prop Selector -->
+                        <div style="margin-bottom: 8px;">
+                            <label style="font-size: 9px; color: rgba(203,213,225,0.7); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px;">Active Prop to Tune:</label>
+                            <select id="select-active-prop" style="width: 100%; background: #121620; color: #00e5ff; border: 1px solid rgba(0,229,255,0.3); border-radius: 5px; padding: 4px 6px; font-size: 11px; font-weight: 600;">
+                                <option value="monocle">Ren's Neural Monocle HUD (HEL-MIC-02 / MN-01)</option>
+                                <option value="drone">Ren's Tactical Recon Drone (SD-04 Ghosteye)</option>
+                                <option value="butterfly">Airi's Bio-Quantum Butterfly (SD-01)</option>
+                                <option value="console">Arcade Cyber Deck (HEL-DCK-01)</option>
+                                <option value="katana">Tactical Plasma Blade (HEL-BLD-01 / 02)</option>
+                                <option value="holodice">Airi's Quantum Holo-Dice (HEL-RNG-01)</option>
+                                <option value="datapad">Ren's Tactical Datapad (HEL-PAD-02)</option>
+                                <option value="orb">HELIOS Black Hole Core Orb</option>
+                                <option value="popup">Left-Wrist Holographic Popup HUD</option>
+                            </select>
+                        </div>
+
+                        <!-- Sliders Section -->
+                        <div id="prop-sliders-container" style="display: flex; flex-direction: column; gap: 6px; font-size: 10px; color: #cbd5e1;">
+                            <!-- Slider 1 -->
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                    <span id="label-slider-1">Forward / Back (Z):</span>
+                                    <span id="val-slider-1" style="color: #00e5ff; font-weight: 600;">+0.076 m</span>
+                                </div>
+                                <input id="slider-prop-1" type="range" min="0.040" max="0.120" value="0.076" step="0.001" style="width: 100%;">
+                            </div>
+                            <!-- Slider 2 -->
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                    <span id="label-slider-2">Left / Right (X):</span>
+                                    <span id="val-slider-2" style="color: #00e5ff; font-weight: 600;">+0.034 m</span>
+                                </div>
+                                <input id="slider-prop-2" type="range" min="0.010" max="0.060" value="0.034" step="0.001" style="width: 100%;">
+                            </div>
+                            <!-- Slider 3 -->
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                    <span id="label-slider-3">Up / Down (Y):</span>
+                                    <span id="val-slider-3" style="color: #00e5ff; font-weight: 600;">+0.058 m</span>
+                                </div>
+                                <input id="slider-prop-3" type="range" min="0.030" max="0.090" value="0.058" step="0.001" style="width: 100%;">
+                            </div>
+                            <!-- Slider 4 -->
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                    <span id="label-slider-4">Scale Size:</span>
+                                    <span id="val-slider-4" style="color: #00e5ff; font-weight: 600;">1.00x</span>
+                                </div>
+                                <input id="slider-prop-4" type="range" min="0.70" max="1.40" value="1.00" step="0.02" style="width: 100%;">
+                            </div>
+                            <!-- Movement Path / Orbit Mode (for drone / butterfly / orb) -->
+                            <div id="row-prop-path-mode" style="margin-top: 2px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                    <span id="label-prop-path">Movement Path / Orbit:</span>
+                                </div>
+                                <select id="select-prop-path-mode" style="width: 100%; background: #121620; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 3px 5px; font-size: 10px;">
+                                    <option value="recon_orbit">Elliptical Recon Orbit (Default)</option>
+                                    <option value="figure8">Figure-8 Infinite Sweep</option>
+                                    <option value="hover_perch">Tactical Hover & Perch</option>
+                                    <option value="spiral_ascent">Spiral Tactical Scan</option>
+                                </select>
+                            </div>
+                            <!-- Orbit Speed / Motion Frequency -->
+                            <div id="row-prop-path-speed">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                    <span>Orbit Speed / Rate:</span>
+                                    <span id="val-slider-speed" style="color: #00e5ff; font-weight: 600;">1.00x</span>
+                                </div>
+                                <input id="slider-prop-speed" type="range" min="0.20" max="2.50" value="1.00" step="0.05" style="width: 100%;">
+                            </div>
+                        </div>
+                        <div id="prop-save-feedback" style="font-size: 9px; color: #00ff88; margin-top: 6px; text-align: center; display: none;">
+                            ✓ Saved to Local Storage!
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subpane 2: Biomechanical Body Pose Tuner -->
+                <div id="adjust-subpane-body" class="adjust-subpane">
+                    <div style="width: 100%; box-sizing: border-box; padding: 10px; background: rgba(0, 255, 136, 0.04); border: 1px solid rgba(0, 255, 136, 0.25); border-radius: 8px; display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Top Avatar Target & Global Controls -->
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 11px; font-weight: 700; color: #00ff88;">🦾 Live Body Pose Tuner:</span>
+                            <div style="display: flex; gap: 4px;">
+                                <button id="btn-body-toggle-apply" class="active" style="padding: 2px 7px; font-size: 9px; border-radius: 4px; background: rgba(0,255,136,0.2); color: #00ff88; border: 1px solid rgba(0,255,136,0.5); cursor: pointer; font-weight: 700;" title="Toggle live continuous adjustment application">⚡ Live: ON</button>
+                                <button id="btn-body-reset" style="padding: 2px 6px; font-size: 9px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;" title="Reset all pose adjustments to 0">↺ Reset</button>
+                            </div>
+                        </div>
+
+                        <!-- Target Avatar & Actions Bar -->
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <select id="select-body-target" style="flex: 1; min-width: 0; background: #121620; color: #00ff88; border: 1px solid rgba(0,255,136,0.3); border-radius: 5px; padding: 4px 6px; font-size: 10px; font-weight: 600;">
+                                <option value="active">Target: Active Avatar</option>
+                                <option value="airi">Target: Airi (Sister)</option>
+                                <option value="ren">Target: Ren (Brother)</option>
+                                <option value="both">Target: Both Twins</option>
+                            </select>
+                            <button id="btn-body-capture" style="padding: 4px 8px; font-size: 10px; border-radius: 5px; background: rgba(0,229,255,0.15); color: #00e5ff; border: 1px solid rgba(0,229,255,0.35); cursor: pointer; font-weight: 600; white-space: nowrap;" title="Capture current live pose into sliders for fine nudging">📸 Capture</button>
+                            <button id="btn-body-save" style="padding: 4px 8px; font-size: 10px; border-radius: 5px; background: rgba(0,255,136,0.18); color: #00ff88; border: 1px solid rgba(0,255,136,0.4); cursor: pointer; font-weight: 700; white-space: nowrap;" title="Save adjusted pose as custom preset">💾 Save</button>
+                        </div>
+
+                        <!-- Pose Tuner Scrollable Card Sections -->
+                        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 480px; overflow-y: auto; padding-right: 2px;">
+                            <!-- Group 1: Head & Neck -->
+                            <div class="adjust-group-card">
+                                <div class="adjust-group-header">👤 Head & Neck</div>
+                                <div class="adjust-row">
+                                    <span>Head Pitch (Nod):</span>
+                                    <span id="val-body-head-pitch" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-head-pitch" type="range" min="-45" max="45" value="0" step="1">
+                                <div class="adjust-row">
+                                    <span>Head Yaw (Turn):</span>
+                                    <span id="val-body-head-yaw" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-head-yaw" type="range" min="-60" max="60" value="0" step="1">
+                                <div class="adjust-row">
+                                    <span>Head Roll (Tilt):</span>
+                                    <span id="val-body-head-roll" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-head-roll" type="range" min="-30" max="30" value="0" step="1">
+                                <div class="adjust-row">
+                                    <span>Neck Pitch:</span>
+                                    <span id="val-body-neck-pitch" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-neck-pitch" type="range" min="-30" max="30" value="0" step="1">
+                            </div>
+
+                            <!-- Group 2: Torso, Spine & Hips -->
+                            <div class="adjust-group-card">
+                                <div class="adjust-group-header">🩻 Spine, Torso & Pelvis</div>
+                                <div class="adjust-row">
+                                    <span>Spine Lean (Pitch):</span>
+                                    <span id="val-body-spine-lean" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-spine-lean" type="range" min="-30" max="30" value="0" step="1">
+                                <div class="adjust-row">
+                                    <span>Spine Twist (Yaw):</span>
+                                    <span id="val-body-spine-twist" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-spine-twist" type="range" min="-40" max="40" value="0" step="1">
+                                <div class="adjust-row">
+                                    <span>Spine Roll (Side-Bend):</span>
+                                    <span id="val-body-spine-roll" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-spine-roll" type="range" min="-25" max="25" value="0" step="1">
+                                <div class="adjust-row">
+                                    <span>Chest Expansion / Breath:</span>
+                                    <span id="val-body-chest-breath" class="adjust-val">0.00</span>
+                                </div>
+                                <input id="slider-body-chest-breath" type="range" min="-0.20" max="0.40" value="0.00" step="0.02">
+                                <div class="adjust-row">
+                                    <span>Pelvis Sway (Yaw):</span>
+                                    <span id="val-body-pelvis-sway" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-pelvis-sway" type="range" min="-30" max="30" value="0" step="1">
+                                <div class="adjust-row">
+                                    <span>Pelvis Tilt (Roll):</span>
+                                    <span id="val-body-pelvis-tilt" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-pelvis-tilt" type="range" min="-25" max="25" value="0" step="1">
+                                <div class="adjust-row">
+                                    <span>Crouch Depth (Y):</span>
+                                    <span id="val-body-crouch" class="adjust-val">0.00 m</span>
+                                </div>
+                                <input id="slider-body-crouch" type="range" min="-0.45" max="0.15" value="0.00" step="0.01">
+                            </div>
+
+                            <!-- Group 3: Right Arm & Hand -->
+                            <div class="adjust-group-card">
+                                <div class="adjust-group-header">🦾 Right Arm & Hand</div>
+                                <div class="adjust-row">
+                                    <span>Arm Lift (Height Y):</span>
+                                    <span id="val-body-r-lift" class="adjust-val">0.00 m</span>
+                                </div>
+                                <input id="slider-body-r-lift" type="range" min="-0.70" max="0.70" value="0.00" step="0.02">
+                                <div class="adjust-row">
+                                    <span>Reach Forward (Z):</span>
+                                    <span id="val-body-r-reach" class="adjust-val">0.00 m</span>
+                                </div>
+                                <input id="slider-body-r-reach" type="range" min="-0.40" max="0.60" value="0.00" step="0.02">
+                                <div class="adjust-row">
+                                    <span>Lateral Spread (X):</span>
+                                    <span id="val-body-r-side" class="adjust-val">0.00 m</span>
+                                </div>
+                                <input id="slider-body-r-side" type="range" min="-0.30" max="0.50" value="0.00" step="0.02">
+                                <div class="adjust-row">
+                                    <span>Elbow Flare / Pole:</span>
+                                    <span id="val-body-r-elbow" class="adjust-val">0.00</span>
+                                </div>
+                                <input id="slider-body-r-elbow" type="range" min="-1.00" max="1.00" value="0.00" step="0.05">
+                                <div class="adjust-row" style="margin-top: 4px;">
+                                    <span>Hand Gesture Shape:</span>
+                                </div>
+                                <select id="select-body-r-hand" style="width: 100%; background: #121620; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 3px 5px; font-size: 10px; margin-top: 2px;">
+                                    <option value="auto">Auto (Match Pose)</option>
+                                    <option value="relaxed">Relaxed Fingers</option>
+                                    <option value="open">Open Palm</option>
+                                    <option value="fist">Clenched Fist</option>
+                                    <option value="point">Pointing Finger</option>
+                                    <option value="peace">Peace Sign (V)</option>
+                                    <option value="thumbsup">Thumbs Up</option>
+                                    <option value="cupped">Cupped / Gentle Hold</option>
+                                </select>
+                            </div>
+
+                            <!-- Group 4: Left Arm & Hand -->
+                            <div class="adjust-group-card">
+                                <div class="adjust-group-header">🦾 Left Arm & Hand</div>
+                                <div class="adjust-row">
+                                    <span>Arm Lift (Height Y):</span>
+                                    <span id="val-body-l-lift" class="adjust-val">0.00 m</span>
+                                </div>
+                                <input id="slider-body-l-lift" type="range" min="-0.70" max="0.70" value="0.00" step="0.02">
+                                <div class="adjust-row">
+                                    <span>Reach Forward (Z):</span>
+                                    <span id="val-body-l-reach" class="adjust-val">0.00 m</span>
+                                </div>
+                                <input id="slider-body-l-reach" type="range" min="-0.40" max="0.60" value="0.00" step="0.02">
+                                <div class="adjust-row">
+                                    <span>Lateral Spread (X):</span>
+                                    <span id="val-body-l-side" class="adjust-val">0.00 m</span>
+                                </div>
+                                <input id="slider-body-l-side" type="range" min="-0.30" max="0.50" value="0.00" step="0.02">
+                                <div class="adjust-row">
+                                    <span>Elbow Flare / Pole:</span>
+                                    <span id="val-body-l-elbow" class="adjust-val">0.00</span>
+                                </div>
+                                <input id="slider-body-l-elbow" type="range" min="-1.00" max="1.00" value="0.00" step="0.05">
+                                <div class="adjust-row" style="margin-top: 4px;">
+                                    <span>Hand Gesture Shape:</span>
+                                </div>
+                                <select id="select-body-l-hand" style="width: 100%; background: #121620; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 3px 5px; font-size: 10px; margin-top: 2px;">
+                                    <option value="auto">Auto (Match Pose)</option>
+                                    <option value="relaxed">Relaxed Fingers</option>
+                                    <option value="open">Open Palm</option>
+                                    <option value="fist">Clenched Fist</option>
+                                    <option value="point">Pointing Finger</option>
+                                    <option value="peace">Peace Sign (V)</option>
+                                    <option value="thumbsup">Thumbs Up</option>
+                                    <option value="cupped">Cupped / Gentle Hold</option>
+                                </select>
+                            </div>
+
+                            <!-- Group 5: Stance & Legs -->
+                            <div class="adjust-group-card">
+                                <div class="adjust-group-header">🦵 Stance & Lower Body</div>
+                                <div class="adjust-row">
+                                    <span>Stance Width:</span>
+                                    <span id="val-body-stance-width" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-stance-width" type="range" min="-15" max="30" value="0" step="1">
+                                <div class="adjust-row">
+                                    <span>Knee Flex:</span>
+                                    <span id="val-body-knee-bend" class="adjust-val">0°</span>
+                                </div>
+                                <input id="slider-body-knee-bend" type="range" min="0" max="45" value="0" step="1">
+                            </div>
+                        </div>
+
+                        <div id="body-save-feedback" style="font-size: 9px; color: #00ff88; margin-top: 4px; text-align: center; display: none;">
+                            ✓ Saved custom pose preset!
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -233,7 +551,7 @@
     </div>
 
     <!-- Floating Quick-Access Bar for Edition Switcher & Personality Studio -->
-    <div style="position: fixed; top: 14px; right: 16px; z-index: 45; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+    <div id="floating-quick-bar" class="floating-quick-bar">
         <div style="display: inline-flex; background: rgba(15, 19, 28, 0.9); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 3px; backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
             <button id="btn-edition-full" title="Full Spec Version: HELIOS Core (:8000) + Tools + Sandbox + RAG + 3D Character" style="cursor: pointer; background: transparent; color: #94a3b8; border: none; border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 600; transition: all 0.15s ease;">
                 ⚡ Full Spec

@@ -135,7 +135,7 @@ body.state-thinking .sidebar-dot {
     position: absolute;
     top: 56px;
     left: 14px;
-    width: 310px;
+    width: 280px;
     max-width: calc(100vw - 28px);
     max-height: calc(100vh - 74px);
     overflow-y: auto;
@@ -240,7 +240,147 @@ body.state-thinking .sidebar-dot {
     letter-spacing: 0.06em;
 }
 
-#test-controls button, #nav-buttons button, #voice-controls button, #pose-buttons button, #preset-buttons button, .btn-import {
+/* Pose Drawer Segmented Tabs & Zero-Overlay Layout */
+.pose-drawer-tabs-header {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    background: rgba(10, 12, 16, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 3px;
+    margin-bottom: 6px;
+    box-sizing: border-box;
+}
+
+.pose-tab-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #94a3b8;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+    transition: all 0.18s ease;
+    outline: none;
+}
+
+.pose-tab-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.pose-tab-btn.active {
+    color: #00e5ff;
+    background: rgba(0, 229, 255, 0.18);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.25);
+}
+
+.pose-tab-pane {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    box-sizing: border-box;
+}
+
+.pose-tab-pane.active {
+    display: flex;
+}
+
+/* Adjuster Sub-Tabs & Biomechanical Slider Layout */
+.adjust-subtabs-header {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    background: rgba(14, 18, 25, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 7px;
+    padding: 3px;
+    margin-bottom: 6px;
+    box-sizing: border-box;
+}
+
+.adjust-subtab-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #94a3b8;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+    transition: all 0.18s ease;
+    outline: none;
+}
+
+.adjust-subtab-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.adjust-subtab-btn.active {
+    color: #00ff88;
+    background: rgba(0, 255, 136, 0.16);
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.22);
+}
+
+.adjust-subpane {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.adjust-subpane.active {
+    display: flex;
+}
+
+.adjust-group-card {
+    background: rgba(18, 24, 38, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    box-sizing: border-box;
+}
+
+.adjust-group-header {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #00ff88;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.adjust-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: #cbd5e1;
+}
+
+.adjust-val {
+    color: #00e5ff;
+    font-weight: 600;
+    font-family: monospace;
+}
+
+#test-controls button, #nav-buttons button, #voice-controls button, #pose-buttons button, #custom-pose-buttons button, #idle-interaction-buttons button, #style-buttons button, #rl-trainer-controls button, #tab-rl button, #tab-adjust button, #preset-buttons button, .btn-import {
     padding: 5px 10px;
     font-size: 12px;
     font-weight: 500;
@@ -255,13 +395,13 @@ body.state-thinking .sidebar-dot {
     gap: 4px;
 }
 
-#test-controls button:hover, #nav-buttons button:hover, #voice-controls button:hover, #pose-buttons button:hover, #preset-buttons button:hover, .btn-import:hover {
+#test-controls button:hover, #nav-buttons button:hover, #voice-controls button:hover, #pose-buttons button:hover, #custom-pose-buttons button:hover, #idle-interaction-buttons button:hover, #style-buttons button:hover, #rl-trainer-controls button:hover, #tab-rl button:hover, #preset-buttons button:hover, .btn-import:hover {
     background: rgba(255, 255, 255, 0.22);
     border-color: rgba(255, 255, 255, 0.35);
     color: #ffffff;
 }
 
-#test-controls button.active, #nav-buttons button.active, #voice-controls button.active, #pose-buttons button.active, #preset-buttons button.active {
+#test-controls button.active, #nav-buttons button.active, #voice-controls button.active, #pose-buttons button.active, #custom-pose-buttons button.active, #idle-interaction-buttons button.active, #style-buttons button.active, #rl-trainer-controls button.active, #tab-rl button.active, #preset-buttons button.active {
     background: var(--accent-bg);
     border-color: var(--accent-border);
     color: var(--pure-white);
@@ -621,5 +761,367 @@ body.state-thinking #status-badge::before {
     accent-color: #00e5ff;
     cursor: pointer;
 }
+
+/* ============================================================================
+   CALL MODE OVERLAY & HANDS-FREE VOICE CALL HUD
+   ============================================================================ */
+.btn-call-mode {
+    cursor: pointer;
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(0, 255, 136, 0.30));
+    color: #00ffaa;
+    border: 1px solid rgba(0, 255, 170, 0.6);
+    border-radius: 999px;
+    padding: 7px 15px;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 16px rgba(0, 255, 170, 0.25);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-call-mode:hover {
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.45), rgba(0, 255, 136, 0.55));
+    color: #ffffff;
+    box-shadow: 0 0 24px rgba(0, 255, 170, 0.55);
+    transform: scale(1.04);
+}
+
+.btn-call-mode.in-call {
+    background: linear-gradient(135deg, rgba(255, 59, 48, 0.3), rgba(255, 69, 58, 0.45));
+    border-color: rgba(255, 69, 58, 0.7);
+    color: #ff6b6b;
+    box-shadow: 0 0 20px rgba(255, 59, 48, 0.35);
+}
+
+#call-mode-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 120;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 20px 36px 20px;
+    box-sizing: border-box;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+    background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(13, 14, 18, 0.78) 95%);
+}
+
+#call-mode-overlay.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.call-header-hud {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.call-caller-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 18px;
+    background: rgba(13, 14, 18, 0.85);
+    border: 1px solid rgba(0, 229, 255, 0.45);
+    border-radius: 999px;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.call-pulse-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #00ffaa;
+    box-shadow: 0 0 10px #00ffaa;
+    animation: call-pulse 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes call-pulse {
+    0% { transform: scale(0.8); opacity: 0.5; }
+    100% { transform: scale(1.3); opacity: 1.0; }
+}
+
+.call-caller-name {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #ebf0f5;
+}
+
+.call-timer {
+    font-size: 12px;
+    font-weight: 600;
+    color: #94a3b8;
+    letter-spacing: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.call-status-pill {
+    padding: 4px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #00e5ff;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+.call-live-caption-box {
+    max-width: 620px;
+    width: 90%;
+    margin-bottom: 16px;
+    padding: 12px 20px;
+    background: rgba(13, 14, 18, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    text-align: center;
+    color: #ebf0f5;
+    font-size: 14px;
+    line-height: 1.5;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.call-live-caption-box .speaker-tag {
+    font-weight: 700;
+    margin-right: 8px;
+    color: #00e5ff;
+}
+
+.call-controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 22px;
+    background: rgba(13, 14, 18, 0.90);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+.call-ctrl-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.call-ctrl-btn:hover {
+    transform: scale(1.1);
+}
+
+.call-ctrl-mic {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ebf0f5;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.call-ctrl-mic.muted {
+    background: rgba(255, 59, 48, 0.25);
+    border-color: rgba(255, 59, 48, 0.6);
+    color: #ff6b6b;
+}
+
+.call-ctrl-interrupt {
+    background: rgba(255, 204, 0, 0.2);
+    border: 1px solid rgba(255, 204, 0, 0.5);
+    color: #ffd60a;
+}
+
+.call-ctrl-end {
+    background: #ff3b30;
+    color: #ffffff;
+    box-shadow: 0 0 20px rgba(255, 59, 48, 0.55);
+}
+
+.call-ctrl-end:hover {
+    background: #ff453a;
+    box-shadow: 0 0 28px rgba(255, 59, 48, 0.8);
+}
+
+/* ==========================================================================
+   MOBILE & TOUCH OPTIMIZATIONS (iOS / Android / Small Viewports <= 768px)
+   ========================================================================== */
+.floating-quick-bar {
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: calc(14px + env(safe-area-inset-right, 0px));
+    z-index: 45;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    max-width: calc(100vw - 120px);
+}
+
+@media (max-width: 768px) {
+    /* Safe-area insets for modern mobile displays (notches & home bars) */
+    html, body {
+        height: 100%;
+        min-height: 100dvh;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
+
+    #canvas-container {
+        height: 100dvh;
+    }
+
+    /* Touch-friendly sidebar toggle button */
+    #sidebar-toggle {
+        top: calc(12px + env(safe-area-inset-top, 0px));
+        left: calc(12px + env(safe-area-inset-left, 0px));
+        min-height: 44px;
+        min-width: 44px;
+        padding: 8px 14px;
+        font-size: 13px;
+        touch-action: manipulation;
+    }
+
+    /* Mobile Drawer Sidebar: Clean bottom/side overlay */
+    #top-ui.sidebar-panel {
+        top: calc(64px + env(safe-area-inset-top, 0px));
+        left: calc(10px + env(safe-area-inset-left, 0px));
+        width: min(340px, calc(100vw - 20px));
+        max-width: calc(100vw - 20px);
+        max-height: calc(100dvh - 140px);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 229, 255, 0.2);
+        padding-bottom: 24px;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Floating quick bar adjustments */
+    .floating-quick-bar {
+        max-width: calc(100vw - 110px);
+        gap: 6px;
+        justify-content: flex-end;
+    }
+
+    .floating-quick-bar button,
+    .floating-quick-bar a {
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        min-height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Hide redundant desktop studio link on compact phones to avoid crowding */
+    .floating-quick-bar a[href="personality.html"] {
+        display: none !important;
+    }
+
+    /* Minimum touch target size compliance (>=44x44px or >=40px with margin) */
+    .sidebar-btn-grid button,
+    .btn-import {
+        min-height: 38px;
+        padding: 8px 10px;
+        font-size: 12px;
+        touch-action: manipulation;
+    }
+
+    /* Chat UI bottom bar optimized for mobile thumbs and virtual keyboards */
+    #chat-container {
+        width: 100%;
+        max-width: calc(100vw - 20px);
+        left: 50%;
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        transform: translateX(-50%);
+        padding: 0;
+    }
+
+    #chat-log {
+        max-height: 140px;
+        font-size: 12.5px;
+        padding: 8px 12px;
+        border-radius: 12px;
+        margin-bottom: 4px;
+    }
+
+    #chat-input-wrapper {
+        border-radius: 14px;
+        padding: 5px 8px;
+        background: rgba(13, 15, 20, 0.94);
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+    }
+
+    #chat-input {
+        font-size: 14px;
+        min-height: 38px;
+    }
+
+    #chat-mic {
+        min-width: 40px;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9px;
+    }
+
+    #chat-send {
+        min-height: 40px;
+        padding: 6px 14px;
+        border-radius: 9px;
+    }
+
+    /* Compact Mobile Popup Card */
+    .helios-popup-card {
+        top: calc(62px + env(safe-area-inset-top, 0px));
+        right: calc(10px + env(safe-area-inset-right, 0px));
+        width: min(220px, calc(100vw - 24px));
+        padding: 8px 10px;
+    }
+
+    /* Mobile Call Overlay */
+    .call-controls-bar {
+        padding: 8px 16px;
+        gap: 12px;
+    }
+
+    .call-ctrl-btn {
+        width: 48px;
+        height: 48px;
+        font-size: 18px;
+    }
+
+    .call-live-caption-box {
+        width: 95%;
+        font-size: 13px;
+        padding: 10px 14px;
+    }
+}
+
+
 
 

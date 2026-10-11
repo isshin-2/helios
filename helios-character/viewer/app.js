@@ -1,9 +1,11 @@
 import * as THREE from 'three';
+window.THREE = THREE;
 import { createVRMRendererContext } from './vrm/renderer.js';
 import { Humanizer } from './vrm/humanizer.js?v=14';
 import {
     MIXAMO_TO_VRM_MAP,
     EMOTION_SPEAKING_POSE_POOLS,
+    getSpeakingPosePoolForCharacter,
     IDLE_OBJECT_AND_WAITING_POSES,
     PROTOCOL_ANIMATION_MAP,
     mapProtocolAnimationToPose,
@@ -12,7 +14,7 @@ import {
     extractMixamoFBXClip,
     AnimationManager,
     NavigationController,
-} from './vrm/animation.js?v=16';
+} from './vrm/animation.js?v=17';
 import { ExpressionController } from './vrm/expressions.js';
 import { AudioLipSync } from './vrm/lip_sync.js?v=15';
 import { Live2DRendererAdapter } from './live2d/renderer.js';
@@ -77,8 +79,178 @@ const rigEditor = new RigEditor({
     onStatus: updateStatus,
 });
 window.rigEditor = rigEditor;
-window.camera = camera;
-window.controls = controls;
+// ----------------------------------------------------
+// UNIVERSAL USER-ADJUSTABLE CALIBRATION FOR ALL 3D PROPS & GADGETS
+// ----------------------------------------------------
+const PROPS_CONFIG = {
+    monocle: {
+        name: "Ren's Neural Monocle HUD (HEL-MIC-02 / MN-01)",
+        hasPath: false,
+        labels: { x: "Left / Right (X):", y: "Up / Down (Y):", z: "Forward / Back (Z):", scale: "Scale Size:" },
+        ranges: {
+            x: { min: 0.010, max: 0.060, step: 0.001, unit: "m" },
+            y: { min: 0.030, max: 0.090, step: 0.001, unit: "m" },
+            z: { min: 0.040, max: 0.120, step: 0.001, unit: "m" },
+            scale: { min: 0.70, max: 1.40, step: 0.02, unit: "x" }
+        },
+        defaults: { x: 0.0336, y: 0.0575, z: 0.0760, scale: 1.00, pathMode: 'none', speed: 1.00 }
+    },
+    drone: {
+        name: "Ren's Tactical Recon Drone (SD-04 Ghosteye)",
+        hasPath: true,
+        labels: { x: "Offset X (Lateral):", y: "Offset Y (Altitude):", z: "Offset Z (Depth):", scale: "Drone Scale:" },
+        ranges: {
+            x: { min: -0.40, max: 0.40, step: 0.01, unit: "m" },
+            y: { min: -0.30, max: 0.50, step: 0.01, unit: "m" },
+            z: { min: -0.40, max: 0.40, step: 0.01, unit: "m" },
+            scale: { min: 0.60, max: 1.80, step: 0.05, unit: "x" }
+        },
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'recon_orbit', speed: 1.00 }
+    },
+    butterfly: {
+        name: "Airi's Bio-Quantum Butterfly (SD-01)",
+        hasPath: true,
+        labels: { x: "Offset X (Lateral):", y: "Offset Y (Height):", z: "Offset Z (Depth):", scale: "Wing Scale:" },
+        ranges: {
+            x: { min: -0.25, max: 0.25, step: 0.01, unit: "m" },
+            y: { min: -0.20, max: 0.35, step: 0.01, unit: "m" },
+            z: { min: -0.25, max: 0.25, step: 0.01, unit: "m" },
+            scale: { min: 0.60, max: 1.80, step: 0.05, unit: "x" }
+        },
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'hover_perch', speed: 1.00 }
+    },
+    console: {
+        name: "Arcade Cyber Deck (HEL-DCK-01)",
+        hasPath: false,
+        labels: { x: "Offset X (Grip):", y: "Offset Y (Height):", z: "Offset Z (Distance):", scale: "Device Scale:" },
+        ranges: {
+            x: { min: -0.20, max: 0.20, step: 0.005, unit: "m" },
+            y: { min: -0.15, max: 0.20, step: 0.005, unit: "m" },
+            z: { min: -0.15, max: 0.25, step: 0.005, unit: "m" },
+            scale: { min: 0.70, max: 1.50, step: 0.02, unit: "x" }
+        },
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'none', speed: 1.00 }
+    },
+    katana: {
+        name: "Tactical Plasma Blade (HEL-BLD-01 / 02)",
+        hasPath: false,
+        labels: { x: "Offset X (Hilt):", y: "Offset Y (Elevation):", z: "Offset Z (Reach):", scale: "Blade Scale:" },
+        ranges: {
+            x: { min: -0.25, max: 0.25, step: 0.005, unit: "m" },
+            y: { min: -0.20, max: 0.25, step: 0.005, unit: "m" },
+            z: { min: -0.20, max: 0.25, step: 0.005, unit: "m" },
+            scale: { min: 0.70, max: 1.60, step: 0.02, unit: "x" }
+        },
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'none', speed: 1.00 }
+    },
+    holodice: {
+        name: "Airi's Quantum Holo-Dice (HEL-RNG-01)",
+        hasPath: true,
+        labels: { x: "Offset X (Lateral):", y: "Offset Y (Height):", z: "Offset Z (Depth):", scale: "Dice Scale:" },
+        ranges: {
+            x: { min: -0.25, max: 0.25, step: 0.01, unit: "m" },
+            y: { min: -0.20, max: 0.35, step: 0.01, unit: "m" },
+            z: { min: -0.25, max: 0.25, step: 0.01, unit: "m" },
+            scale: { min: 0.60, max: 2.00, step: 0.05, unit: "x" }
+        },
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'hover_perch', speed: 1.00 }
+    },
+    datapad: {
+        name: "Ren's Tactical Datapad (HEL-PAD-02)",
+        hasPath: false,
+        labels: { x: "Offset X (Grip):", y: "Offset Y (Height):", z: "Offset Z (Distance):", scale: "Pad Scale:" },
+        ranges: {
+            x: { min: -0.20, max: 0.20, step: 0.005, unit: "m" },
+            y: { min: -0.15, max: 0.20, step: 0.005, unit: "m" },
+            z: { min: -0.15, max: 0.25, step: 0.005, unit: "m" },
+            scale: { min: 0.70, max: 1.50, step: 0.02, unit: "x" }
+        },
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'none', speed: 1.00 }
+    },
+    orb: {
+        name: "HELIOS Black Hole Core Orb",
+        hasPath: true,
+        labels: { x: "Offset X (Orbit X):", y: "Offset Y (Float Y):", z: "Offset Z (Orbit Z):", scale: "Singularity Scale:" },
+        ranges: {
+            x: { min: -0.30, max: 0.30, step: 0.01, unit: "m" },
+            y: { min: -0.25, max: 0.35, step: 0.01, unit: "m" },
+            z: { min: -0.30, max: 0.30, step: 0.01, unit: "m" },
+            scale: { min: 0.60, max: 1.80, step: 0.05, unit: "x" }
+        },
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'recon_orbit', speed: 1.00 }
+    },
+    popup: {
+        name: "Left-Wrist Holographic Popup HUD",
+        hasPath: false,
+        labels: { x: "Offset X (Lateral):", y: "Offset Y (Height):", z: "Offset Z (Distance):", scale: "HUD Size:" },
+        ranges: {
+            x: { min: -0.30, max: 0.30, step: 0.01, unit: "m" },
+            y: { min: -0.25, max: 0.35, step: 0.01, unit: "m" },
+            z: { min: -0.25, max: 0.35, step: 0.01, unit: "m" },
+            scale: { min: 0.60, max: 1.60, step: 0.02, unit: "x" }
+        },
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'none', speed: 1.00 }
+    }
+};
+
+let propsCalibration = {};
+for (const key of Object.keys(PROPS_CONFIG)) {
+    propsCalibration[key] = { ...PROPS_CONFIG[key].defaults };
+}
+
+try {
+    const saved = localStorage.getItem('helios_props_calibration');
+    if (saved) {
+        const parsed = JSON.parse(saved);
+        for (const key of Object.keys(PROPS_CONFIG)) {
+            if (parsed[key]) {
+                propsCalibration[key] = { ...PROPS_CONFIG[key].defaults, ...parsed[key] };
+            }
+        }
+    } else {
+        // Migration from legacy monocle calibration if present
+        const oldMonocle = localStorage.getItem('helios_monocle_calibration');
+        if (oldMonocle) {
+            propsCalibration.monocle = { ...PROPS_CONFIG.monocle.defaults, ...JSON.parse(oldMonocle) };
+        }
+    }
+} catch (e) {
+    console.warn('Could not read saved props calibration:', e);
+}
+
+// Keep backwards compatibility for any external references
+let monocleCalibration = propsCalibration.monocle;
+window.propsCalibration = propsCalibration;
+window.PROPS_CONFIG = PROPS_CONFIG;
+window.monocleCalibration = monocleCalibration;
+
+window.savePropsCalibration = () => {
+    try {
+        localStorage.setItem('helios_props_calibration', JSON.stringify(propsCalibration));
+        localStorage.setItem('helios_monocle_calibration', JSON.stringify(propsCalibration.monocle));
+        return true;
+    } catch (e) {
+        console.error('Failed to save props calibration:', e);
+        return false;
+    }
+};
+
+window.resetPropCalibration = (propId) => {
+    if (PROPS_CONFIG[propId]) {
+        propsCalibration[propId] = { ...PROPS_CONFIG[propId].defaults };
+        window.savePropsCalibration();
+        if (window.syncActivePropSlidersUI) window.syncActivePropSlidersUI();
+    }
+};
+
+window.setPropCalibration = (propId, opts = {}) => {
+    if (propsCalibration[propId]) {
+        Object.assign(propsCalibration[propId], opts);
+        if (propId === 'monocle') {
+            Object.assign(monocleCalibration, opts);
+        }
+    }
+};
 
 // ----------------------------------------------------
 // 3D INTERACTIVE CHARACTER OBJECTS (DISAPPEAR WHEN NOT INTERACTED WITH)
@@ -198,9 +370,11 @@ function createInteractiveIdleObjects(parentScene) {
     orbGroup.add(coreMesh);
 
     // 3D Volumetric Event Horizon sphere (#050507 core-black) at the center of the Black Hole
-    const innerGeo = new THREE.SphereGeometry(0.029, 24, 24);
-    const innerMat = new THREE.MeshBasicMaterial({
-        color: 0x050507,
+    const innerGeo = new THREE.SphereGeometry(0.029, 32, 32);
+    const innerMat = new THREE.MeshStandardMaterial({
+        color: 0x050508,
+        roughness: 0.9,
+        metalness: 0.1,
         transparent: true,
         opacity: 0.0,
     });
@@ -209,9 +383,13 @@ function createInteractiveIdleObjects(parentScene) {
     orbGroup.add(innerMesh);
 
     // 3D Tilted (-15deg) Accretion Disk Rings around the 3D Event Horizon sphere
-    const gyroGeo = new THREE.TorusGeometry(0.068, 0.0014, 12, 64);
-    const gyroMat = new THREE.MeshBasicMaterial({
+    const gyroGeo = new THREE.TorusGeometry(0.068, 0.0018, 16, 64);
+    const gyroMat = new THREE.MeshStandardMaterial({
         color: 0x00e5ff,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 1.4,
+        roughness: 0.2,
+        metalness: 0.8,
         transparent: true,
         opacity: 0.0,
     });
@@ -219,7 +397,7 @@ function createInteractiveIdleObjects(parentScene) {
     gyroRing.rotation.set(Math.PI * 0.42, 0, THREE.MathUtils.degToRad(-15));
     orbGroup.add(gyroRing);
 
-    const gyroGeo2 = new THREE.TorusGeometry(0.082, 0.0011, 12, 64);
+    const gyroGeo2 = new THREE.TorusGeometry(0.082, 0.0014, 16, 64);
     const gyroRing2 = new THREE.Mesh(gyroGeo2, gyroMat);
     gyroRing2.rotation.set(Math.PI * 0.46, 0, THREE.MathUtils.degToRad(-15));
     orbGroup.add(gyroRing2);
@@ -281,6 +459,716 @@ function createInteractiveIdleObjects(parentScene) {
     wristHudGroup.add(wristBorder);
     parentScene.add(wristHudGroup);
 
+    // 5. Airi Unique Companion: High-Rendered 3D Bio-Quantum Butterfly — Model: SD-01
+    // Segmented metallic cyber-body, dual-layer iridescent wings with circuit veins, photon nucleus
+    const butterflyGroup = new THREE.Group();
+    butterflyGroup.name = 'AiriCyberButterfly3D';
+    butterflyGroup.visible = false;
+
+    // Segmented Cyber Body (Head, Thorax, Abdomen)
+    const bBodyMat = new THREE.MeshStandardMaterial({
+        color: 0x181c26,
+        metalness: 0.9,
+        roughness: 0.22,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const bHead = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 16, 16), bBodyMat);
+    bHead.position.set(0, 0, 0.015);
+    butterflyGroup.add(bHead);
+
+    const bThorax = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0055, 0.014, 16), bBodyMat);
+    bThorax.rotation.x = Math.PI * 0.5;
+    bThorax.position.set(0, 0, 0.003);
+    butterflyGroup.add(bThorax);
+
+    const bAbdomen = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.002, 0.022, 16), bBodyMat);
+    bAbdomen.rotation.x = Math.PI * 0.5;
+    bAbdomen.position.set(0, -0.002, -0.014);
+    butterflyGroup.add(bAbdomen);
+
+    // Micro Antennae
+    const antMat = new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.0 });
+    const antGeoL = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0.002, 0.016),
+        new THREE.Vector3(-0.006, 0.010, 0.024),
+        new THREE.Vector3(-0.012, 0.014, 0.028)
+    ]);
+    const antMeshL = new THREE.Line(antGeoL, antMat);
+    butterflyGroup.add(antMeshL);
+    const antGeoR = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0.002, 0.016),
+        new THREE.Vector3(0.006, 0.010, 0.024),
+        new THREE.Vector3(0.012, 0.014, 0.028)
+    ]);
+    const antMeshR = new THREE.Line(antGeoR, antMat);
+    butterflyGroup.add(antMeshR);
+
+    // Photon Energy Core
+    const bCoreGeo = new THREE.SphereGeometry(0.012, 24, 24);
+    const bCoreMat = new THREE.MeshStandardMaterial({
+        color: 0x00ffff,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 2.0,
+        roughness: 0.1,
+        metalness: 0.2,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const butterflyCoreMesh = new THREE.Mesh(bCoreGeo, bCoreMat);
+    butterflyGroup.add(butterflyCoreMesh);
+
+    // Left Wing (Dual-layer shaped wing: structural frame + iridescent membrane)
+    const wingShape = new THREE.Shape();
+    wingShape.moveTo(0, 0);
+    wingShape.bezierCurveTo(0.018, 0.040, 0.060, 0.062, 0.082, 0.036);
+    wingShape.bezierCurveTo(0.092, 0.018, 0.076, -0.024, 0.050, -0.040);
+    wingShape.bezierCurveTo(0.028, -0.050, 0.010, -0.028, 0, 0);
+
+    const wingGeo = new THREE.ShapeGeometry(wingShape, 16);
+    const bWingMatL = new THREE.MeshStandardMaterial({
+        color: 0x00e5ff,
+        emissive: 0x0088ff,
+        emissiveIntensity: 1.0,
+        roughness: 0.15,
+        metalness: 0.5,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const bWingMeshL = new THREE.Mesh(wingGeo, bWingMatL);
+    bWingMeshL.scale.set(0.72, 0.72, 0.72);
+    butterflyGroup.add(bWingMeshL);
+
+    // Right Wing
+    const bWingMatR = new THREE.MeshStandardMaterial({
+        color: 0xff00d4,
+        emissive: 0xbb0099,
+        emissiveIntensity: 1.0,
+        roughness: 0.15,
+        metalness: 0.5,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const bWingMeshR = new THREE.Mesh(wingGeo, bWingMatR);
+    bWingMeshR.scale.set(-0.72, 0.72, 0.72);
+    butterflyGroup.add(bWingMeshR);
+
+    // Prismatic Energy Aura Ring
+    const bAuraGeo = new THREE.TorusGeometry(0.024, 0.0016, 16, 48);
+    const bAuraMat = new THREE.MeshStandardMaterial({
+        color: 0x00ffff,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 1.4,
+        roughness: 0.1,
+        metalness: 0.5,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const bAuraMesh = new THREE.Mesh(bAuraGeo, bAuraMat);
+    bAuraMesh.rotation.x = Math.PI * 0.5;
+    butterflyGroup.add(bAuraMesh);
+    parentScene.add(butterflyGroup);
+
+    // 6. Ren Unique Companion: High-Rendered 3D Tactical Recon Drone — Model: SD-04 "GHOSTEYE"
+    // PBR stealth carbon-composite chassis, counter-rotating ducted fan rotors,
+    // gimballed amber optical aperture dome, canted V-tail stabilizers, telemetry antennas.
+    // NOTE: All blue lights completely removed — 100% tactical amber/gold optics and indicators!
+    const droneGroup = new THREE.Group();
+    droneGroup.name = 'RenTacticalDrone3D';
+    droneGroup.visible = false;
+
+    // Materials (High-Rendered PBR, Zero Blue Light)
+    const droneChassisMat = new THREE.MeshStandardMaterial({
+        color: 0x141824, // Carbon-composite stealth charcoal
+        roughness: 0.35,
+        metalness: 0.88,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const droneEdgeMat = new THREE.LineBasicMaterial({
+        color: 0xffa000, // Tactical warm amber panel seam wireframe (NO BLUE)
+        transparent: true,
+        opacity: 0.0,
+    });
+    const droneEyeMat = new THREE.MeshStandardMaterial({
+        color: 0xff9900, // Tactical amber/infrared optical lens (NO BLUE)
+        emissive: 0xff8800,
+        emissiveIntensity: 1.8,
+        roughness: 0.15,
+        metalness: 0.25,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const droneRotorMat = new THREE.MeshStandardMaterial({
+        color: 0x1c202a, // High-RPM carbon composite prop
+        roughness: 0.4,
+        metalness: 0.7,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const droneRingMat1 = new THREE.MeshStandardMaterial({
+        color: 0xffaa00, // Tactical gold/amber telemetry lidar ring (NO BLUE)
+        emissive: 0xff8800,
+        emissiveIntensity: 1.3,
+        roughness: 0.2,
+        metalness: 0.8,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const droneRingMat2 = new THREE.MeshStandardMaterial({
+        color: 0xff6600, // Tactical deep amber outer telemetry ring (NO BLUE)
+        emissive: 0xff4400,
+        emissiveIntensity: 1.0,
+        roughness: 0.2,
+        metalness: 0.8,
+        transparent: true,
+        opacity: 0.0,
+    });
+
+    // 6a. Main Fuselage (Faceted stealth lifting body)
+    const droneChassisGeo = new THREE.BoxGeometry(0.082, 0.018, 0.145);
+    const droneChassisMesh = new THREE.Mesh(droneChassisGeo, droneChassisMat);
+    droneGroup.add(droneChassisMesh);
+
+    const droneEdges = new THREE.EdgesGeometry(droneChassisGeo);
+    const droneEdgeMesh = new THREE.LineSegments(droneEdges, droneEdgeMat);
+    droneGroup.add(droneEdgeMesh);
+
+    // 6b. Blended Wings / Ducted Fan Nacelles (Left and Right)
+    const droneWingGeo = new THREE.BoxGeometry(0.20, 0.009, 0.075);
+    droneWingGeo.translate(0, 0, 0.005);
+    const droneWingMesh = new THREE.Mesh(droneWingGeo, droneChassisMat);
+    droneGroup.add(droneWingMesh);
+    const droneWingEdges = new THREE.EdgesGeometry(droneWingGeo);
+    const droneWingEdgeMesh = new THREE.LineSegments(droneWingEdges, droneEdgeMat);
+    droneGroup.add(droneWingEdgeMesh);
+
+    // Left Ducted Rotor Shroud with aerodynamic lip
+    const ductGeoL = new THREE.CylinderGeometry(0.028, 0.026, 0.016, 24, 1, true);
+    const ductMeshL = new THREE.Mesh(ductGeoL, droneChassisMat);
+    ductMeshL.position.set(-0.065, 0, 0.008);
+    droneGroup.add(ductMeshL);
+    const ductEdgeL = new THREE.LineSegments(new THREE.EdgesGeometry(ductGeoL), droneEdgeMat);
+    ductEdgeL.position.copy(ductMeshL.position);
+    droneGroup.add(ductEdgeL);
+
+    // Right Ducted Rotor Shroud
+    const ductGeoR = new THREE.CylinderGeometry(0.028, 0.026, 0.016, 24, 1, true);
+    const ductMeshR = new THREE.Mesh(ductGeoR, droneChassisMat);
+    ductMeshR.position.set(0.065, 0, 0.008);
+    droneGroup.add(ductMeshR);
+    const ductEdgeR = new THREE.LineSegments(new THREE.EdgesGeometry(ductGeoR), droneEdgeMat);
+    ductEdgeR.position.copy(ductMeshR.position);
+    droneGroup.add(ductEdgeR);
+
+    // Enclosed Spinning Rotors (Left & Right 4-blade fans with central spinner hub)
+    const rotorGeoL = new THREE.CylinderGeometry(0.024, 0.024, 0.003, 4);
+    const droneRotorMeshL = new THREE.Mesh(rotorGeoL, droneRotorMat);
+    droneRotorMeshL.position.copy(ductMeshL.position);
+    droneGroup.add(droneRotorMeshL);
+
+    const rotorGeoR = new THREE.CylinderGeometry(0.024, 0.024, 0.003, 4);
+    const droneRotorMeshR = new THREE.Mesh(rotorGeoR, droneRotorMat);
+    droneRotorMeshR.position.copy(ductMeshR.position);
+    droneGroup.add(droneRotorMeshR);
+
+    // 6c. Forward Camera-Sensor Turret Dome (Amber optical lens, zero blue)
+    const droneEyeGeo = new THREE.SphereGeometry(0.013, 24, 24);
+    const droneEyeMesh = new THREE.Mesh(droneEyeGeo, droneEyeMat);
+    droneEyeMesh.position.set(0, -0.007, 0.072);
+    droneGroup.add(droneEyeMesh);
+
+    // 6d. Canted V-Tail Stabilizers
+    const finGeoL = new THREE.BoxGeometry(0.004, 0.030, 0.042);
+    finGeoL.translate(0, 0.015, 0);
+    const finMeshL = new THREE.Mesh(finGeoL, droneChassisMat);
+    finMeshL.position.set(-0.034, 0.007, -0.058);
+    finMeshL.rotation.z = -0.32;
+    droneGroup.add(finMeshL);
+    const finEdgeL = new THREE.LineSegments(new THREE.EdgesGeometry(finGeoL), droneEdgeMat);
+    finEdgeL.position.copy(finMeshL.position);
+    finEdgeL.rotation.copy(finMeshL.rotation);
+    droneGroup.add(finEdgeL);
+
+    const finGeoR = new THREE.BoxGeometry(0.004, 0.030, 0.042);
+    finGeoR.translate(0, 0.015, 0);
+    const finMeshR = new THREE.Mesh(finGeoR, droneChassisMat);
+    finMeshR.position.set(0.034, 0.007, -0.058);
+    finMeshR.rotation.z = 0.32;
+    droneGroup.add(finMeshR);
+    const finEdgeR = new THREE.LineSegments(new THREE.EdgesGeometry(finGeoR), droneEdgeMat);
+    finEdgeR.position.copy(finMeshR.position);
+    finEdgeR.rotation.copy(finMeshR.rotation);
+    droneGroup.add(finEdgeR);
+
+    // 6e. Wingtip Telemetry LEDs (Warm tactical amber/ruby navigation beacons, NO BLUE)
+    const ledMat = new THREE.MeshStandardMaterial({
+        color: 0xff4400,
+        emissive: 0xff3300,
+        emissiveIntensity: 1.8,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const ledGeo = new THREE.SphereGeometry(0.0035, 12, 12);
+    const ledMeshL = new THREE.Mesh(ledGeo, ledMat);
+    ledMeshL.position.set(-0.102, 0, 0.005);
+    droneGroup.add(ledMeshL);
+    const ledMeshR = new THREE.Mesh(ledGeo, ledMat);
+    ledMeshR.position.set(0.102, 0, 0.005);
+    droneGroup.add(ledMeshR);
+
+    // Dual Telemetry Field / Lidar Orbit Rings (Amber/gold gradient)
+    const droneRingGeo1 = new THREE.TorusGeometry(0.072, 0.0016, 12, 48);
+    const droneRing1 = new THREE.Mesh(droneRingGeo1, droneRingMat1);
+    droneRing1.rotation.x = Math.PI * 0.5;
+    droneGroup.add(droneRing1);
+
+    const droneRingGeo2 = new THREE.TorusGeometry(0.086, 0.0014, 12, 48);
+    const droneRing2 = new THREE.Mesh(droneRingGeo2, droneRingMat2);
+    droneRing2.rotation.x = Math.PI * 0.5;
+    droneGroup.add(droneRing2);
+    parentScene.add(droneGroup);
+
+    // 7. Cyber Handheld Console / Arcade Deck — Model: HEL-DCK-01
+    // High-Rendered PBR chassis with textured rubber grips, dynamic retro arcade canvas display,
+    // tactile D-Pad, dual concave thumbsticks with knurled rims, ABXY micro buttons, and shoulder bumpers
+    const consoleGroup = new THREE.Group();
+    consoleGroup.name = 'CyberHandheldConsole3D';
+    consoleGroup.visible = false;
+
+    // Main Body Chassis
+    const consoleBodyGeo = new THREE.BoxGeometry(0.192, 0.088, 0.020);
+    const consoleBodyMat = new THREE.MeshStandardMaterial({
+        color: 0x141824,
+        roughness: 0.35,
+        metalness: 0.85,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const consoleBodyMesh = new THREE.Mesh(consoleBodyGeo, consoleBodyMat);
+    consoleGroup.add(consoleBodyMesh);
+
+    // Rubberized Ergonomic Side Grips (Left & Right)
+    const gripGeoL = new THREE.BoxGeometry(0.026, 0.090, 0.023);
+    const gripMat = new THREE.MeshStandardMaterial({
+        color: 0x090b10,
+        roughness: 0.94,
+        metalness: 0.08,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const gripMeshL = new THREE.Mesh(gripGeoL, gripMat);
+    gripMeshL.position.set(-0.086, 0, 0.001);
+    consoleGroup.add(gripMeshL);
+    const gripMeshR = new THREE.Mesh(gripGeoL, gripMat);
+    gripMeshR.position.set(0.086, 0, 0.001);
+    consoleGroup.add(gripMeshR);
+
+    // Chassis Tactical Wireframe Edges
+    const consoleEdges = new THREE.EdgesGeometry(consoleBodyGeo);
+    const consoleEdgeMat = new THREE.LineBasicMaterial({
+        color: 0x00e5ff,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const consoleEdgeMesh = new THREE.LineSegments(consoleEdges, consoleEdgeMat);
+    consoleGroup.add(consoleEdgeMesh);
+
+    // Dynamic High-DPI Arcade Screen Canvas & Texture
+    const dckCanvas = document.createElement('canvas');
+    dckCanvas.width = 512;
+    dckCanvas.height = 288;
+    const dckCtx = dckCanvas.getContext('2d');
+    const dckTexture = new THREE.CanvasTexture(dckCanvas);
+    dckTexture.colorSpace = THREE.SRGBColorSpace;
+    dckTexture.needsUpdate = true;
+
+    const consoleScreenGeo = new THREE.PlaneGeometry(0.118, 0.066);
+    const consoleScreenMat = new THREE.MeshStandardMaterial({
+        map: dckTexture,
+        roughness: 0.1,
+        metalness: 0.15,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 0.6,
+        transparent: true,
+        opacity: 0.0,
+        side: THREE.DoubleSide,
+    });
+    const consoleScreenMesh = new THREE.Mesh(consoleScreenGeo, consoleScreenMat);
+    consoleScreenMesh.position.set(0, 0, 0.011);
+    consoleGroup.add(consoleScreenMesh);
+
+    // Left D-Pad Cross
+    const dpadMat = new THREE.MeshStandardMaterial({
+        color: 0x1e2432,
+        roughness: 0.4,
+        metalness: 0.8,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const dpadH = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.007, 0.004), dpadMat);
+    dpadH.position.set(-0.068, 0.016, 0.012);
+    consoleGroup.add(dpadH);
+    const dpadV = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.022, 0.004), dpadMat);
+    dpadV.position.set(-0.068, 0.016, 0.012);
+    consoleGroup.add(dpadV);
+
+    // Dual Concave Analog Thumbsticks with knurled rims
+    const stickMat = new THREE.MeshStandardMaterial({
+        color: 0x222834,
+        roughness: 0.5,
+        metalness: 0.6,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const stickGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.008, 16);
+    const stickL = new THREE.Mesh(stickGeo, stickMat);
+    stickL.rotation.x = Math.PI * 0.5;
+    stickL.position.set(-0.068, -0.018, 0.012);
+    consoleGroup.add(stickL);
+
+    const stickR = new THREE.Mesh(stickGeo, stickMat);
+    stickR.rotation.x = Math.PI * 0.5;
+    stickR.position.set(0.068, -0.018, 0.012);
+    consoleGroup.add(stickR);
+
+    // Right Action Buttons (ABXY) with emissive colored dots
+    const btnDiamondOffsets = [
+        { x: 0, y: 0.010, c: 0xffbb00 },  // Y (Amber)
+        { x: 0, y: -0.010, c: 0x00ff88 }, // A (Green)
+        { x: -0.010, y: 0, c: 0x00e5ff }, // X (Cyan)
+        { x: 0.010, y: 0, c: 0xff3366 }   // B (Red)
+    ];
+    btnDiamondOffsets.forEach(b => {
+        const bMat = new THREE.MeshStandardMaterial({
+            color: b.c,
+            emissive: b.c,
+            emissiveIntensity: 1.2,
+            roughness: 0.2,
+            transparent: true,
+            opacity: 0.0
+        });
+        const bMesh = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 12, 12), bMat);
+        bMesh.position.set(0.068 + b.x, 0.016 + b.y, 0.012);
+        consoleGroup.add(bMesh);
+    });
+
+    // Top Shoulder Bumpers (L1/R1)
+    const bumperGeo = new THREE.BoxGeometry(0.038, 0.006, 0.016);
+    const bumperL = new THREE.Mesh(bumperGeo, stickMat);
+    bumperL.position.set(-0.064, 0.046, 0);
+    consoleGroup.add(bumperL);
+    const bumperR = new THREE.Mesh(bumperGeo, stickMat);
+    bumperR.position.set(0.064, 0.046, 0);
+    consoleGroup.add(bumperR);
+
+    parentScene.add(consoleGroup);
+
+    // 8. Cyber Tactical Plasma Blades — Models: HEL-BLD-01 (Airi Wakizashi) & HEL-BLD-02 (Ren Saber)
+    // High-Rendered titanium hilt wrap, emitter guard, high-frequency plasma blade with fuller energy core
+    const bladeGroup = new THREE.Group();
+    bladeGroup.name = 'CyberTacticalBlade3D';
+    bladeGroup.visible = false;
+
+    // Hilt / Grip with CNC Machined Pattern
+    const hiltGeo = new THREE.CylinderGeometry(0.011, 0.013, 0.18, 16);
+    const hiltMat = new THREE.MeshStandardMaterial({
+        color: 0x141822,
+        roughness: 0.45,
+        metalness: 0.8,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const hiltMesh = new THREE.Mesh(hiltGeo, hiltMat);
+    hiltMesh.position.set(0, -0.09, 0);
+    bladeGroup.add(hiltMesh);
+
+    // Pommel Cap with Photon Conduit
+    const pommelGeo = new THREE.CylinderGeometry(0.014, 0.011, 0.016, 8);
+    const pommelMesh = new THREE.Mesh(pommelGeo, hiltMat);
+    pommelMesh.position.set(0, -0.185, 0);
+    bladeGroup.add(pommelMesh);
+
+    // Emitter Guard / Tsuba with Circuit Breaker Details
+    const guardGeo = new THREE.BoxGeometry(0.046, 0.010, 0.026);
+    const guardMat = new THREE.MeshStandardMaterial({
+        color: 0x00e5ff,
+        roughness: 0.25,
+        metalness: 0.9,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 1.4,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const guardMesh = new THREE.Mesh(guardGeo, guardMat);
+    guardMesh.position.set(0, 0, 0);
+    bladeGroup.add(guardMesh);
+
+    // Plasma Energy Blade (Hex-tapered bevel cutting edge)
+    const bladeGeo = new THREE.BoxGeometry(0.016, 0.74, 0.005);
+    bladeGeo.translate(0, 0.37, 0);
+    const bladeMat = new THREE.MeshStandardMaterial({
+        color: 0x00e5ff,
+        roughness: 0.15,
+        metalness: 0.3,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 2.2,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const bladeMesh = new THREE.Mesh(bladeGeo, bladeMat);
+    bladeGroup.add(bladeMesh);
+
+    // Titanium Spine Core (High-reflectivity metallic back)
+    const spineGeo = new THREE.BoxGeometry(0.006, 0.72, 0.006);
+    spineGeo.translate(-0.005, 0.36, 0);
+    const spineMat = new THREE.MeshStandardMaterial({
+        color: 0xd0d8e2,
+        roughness: 0.12,
+        metalness: 0.96,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const spineMesh = new THREE.Mesh(spineGeo, spineMat);
+    bladeGroup.add(spineMesh);
+
+    // Plasma Aura / Edge Glow
+    const bladeEdgeGeo = new THREE.EdgesGeometry(bladeGeo);
+    const bladeEdgeMat = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const bladeEdgeMesh = new THREE.LineSegments(bladeEdgeGeo, bladeEdgeMat);
+    bladeGroup.add(bladeEdgeMesh);
+    parentScene.add(bladeGroup);
+
+    // 9. Ren's Cyber Tactical Monocle HUD & Collar Mic — Models: HEL-MIC-02 / MN-01
+    // High-Rendered titanium ocular optic, anti-reflective sapphire prism lens,
+    // retinal HUD targeting reticle, lateral sensor pod, and articulated collar boom mic
+    const monocleGroup = new THREE.Group();
+    monocleGroup.name = 'RenCyberMonocle3D';
+    monocleGroup.visible = false;
+
+    // Materials (High-Rendered PBR)
+    const monocleRimMat = new THREE.MeshStandardMaterial({
+        color: 0x1b202c,
+        roughness: 0.25,
+        metalness: 0.9,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const monocleAccentMat = new THREE.MeshStandardMaterial({
+        color: 0x10141c,
+        roughness: 0.35,
+        metalness: 0.85,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const monocleLensMat = new THREE.MeshStandardMaterial({
+        color: 0x00e5ff,
+        roughness: 0.08,
+        metalness: 0.15,
+        transparent: true,
+        opacity: 0.0,
+        side: THREE.DoubleSide,
+    });
+    const monocleEdgeMat = new THREE.LineBasicMaterial({
+        color: 0x00e5ff,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const monocleLedMat = new THREE.MeshStandardMaterial({
+        color: 0x00ffff,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 1.6,
+        transparent: true,
+        opacity: 0.0,
+    });
+
+    // 1. Main Ocular HUD Glass (Sapphire AR prism optic)
+    const monocleLensGeo = new THREE.CircleGeometry(0.017, 32);
+    const monocleLensMesh = new THREE.Mesh(monocleLensGeo, monocleLensMat);
+    monocleGroup.add(monocleLensMesh);
+
+    // 2. Titanium Ocular Bezel Ring
+    const monocleRimGeo = new THREE.TorusGeometry(0.017, 0.0022, 16, 36);
+    const monocleRimMesh = new THREE.Mesh(monocleRimGeo, monocleRimMat);
+    monocleGroup.add(monocleRimMesh);
+
+    // Glowing rim wireframe
+    const monocleEdgeMesh = new THREE.LineSegments(new THREE.EdgesGeometry(monocleRimGeo), monocleEdgeMat);
+    monocleGroup.add(monocleEdgeMesh);
+
+    // 3. Concentric Telemetry Target Ring
+    const innerRingGeo = new THREE.RingGeometry(0.009, 0.010, 24);
+    const innerRingMesh = new THREE.Mesh(innerRingGeo, monocleLensMat);
+    innerRingMesh.position.z = 0.0005;
+    monocleGroup.add(innerRingMesh);
+
+    // 4. Retinal Tracking Crosshair Reticle & Tick Marks
+    const reticleGeo = new THREE.BufferGeometry();
+    const reticleVerts = new Float32Array([
+        -0.014, 0, 0.001,   -0.005, 0, 0.001,
+         0.005, 0, 0.001,    0.014, 0, 0.001,
+         0, -0.014, 0.001,   0, -0.005, 0.001,
+         0,  0.005, 0.001,   0,  0.014, 0.001,
+    ]);
+    reticleGeo.setAttribute('position', new THREE.BufferAttribute(reticleVerts, 3));
+    const monocleReticleMesh = new THREE.LineSegments(reticleGeo, monocleEdgeMat);
+    monocleGroup.add(monocleReticleMesh);
+
+    // 5. Eyebrow Housing / Bridge Arch
+    const browArchGeo = new THREE.BoxGeometry(0.038, 0.004, 0.006);
+    const browArchMesh = new THREE.Mesh(browArchGeo, monocleRimMat);
+    browArchMesh.position.set(-0.004, 0.0175, 0.001);
+    browArchMesh.rotation.z = -0.08;
+    monocleGroup.add(browArchMesh);
+    const browEdgeMesh = new THREE.LineSegments(new THREE.EdgesGeometry(browArchGeo), monocleEdgeMat);
+    browArchMesh.add(browEdgeMesh);
+
+    // 6. Lateral Sensor Pod / Neural Data-Link Transmitter
+    const sensorPodGeo = new THREE.BoxGeometry(0.010, 0.022, 0.008);
+    const sensorPodMesh = new THREE.Mesh(sensorPodGeo, monocleAccentMat);
+    sensorPodMesh.position.set(0.021, 0.002, 0.002);
+    monocleGroup.add(sensorPodMesh);
+    const sensorPodEdge = new THREE.LineSegments(new THREE.EdgesGeometry(sensorPodGeo), monocleEdgeMat);
+    sensorPodMesh.add(sensorPodEdge);
+
+    // Dual horizontal telemetry LEDs on sensor pod
+    const monocleLedGeo = new THREE.BoxGeometry(0.006, 0.0018, 0.001);
+    const led1 = new THREE.Mesh(monocleLedGeo, monocleLedMat);
+    led1.position.set(0.021, 0.007, 0.0065);
+    monocleGroup.add(led1);
+    const led2 = new THREE.Mesh(monocleLedGeo, monocleLedMat);
+    led2.position.set(0.021, 0.002, 0.0065);
+    monocleGroup.add(led2);
+
+    // Micro-sensor optical camera aperture
+    const microCamGeo = new THREE.CylinderGeometry(0.0018, 0.0018, 0.002, 12);
+    microCamGeo.rotateX(Math.PI * 0.5);
+    const microCamMesh = new THREE.Mesh(microCamGeo, monocleRimMat);
+    microCamMesh.position.set(0.021, -0.006, 0.0065);
+    monocleGroup.add(microCamMesh);
+
+    // 7. Tactical Collar Boom Mic (HEL-MIC-02): Articulated arm extending along jaw
+    const micArmGeo = new THREE.CylinderGeometry(0.0014, 0.0014, 0.052, 8);
+    micArmGeo.translate(0, -0.026, 0);
+    const micArmMesh = new THREE.Mesh(micArmGeo, monocleRimMat);
+    micArmMesh.position.set(0.019, -0.008, 0.004);
+    micArmMesh.rotation.set(0.22, 0.12, 0.55);
+    monocleGroup.add(micArmMesh);
+
+    // Mic Capsule Head
+    const micCapsuleGeo = new THREE.CylinderGeometry(0.0028, 0.0028, 0.008, 12);
+    const micCapsuleMesh = new THREE.Mesh(micCapsuleGeo, monocleAccentMat);
+    micCapsuleMesh.position.set(0.046, -0.052, 0.015);
+    micCapsuleMesh.rotation.set(0.2, 0.4, 0);
+    monocleGroup.add(micCapsuleMesh);
+
+    // 8. Ergonomic Temple Arm (Curves seamlessly along left temple toward Ren's ear)
+    const templeArmGeo1 = new THREE.CylinderGeometry(0.0018, 0.0018, 0.035, 8);
+    templeArmGeo1.translate(0, 0.0175, 0);
+    const templeArm1 = new THREE.Mesh(templeArmGeo1, monocleRimMat);
+    templeArm1.position.set(0.024, 0.008, 0.0);
+    templeArm1.rotation.set(-0.25, 1.45, 0);
+    monocleGroup.add(templeArm1);
+
+    const templeArmGeo2 = new THREE.CylinderGeometry(0.0018, 0.0025, 0.030, 8);
+    templeArmGeo2.translate(0, 0.015, 0);
+    const templeArm2 = new THREE.Mesh(templeArmGeo2, monocleAccentMat);
+    templeArm2.position.set(0.027, 0.003, -0.032);
+    templeArm2.rotation.set(-0.55, 1.35, 0);
+    monocleGroup.add(templeArm2);
+
+    const earNodeGeo = new THREE.SphereGeometry(0.0022, 8, 8);
+    const earNodeMesh = new THREE.Mesh(earNodeGeo, monocleLensMat);
+    earNodeMesh.position.set(0.028, -0.008, -0.054);
+    monocleGroup.add(earNodeMesh);
+
+    // 9. Nose Bridge Stabilizer (Small inner titanium claw towards nasal bridge)
+    const noseClawGeo = new THREE.BoxGeometry(0.008, 0.003, 0.005);
+    const noseClawMesh = new THREE.Mesh(noseClawGeo, monocleRimMat);
+    noseClawMesh.position.set(-0.019, -0.002, -0.002);
+    noseClawMesh.rotation.set(0, 0.35, -0.2);
+    monocleGroup.add(noseClawMesh);
+
+    parentScene.add(monocleGroup);
+
+    // 10. Airi's Quantum Holo-Dice — Model: HEL-RNG-01
+    // Floating D20 icosahedron holographic wireframe with nested quantum core
+    const holoDiceGroup = new THREE.Group();
+    holoDiceGroup.name = 'AiriQuantumHoloDice3D';
+    holoDiceGroup.visible = false;
+
+    const diceMat = new THREE.MeshStandardMaterial({
+        color: 0x00ffff,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 1.6,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const diceMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.026, 0), diceMat);
+    holoDiceGroup.add(diceMesh);
+
+    const diceCoreMat = new THREE.MeshStandardMaterial({
+        color: 0x00e5ff,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 2.2,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const diceCoreMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.012, 1), diceCoreMat);
+    holoDiceGroup.add(diceCoreMesh);
+
+    const diceRingGeo = new THREE.TorusGeometry(0.034, 0.0012, 12, 36);
+    const diceRingMesh = new THREE.Mesh(diceRingGeo, diceMat);
+    diceRingMesh.rotation.x = Math.PI * 0.5;
+    holoDiceGroup.add(diceRingMesh);
+    parentScene.add(holoDiceGroup);
+
+    // 11. Ren's Tactical Datapad — Model: HEL-PAD-02
+    // Ruggedized tablet with animated mission telemetry canvas HUD
+    const datapadGroup = new THREE.Group();
+    datapadGroup.name = 'RenTacticalDatapad3D';
+    datapadGroup.visible = false;
+
+    const padChassisMat = new THREE.MeshStandardMaterial({
+        color: 0x141824,
+        roughness: 0.35,
+        metalness: 0.85,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const padChassis = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.13, 0.012), padChassisMat);
+    datapadGroup.add(padChassis);
+
+    const padCanvas = document.createElement('canvas');
+    padCanvas.width = 512;
+    padCanvas.height = 384;
+    const padCtx = padCanvas.getContext('2d');
+    const padTexture = new THREE.CanvasTexture(padCanvas);
+    padTexture.colorSpace = THREE.SRGBColorSpace;
+    padTexture.needsUpdate = true;
+
+    const padScreenMat = new THREE.MeshStandardMaterial({
+        map: padTexture,
+        roughness: 0.1,
+        metalness: 0.2,
+        emissive: 0xffaa00,
+        emissiveIntensity: 0.6,
+        transparent: true,
+        opacity: 0.0,
+    });
+    const padScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.11), padScreenMat);
+    padScreen.position.set(0, 0, 0.007);
+    datapadGroup.add(padScreen);
+    parentScene.add(datapadGroup);
+
     return {
         popupGroup,
         panelMesh,
@@ -315,6 +1203,66 @@ function createInteractiveIdleObjects(parentScene) {
         wristHudGroup,
         wristPlaneMat,
         wristEdgeMat,
+        butterflyGroup,
+        butterflyCoreMesh,
+        bCoreMat,
+        bWingMeshL,
+        bWingMeshR,
+        bWingMatL,
+        bWingMatR,
+        bAuraMesh,
+        bAuraMat,
+        droneGroup,
+        droneChassisMesh,
+        droneChassisMat,
+        droneEdgeMat,
+        droneEyeMat,
+        droneRing1,
+        droneRing2,
+        droneRingMat1,
+        droneRingMat2,
+        droneRotorMeshL,
+        droneRotorMeshR,
+        droneRotorMat,
+        scanConeMesh: null,
+        scanConeMat: null,
+        consoleGroup,
+        consoleBodyMesh,
+        consoleBodyMat,
+        consoleEdgeMat,
+        consoleScreenMesh,
+        consoleScreenMat,
+        stickMat,
+        bladeGroup,
+        hiltMesh,
+        hiltMat,
+        guardMesh,
+        guardMat,
+        bladeMesh,
+        bladeMat,
+        bladeEdgeMat,
+        monocleGroup,
+        monocleLensMesh,
+        monocleLensMat,
+        monocleRimMat,
+        monocleAccentMat,
+        monocleLedMat,
+        monocleEdgeMat,
+        monocleBeamMesh: null,
+        monocleBeamMat: null,
+        // Added Blueprint Props
+        dckCanvas,
+        dckCtx,
+        dckTexture,
+        holoDiceGroup,
+        diceMat,
+        diceCoreMat,
+        datapadGroup,
+        padChassisMat,
+        padScreenMat,
+        padCanvas,
+        padCtx,
+        padTexture,
     };
 }
 
@@ -323,8 +1271,10 @@ window.interactiveSceneObjects = interactiveSceneObjects;
 
 // ----------------------------------------------------
 // VRM MODEL LOADER & EXACT SKELETON CALIBRATION
-// ----------------------------------------------------
 let currentVrm = null;
+let secondaryVrm = null;
+let dualTwinModeActive = false;
+let activeModelId = 'airi'; // 'airi' | 'twin' | 'dual'
 let emissiveMaterials = [];
 let humanizer = null;
 let animManager = null;
@@ -337,6 +1287,34 @@ let backflipStartTime = -1;
 let voiceMuted = false;
 let selectedVoiceId = 'af_heart';
 
+function isRenActive() {
+    return activeModelId === 'twin' || (currentVrm && (currentVrm.meta?.title?.toLowerCase().includes('twin') || currentVrm.meta?.title?.toLowerCase().includes('ren')));
+}
+window.isRenActive = isRenActive;
+
+
+const renTacticalEmissiveCache = {};
+const tacticalTexLoader = new THREE.TextureLoader();
+function getRenTacticalEmissiveTexture(type) {
+    if (!renTacticalEmissiveCache[type]) {
+        const fileMap = {
+            top: 'models/ren_tactical_jacket_emissive.png',
+            bottom: 'models/ren_tactical_pants_emissive.png',
+            body: 'models/ren_tactical_gloves_emissive.png',
+            shoe: 'models/ren_tactical_shoes_emissive.png',
+            iris: 'models/ren_tactical_iris_emissive.png',
+        };
+        const path = fileMap[type];
+        if (path) {
+            const tex = tacticalTexLoader.load(path);
+            tex.flipY = false;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            renTacticalEmissiveCache[type] = tex;
+        }
+    }
+    return renTacticalEmissiveCache[type];
+}
+
 function collectEmissiveMaterials(vrm) {
     const list = [];
     const seen = new Set();
@@ -347,16 +1325,58 @@ function collectEmissiveMaterials(vrm) {
         for (const mat of mats) {
             if (!mat || seen.has(mat)) continue;
             seen.add(mat);
+            const name = (mat.name || '').toLowerCase();
+            const isEye = /eyeiris/i.test(name);
+            const isHair = /hair/i.test(name);
+            const isCloth = /(cloth|top|bottom|shoe|onepiece|hoodie|jacket|cargo)/i.test(name);
+            const isBody = /body/i.test(name);
+
+            // Check if current emissiveMap is a dummy 8x8 black texture (e.g. Shader_NoneBlack)
+            const emitMap = mat.emissiveMap || mat.uniforms?.emissiveMap?.value;
+            const isDummyBlack = emitMap && (
+                emitMap.name === 'Shader_NoneBlack' ||
+                (emitMap.image && emitMap.image.width <= 8 && emitMap.image.height <= 8)
+            );
+
+            // If dummy black texture or missing on tactical cybernetic meshes, attach dedicated tactical emissive map
+            if (isDummyBlack || (!emitMap && (isCloth || isBody || isEye))) {
+                let type = null;
+                if (isEye) type = 'iris';
+                else if (/top|jacket|hoodie/i.test(name)) type = 'top';
+                else if (/bottom|cargo|pants/i.test(name)) type = 'bottom';
+                else if (/shoe/i.test(name)) type = 'shoe';
+                else if (isBody) type = 'body';
+
+                if (type) {
+                    const tacticalTex = getRenTacticalEmissiveTexture(type);
+                    if (tacticalTex) {
+                        mat.emissiveMap = tacticalTex;
+                        if (mat.uniforms?.emissiveMap) {
+                            mat.uniforms.emissiveMap.value = tacticalTex;
+                        }
+                        mat.needsUpdate = true;
+                    }
+                }
+            }
+
             const hasEmissiveMap = Boolean(
                 mat.emissiveMap || mat.uniforms?.emissiveMap?.value
             );
             const hasEmissiveColor = Boolean(
-                mat.emissive && (mat.emissive.r > 0.01 || mat.emissive.g > 0.01 || mat.emissive.b > 0.01)
+                mat.emissive && (mat.emissive.r > 0.001 || mat.emissive.g > 0.001 || mat.emissive.b > 0.001)
             );
-            if (hasEmissiveMap || hasEmissiveColor) {
+            // Collect any material with emissive properties or character accents (eyes, hair, cybernetic cloth, tactical gloves)
+            if (hasEmissiveMap || hasEmissiveColor || isEye || isCloth || isHair || isBody) {
+                // Ensure material has an active emissive color object so shader updates immediately
+                if (!mat.emissive) {
+                    mat.emissive = new THREE.Color(isEye ? '#00e5ff' : '#00b8d4');
+                }
                 list.push({
                     mat,
-                    isEye: /eyeiris/i.test(mat.name || ''),
+                    isEye,
+                    isHair,
+                    isCloth,
+                    isBody,
                 });
             }
         }
@@ -387,6 +1407,8 @@ const rigMetrics = {
     rShoulderPos: new THREE.Vector3(0.095, 1.167, 0.023),
     lShoulderPos: new THREE.Vector3(-0.095, 1.167, 0.023)
 };
+window.rigMetrics = rigMetrics;
+
 
 const FINGER_NAMES = ['Thumb', 'Index', 'Middle', 'Ring', 'Little'];
 const FINGER_SEGMENTS = ['Proximal', 'Intermediate', 'Distal'];
@@ -395,6 +1417,18 @@ const DEFAULT_VRM_URL = 'models/Helios_Airi.vrm';
 const BASE_VRM_URL = 'models/Helios_Airi.vrm';
 
 function disposeCurrentAvatar() {
+    if (secondaryVrm) {
+        scene.remove(secondaryVrm.scene);
+        try {
+            VRMUtils.deepDispose(secondaryVrm.scene);
+        } catch (e) {
+            console.warn('secondaryVrm deepDispose fallback:', e);
+        }
+        secondaryVrm = null;
+        window.secondaryVrm = null;
+    }
+    dualTwinModeActive = false;
+
     if (!currentVrm) return;
     scene.remove(currentVrm.scene);
     if (currentVrm.isFBXModel) {
@@ -1156,78 +2190,123 @@ function applyProceduralPose(time, speed) {
         rWrist.set(S_R.x + rSide * 0.065, S_R.y - reach * 0.88 + Math.abs(lSwing) * 0.025, S_R.z + camZ * (lSwing * 0.13 + 0.04));
         lWrist.set(S_L.x + lSide * 0.065, S_L.y - reach * 0.88 + Math.abs(rSwing) * 0.025, S_L.z + camZ * (rSwing * 0.13 + 0.04));
 
-    } else if (currentPose === 'backflip') {
-        const elapsed = Math.max(0, time - backflipStartTime);
-        const dur = 1.35;
-        const u = THREE.MathUtils.clamp(elapsed / dur, 0, 1);
+    } else if (currentPose === 'natural_weight_shift' || currentPose === 'backflip' || currentPose === 'dance_shikano') {
+        // Natural contrapposto weight shift: organic pelvic tilt, subtle spinal S-curve, asymmetric arm rests
+        const sway = Math.sin(time * 0.95);
+        const shiftX = Math.sin(time * 0.95) * 0.035;
 
-        if (u < 0.20) {
-            const k = u / 0.20;
-            scenePosY = -0.12 * k;
-            spineRot = [fwd * 0.30 * k, 0, 0];
-            lUpperLegRot = [-fwd * 0.60 * k, 0, lSide * 0.04];
-            rUpperLegRot = [-fwd * 0.60 * k, 0, rSide * 0.04];
-            lLowerLegRot = [fwd * 1.10 * k, 0, 0];
-            rLowerLegRot = [fwd * 1.10 * k, 0, 0];
-            rWrist.set(S_R.x + rSide * 0.09, S_R.y - 0.22, S_R.z - camZ * 0.20);
-            lWrist.set(S_L.x + lSide * 0.09, S_L.y - 0.22, S_L.z - camZ * 0.20);
-        } else if (u < 0.82) {
-            const airU = (u - 0.20) / 0.62;
-            const arc = 4.0 * airU * (1.0 - airU);
-            scenePosY = 0.55 * arc;
-            hipsRot = [-fwd * airU * Math.PI * 2.0, 0, 0];
-            const tuck = Math.sin(airU * Math.PI);
-            lUpperLegRot = [-fwd * 1.10 * tuck, 0, lSide * 0.05];
-            rUpperLegRot = [-fwd * 1.10 * tuck, 0, rSide * 0.05];
-            lLowerLegRot = [fwd * 1.55 * tuck, 0, 0];
-            rLowerLegRot = [fwd * 1.55 * tuck, 0, 0];
-            leftHandShape = 'fist';
-            rightHandShape = 'fist';
-            rWrist.set(S_R.x + rSide * 0.06, chestP.y - 0.06, chestP.z + camZ * 0.18);
-            lWrist.set(S_L.x + lSide * 0.06, chestP.y - 0.06, chestP.z + camZ * 0.18);
-            rPole.set(rSide * 0.8, -0.3, camZ * 0.4);
-            lPole.set(lSide * 0.8, -0.3, camZ * 0.4);
-        } else {
-            const landU = (u - 0.82) / 0.18;
-            const absorb = Math.sin(landU * Math.PI);
-            scenePosY = -0.08 * absorb;
-            spineRot = [fwd * 0.18 * absorb, 0, 0];
-            lUpperLegRot = [-fwd * 0.40 * absorb, 0, lSide * 0.04];
-            rUpperLegRot = [-fwd * 0.40 * absorb, 0, rSide * 0.04];
-            lLowerLegRot = [fwd * 0.75 * absorb, 0, 0];
-            rLowerLegRot = [fwd * 0.75 * absorb, 0, 0];
-        }
+        hipsRot = [0, -rSide * 0.035 + sway * 0.02, rSide * 0.045];
+        spineRot = [fwd * 0.02, rSide * 0.025, -rSide * 0.035];
+        chestRot = [breath * 0.8, 0, -rSide * 0.02];
+        headRot = [fwd * 0.02, -rSide * 0.04, rSide * 0.045];
 
-    } else if (currentPose === 'dance_shikano') {
-        const beat = time * 6.5;
-        const sway = Math.sin(beat * 0.5);
-        const bounce = Math.abs(Math.sin(beat));
+        lUpperLegRot = [0, 0, lSide * 0.03];
+        rUpperLegRot = [0, 0, rSide * 0.06];
+        lLowerLegRot = [0, 0, 0];
+        rLowerLegRot = [fwd * 0.06, 0, 0];
 
-        scenePosY = -bounce * 0.045;
-        hipsRot = [0, sway * 0.08, sway * 0.06];
-        spineRot = [fwd * 0.03, -sway * 0.06, -sway * 0.05];
-        headRot = [fwd * (bounce * 0.06 - 0.02), sway * 0.10, sway * 0.14];
+        leftHandShape = 'relaxed';
+        rightHandShape = 'relaxed';
 
-        lUpperLegRot = [-fwd * bounce * 0.20, 0, lSide * 0.03];
-        rUpperLegRot = [-fwd * bounce * 0.20, 0, rSide * 0.03];
-        lLowerLegRot = [fwd * bounce * 0.40, 0, 0];
-        rLowerLegRot = [fwd * bounce * 0.40, 0, 0];
+        rWrist.set(hipsP.x + rSide * 0.12, hipsP.y + 0.04, hipsP.z + camZ * 0.05);
+        rPole.set(rSide * 0.85, -0.25, camZ * 0.25);
+        rFDir.set(-rSide * 0.20, -0.92, camZ * 0.35).normalize();
+        rPalm.set(-rSide * 0.75, -0.15, -camZ * 0.64).normalize();
 
-        leftHandShape = 'antler';
-        rightHandShape = 'antler';
-        lShoulderRot = [0, 0, lSide * 0.18];
-        rShoulderRot = [0, 0, rSide * 0.18];
+        lWrist.set(hipsP.x + lSide * 0.11, hipsP.y + 0.03, hipsP.z + camZ * 0.05);
+        lPole.set(lSide * 0.85, -0.25, camZ * 0.25);
+        lFDir.set(-lSide * 0.20, -0.92, camZ * 0.35).normalize();
+        lPalm.set(-lSide * 0.75, -0.15, -camZ * 0.64).normalize();
 
-        const antlerBob = Math.sin(beat) * 0.03;
-        rWrist.set(headP.x + rSide * 0.145, headP.y + 0.055 + antlerBob, headP.z + camZ * 0.05);
-        rPole.set(rSide * 0.95, -0.1, camZ * 0.45);
-        rFDir.set(rSide * 0.25, 0.96, 0).normalize();
-        rPalm.set(0, 0.1, camZ).normalize();
+    } else if (currentPose === 'arms_folded_relaxed') {
+        // Natural folded arms across lower chest with relaxed shoulders and gentle breathing sympathy
+        const reachScale = Math.max(0.85, Math.min(1.35, reach / 0.397));
+        const sOffset = Math.abs(S_R.x) > 0.12 ? 0.05 : 0.0;
+        hipsRot = [0, rSide * 0.02, 0];
+        spineRot = [fwd * -0.025, 0, 0];
+        chestRot = [fwd * -0.015, 0, 0];
+        headRot = [fwd * 0.01, rSide * 0.02, -rSide * 0.03];
+        lShoulderRot = [0, 0, lSide * 0.04];
+        rShoulderRot = [0, 0, rSide * 0.04];
 
-        lWrist.set(headP.x + lSide * 0.145, headP.y + 0.055 - antlerBob, headP.z + camZ * 0.05);
-        lPole.set(lSide * 0.95, -0.1, camZ * 0.45);
-        lFDir.set(lSide * 0.25, 0.96, 0).normalize();
-        lPalm.set(0, 0.1, camZ).normalize();
+        leftHandShape = 'cupped';
+        rightHandShape = 'cupped';
+
+        // Right hand folds across to tuck naturally over left biceps/forearm
+        rWrist.set(lSide * (0.08 * reachScale + sOffset), chestP.y - 0.05 * reachScale, chestP.z + camZ * (0.17 * reachScale));
+        rPole.set(rSide * 0.75, -0.60, camZ * 0.45);
+        rFDir.set(-rSide * 0.90, 0.12, camZ * 0.40).normalize();
+        rPalm.set(0, -0.75, -camZ * 0.65).normalize();
+
+        // Left hand folds underneath and rests near right lower ribs/elbow
+        lWrist.set(rSide * (0.08 * reachScale + sOffset), chestP.y - 0.08 * reachScale, chestP.z + camZ * (0.15 * reachScale));
+        lPole.set(lSide * 0.75, -0.60, camZ * 0.45);
+        lFDir.set(rSide * 0.90, 0.12, camZ * 0.40).normalize();
+        lPalm.set(0, 0.75, -camZ * 0.65).normalize();
+
+    } else if (currentPose === 'hands_pocket_relaxed') {
+        // Casual stance with hands resting near pocket level with natural clearance from hips
+        const reachScale = Math.max(0.85, Math.min(1.35, reach / 0.397));
+        const sOffset = Math.abs(S_R.x) > 0.12 ? 0.04 : 0.0;
+        hipsRot = [0, -rSide * 0.02, rSide * 0.03];
+        spineRot = [0, 0, -rSide * 0.02];
+        headRot = [fwd * 0.02, rSide * 0.03, rSide * 0.03];
+        lShoulderRot = [0, 0, lSide * 0.02];
+        rShoulderRot = [0, 0, rSide * 0.02];
+
+        leftHandShape = 'cupped';
+        rightHandShape = 'cupped';
+
+        rWrist.set(hipsP.x + rSide * (0.145 * reachScale + sOffset), hipsP.y + 0.06 * reachScale, hipsP.z + camZ * 0.05);
+        rPole.set(rSide * 0.90, -0.15, camZ * 0.25);
+        rFDir.set(-rSide * 0.15, -0.94, camZ * 0.30).normalize();
+        rPalm.set(-rSide * 0.85, -0.10, -camZ * 0.52).normalize();
+
+        lWrist.set(hipsP.x + lSide * (0.145 * reachScale + sOffset), hipsP.y + 0.06 * reachScale, hipsP.z + camZ * 0.05);
+        lPole.set(lSide * 0.90, -0.15, camZ * 0.25);
+        lFDir.set(-lSide * 0.15, -0.94, camZ * 0.30).normalize();
+        lPalm.set(-lSide * 0.85, -0.10, -camZ * 0.52).normalize();
+
+    } else if (currentPose === 'thoughtful_chin_touch') {
+        // Soft conversational chin/jaw touch
+        const reachScale = Math.max(0.85, Math.min(1.35, reach / 0.397));
+        const sOffset = Math.abs(S_R.x) > 0.12 ? 0.03 : 0.0;
+        headRot = [fwd * 0.04, rSide * 0.08, rSide * 0.06];
+        spineRot = [fwd * -0.015, 0, 0];
+        rightHandShape = 'chinTouch';
+        leftHandShape = 'relaxed';
+
+        rWrist.set(headP.x + rSide * (0.085 * reachScale), headP.y - 0.06 * reachScale, headP.z + camZ * (0.13 * reachScale));
+        rPole.set(rSide * 0.70, -0.50, camZ * 0.40);
+        rFDir.set(-rSide * 0.25, 0.88, camZ * 0.38).normalize();
+        rPalm.set(-rSide * 0.65, 0.15, -camZ * 0.74).normalize();
+
+        lWrist.set(hipsP.x + lSide * (0.13 * reachScale + sOffset), hipsP.y + 0.05 * reachScale, hipsP.z + camZ * 0.04);
+        lPole.set(lSide * 0.95, -0.10, -camZ * 0.15);
+        lFDir.set(-lSide * 0.25, -0.88, camZ * 0.38).normalize();
+        lPalm.set(-lSide * 0.85, -0.15, -camZ * 0.50).normalize();
+
+    } else if (currentPose === 'tactical_stand_at_ease') {
+        // Ren: Disciplined at-ease posture with clasped hands low in front and upright spine
+        const reachScale = Math.max(0.85, Math.min(1.35, reach / 0.397));
+        spineRot = [fwd * -0.035, 0, 0];
+        chestRot = [fwd * -0.03, 0, 0];
+        headRot = [fwd * -0.015, 0, 0];
+        rShoulderRot = [0, 0, rSide * 0.05];
+        lShoulderRot = [0, 0, lSide * 0.05];
+        rightHandShape = 'clasped';
+        leftHandShape = 'clasped';
+
+        // Hands resting naturally in front of pelvis/belt with clearance from tactical clothing
+        rWrist.set(rSide * 0.032, hipsP.y + 0.055 * reachScale, hipsP.z + camZ * (0.12 * reachScale));
+        rPole.set(rSide * 0.75, -0.45, camZ * 0.35);
+        rFDir.set(-rSide * 0.75, -0.48, camZ * 0.45).normalize();
+        rPalm.set(-rSide * 0.45, 0.15, -camZ * 0.88).normalize();
+
+        lWrist.set(lSide * 0.032, hipsP.y + 0.055 * reachScale, hipsP.z + camZ * (0.12 * reachScale));
+        lPole.set(lSide * 0.75, -0.45, camZ * 0.35);
+        lFDir.set(-lSide * 0.75, -0.48, camZ * 0.45).normalize();
+        lPalm.set(-lSide * 0.45, 0.15, -camZ * 0.88).normalize();
 
     } else if (currentPose === 'smug_pose') {
         leftHandShape = 'cupped';
@@ -1659,6 +2738,261 @@ function applyProceduralPose(time, speed) {
         lFDir.set(-lSide * 0.25, 0.94, camZ * 0.18).normalize();
         lPalm.set(-lSide * 0.15, 0.82, camZ * 0.55).normalize();
 
+    } else if (currentPose === 'idle_airi_butterfly') {
+        // Airi Unique Idle: Gently extends right hand forward with finger perched, head tilted curiously tracking the Cyber-Butterfly
+        const phaseT = Math.max(0, time - idleInteractionStartTime);
+        const flutterBob = Math.sin(phaseT * 3.5) * 0.015;
+
+        rightHandShape = 'point';
+        leftHandShape = 'cupped';
+
+        hipsRot = [0, -lSide * 0.04, lSide * 0.03];
+        spineRot = [fwd * 0.04, -lSide * 0.08, lSide * 0.03];
+        chestRot = [fwd * 0.05, -lSide * 0.05, 0];
+        neckRot = [fwd * -0.02, -rSide * 0.08, rSide * 0.08];
+        headRot = [
+            fwd * -0.05,
+            -rSide * (0.15 + Math.sin(phaseT * 1.5) * 0.05),
+            rSide * (0.12 + Math.sin(phaseT * 2.0) * 0.03),
+        ];
+        rShoulderRot = [fwd * 0.12, -rSide * 0.04, rSide * 0.08];
+
+        // Right hand reaches gently forward and upward, finger extended for butterfly perch
+        const perchTarget = new THREE.Vector3(
+            chestP.x + rSide * 0.16,
+            chestP.y + 0.12 + flutterBob,
+            chestP.z + camZ * 0.26
+        );
+        rFDir.set(-rSide * 0.12, 0.35, camZ * 0.93).normalize();
+        rWrist.copy(perchTarget).addScaledVector(rFDir, -rigMetrics.LHand);
+        rPole.set(rSide * 0.55, -0.75, camZ * 0.35);
+        rPalm.set(-rSide * 0.35, 0.88, camZ * 0.32).normalize();
+
+        // Left hand rests gently at lower waist/hip
+        lWrist.set(hipsP.x + lSide * 0.13, hipsP.y + 0.07, hipsP.z + camZ * 0.05);
+        lPole.set(lSide * 0.95, -0.1, -camZ * 0.28);
+        lFDir.set(-lSide * 0.35, -0.85, camZ * 0.38).normalize();
+        lPalm.set(-lSide * 0.82, -0.22, -camZ * 0.52).normalize();
+
+    } else if (currentPose === 'idle_ren_drone') {
+        // Ren Unique Idle: Tactical upright command posture, left hand directs tactical drone, right hand on utility belt
+        const phaseT = Math.max(0, time - idleInteractionStartTime);
+        const scanPulse = Math.sin(phaseT * 2.0) * 0.012;
+
+        leftHandShape = 'open';
+        rightHandShape = 'fist';
+
+        hipsRot = [0, rSide * 0.06, 0];
+        spineRot = [fwd * -0.03, rSide * 0.08, -rSide * 0.02];
+        chestRot = [fwd * 0.04, rSide * 0.05, 0];
+        neckRot = [fwd * 0.02, rSide * 0.08, 0];
+        headRot = [fwd * 0.02, rSide * (0.16 + scanPulse), -rSide * 0.03];
+        lShoulderRot = [fwd * 0.15, lSide * 0.06, lSide * 0.12];
+        rShoulderRot = [fwd * 0.05, 0, rSide * 0.04];
+
+        // Left arm raised forward-left at shoulder height, issuing tactical guidance command
+        const droneDirectTarget = new THREE.Vector3(
+            chestP.x + lSide * 0.22,
+            chestP.y + 0.14 + scanPulse,
+            chestP.z + camZ * 0.24
+        );
+        lFDir.set(lSide * 0.25, 0.32, camZ * 0.91).normalize();
+        lWrist.copy(droneDirectTarget).addScaledVector(lFDir, -rigMetrics.LHand);
+        lPole.set(lSide * 0.72, -0.62, camZ * 0.32);
+        lPalm.set(0, -0.92, -camZ * 0.38).normalize();
+
+        // Right hand anchored firmly at tactical utility waist/belt
+        rWrist.set(hipsP.x + rSide * 0.145, hipsP.y + 0.04, hipsP.z + camZ * 0.03);
+        rPole.set(rSide * 1.05, 0.05, -camZ * 0.35);
+        rFDir.set(-rSide * 0.22, -0.92, camZ * 0.32).normalize();
+        rPalm.set(-rSide * 0.88, -0.15, -camZ * 0.45).normalize();
+
+    } else if (currentPose === 'idle_gaming_console') {
+        // Dual-Grip Cyber Handheld Console Stance: Both hands grip console naturally at chest height with curved fingers around grips
+        const phaseT = Math.max(0, time - idleInteractionStartTime);
+        const thumbGamingTap = Math.sin(phaseT * 7.5) * 0.004;
+        const reachScale = Math.max(0.85, Math.min(1.35, reach / 0.397));
+        const sOffset = Math.abs(S_R.x) > 0.12 ? 0.025 : 0.0;
+
+        leftHandShape = 'fist';
+        rightHandShape = 'fist';
+
+        spineRot = [fwd * 0.04, 0, 0];
+        chestRot = [fwd * 0.03, 0, 0];
+        neckRot = [fwd * 0.08, 0, 0];
+        headRot = [fwd * 0.14, Math.sin(phaseT * 1.8) * 0.02, 0];
+        lShoulderRot = [fwd * 0.06, 0, lSide * 0.03];
+        rShoulderRot = [fwd * 0.06, 0, rSide * 0.03];
+
+        // Ergonomic console hold: raised up, extended outward, and angled upward facing the avatar's eyes/face
+        const consoleCenterY = chestP.y + 0.015 * reachScale;
+        const consoleCenterZ = chestP.z + camZ * (0.315 * reachScale);
+
+        rWrist.set(rSide * (0.098 + sOffset), consoleCenterY + thumbGamingTap, consoleCenterZ);
+        rPole.set(rSide * 0.65, -0.65, camZ * 0.38);
+        rFDir.set(-rSide * 0.15, 0.62, camZ * 0.77).normalize();
+        rPalm.set(-rSide * 0.90, -0.42, camZ * 0.10).normalize();
+
+        lWrist.set(lSide * (0.098 + sOffset), consoleCenterY - thumbGamingTap, consoleCenterZ);
+        lPole.set(lSide * 0.65, -0.65, camZ * 0.38);
+        lFDir.set(-lSide * 0.15, 0.62, camZ * 0.77).normalize();
+        lPalm.set(-lSide * 0.90, -0.42, camZ * 0.10).normalize();
+
+    } else if (currentPose === 'sword_guard_ready') {
+        // 2-Handed Cyber Tactical Plasma Katana Guard: Anatomically aligned two-handed grip on the hilt
+        const phaseT = Math.max(0, time - idleInteractionStartTime);
+        const swordBreathing = Math.sin(phaseT * 1.8) * 0.005;
+        const reachScale = Math.max(0.85, Math.min(1.35, reach / 0.397));
+        const sOffset = Math.abs(S_R.x) > 0.12 ? 0.025 : 0.0;
+
+        leftHandShape = 'fist';
+        rightHandShape = 'fist';
+
+        hipsRot = [0, -rSide * 0.12, rSide * 0.02];
+        spineRot = [fwd * -0.02, -rSide * 0.08, 0];
+        chestRot = [fwd * 0.02, -rSide * 0.07, 0];
+        headRot = [fwd * -0.02, rSide * 0.12, -rSide * 0.03];
+        rShoulderRot = [fwd * 0.12, 0, rSide * 0.06];
+        lShoulderRot = [fwd * 0.10, 0, lSide * 0.06];
+
+        // Guard centerline in front of torso: blade held upright tilted ~15° forward
+        const guardLeadX = rSide * (0.045 + sOffset);
+        const guardLeadY = chestP.y + 0.05 * reachScale + swordBreathing;
+        const guardLeadZ = chestP.z + camZ * (0.235 * reachScale);
+
+        // Right hand (dominant, top grip just beneath the tsuba guard):
+        // Hand extends along the blade upward/forward; palm wraps hilt
+        rWrist.set(guardLeadX, guardLeadY, guardLeadZ);
+        rPole.set(rSide * 0.70, -0.60, camZ * 0.35);
+        rFDir.set(-rSide * 0.08, 0.96, camZ * 0.25).normalize();
+        rPalm.set(-rSide * 0.88, -0.12, -camZ * 0.45).normalize();
+
+        // Left hand (subordinate, grips lower hilt 8cm beneath right hand along the same axis):
+        lWrist.set(guardLeadX - rSide * 0.008, guardLeadY - 0.078 * reachScale, guardLeadZ - 0.020);
+        lPole.set(lSide * 0.65, -0.70, camZ * 0.35);
+        lFDir.set(-lSide * 0.08, 0.96, camZ * 0.25).normalize();
+        lPalm.set(-lSide * 0.88, -0.12, -camZ * 0.45).normalize();
+
+    } else if (currentPose === 'sword_sheathe_flourish') {
+        // Tactical Plasma Blade Flourish: Right hand holds drawn blade angled outwards with palm pronation, Left hand rested naturally at waist
+        const phaseT = Math.max(0, time - idleInteractionStartTime);
+        const reachScale = Math.max(0.85, Math.min(1.35, reach / 0.397));
+        const sOffset = Math.abs(S_R.x) > 0.12 ? 0.03 : 0.0;
+
+        rightHandShape = 'fist';
+        leftHandShape = 'relaxed';
+
+        hipsRot = [0, rSide * 0.06, 0];
+        spineRot = [fwd * -0.02, rSide * 0.03, -rSide * 0.02];
+        chestRot = [fwd * -0.01, rSide * 0.02, 0];
+        headRot = [fwd * -0.02, -rSide * 0.06, rSide * 0.03];
+        rShoulderRot = [fwd * 0.06, 0, rSide * 0.10];
+        lShoulderRot = [fwd * 0.03, 0, lSide * 0.04];
+
+        // Right hand holds blade pointing down-right with wrist pronated so knuckles face viewer
+        rWrist.set(rSide * (0.22 * reachScale + sOffset), hipsP.y + 0.08 * reachScale, hipsP.z + camZ * (0.17 * reachScale));
+        rPole.set(rSide * 0.75, -0.55, camZ * 0.35);
+        rFDir.set(rSide * 0.20, -0.88, camZ * 0.43).normalize();
+        rPalm.set(-rSide * 0.60, 0.35, camZ * 0.72).normalize();
+
+        // Left hand rests naturally on belt/hip
+        lWrist.set(lSide * (0.13 * reachScale + sOffset), hipsP.y + 0.05 * reachScale, hipsP.z + camZ * 0.05);
+        lPole.set(lSide * 0.90, -0.20, -camZ * 0.20);
+        lFDir.set(-lSide * 0.25, -0.90, camZ * 0.35).normalize();
+        lPalm.set(-lSide * 0.85, -0.20, -camZ * 0.48).normalize();
+
+    } else if (currentPose === 'idle_airi_holodice') {
+        // Airi Unique Prop Idle: Holds right hand gently cupped under floating quantum holo-dice
+        const phaseT = Math.max(0, time - idleInteractionStartTime);
+        const diceBob = Math.sin(phaseT * 3.2) * 0.012;
+
+        rightHandShape = 'cupped';
+        leftHandShape = 'relaxed';
+
+        hipsRot = [0, -lSide * 0.04, lSide * 0.03];
+        spineRot = [fwd * 0.04, -lSide * 0.06, lSide * 0.02];
+        chestRot = [fwd * 0.05, -lSide * 0.04, 0];
+        neckRot = [fwd * 0.04, -rSide * 0.06, rSide * 0.06];
+        headRot = [fwd * 0.09, -rSide * 0.12, rSide * 0.10];
+        rShoulderRot = [fwd * 0.08, -rSide * 0.03, rSide * 0.06];
+
+        rWrist.set(chestP.x + rSide * 0.14, chestP.y + 0.03 + diceBob, chestP.z + camZ * 0.22);
+        rPole.set(rSide * 0.65, -0.65, camZ * 0.35);
+        rFDir.set(-rSide * 0.15, 0.45, camZ * 0.88).normalize();
+        rPalm.set(-rSide * 0.25, 0.92, camZ * 0.28).normalize();
+
+        lWrist.set(hipsP.x + lSide * 0.13, hipsP.y + 0.06, hipsP.z + camZ * 0.05);
+        lPole.set(lSide * 0.95, -0.1, -camZ * 0.25);
+        lFDir.set(-lSide * 0.35, -0.85, camZ * 0.38).normalize();
+        lPalm.set(-lSide * 0.82, -0.22, -camZ * 0.52).normalize();
+
+    } else if (currentPose === 'idle_ren_datapad') {
+        // Ren Unique Prop Idle: Left hand holds tactical datapad, right hand ready to enter input
+        const phaseT = Math.max(0, time - idleInteractionStartTime);
+        const tapPulse = Math.sin(phaseT * 4.0) * 0.008;
+
+        leftHandShape = 'cupped';
+        rightHandShape = 'point';
+
+        hipsRot = [0, rSide * 0.04, 0];
+        spineRot = [fwd * 0.03, rSide * 0.04, -rSide * 0.02];
+        chestRot = [fwd * 0.04, 0, 0];
+        neckRot = [fwd * 0.06, 0, 0];
+        headRot = [fwd * 0.14, rSide * 0.05, 0];
+        lShoulderRot = [fwd * 0.08, 0, lSide * 0.04];
+        rShoulderRot = [fwd * 0.08, 0, rSide * 0.04];
+
+        // Left hand holds datapad at lower chest
+        lWrist.set(chestP.x + lSide * 0.08, chestP.y - 0.01, chestP.z + camZ * 0.24);
+        lPole.set(lSide * 0.70, -0.60, camZ * 0.35);
+        lFDir.set(-lSide * 0.20, 0.55, camZ * 0.81).normalize();
+        lPalm.set(0, 0.85, camZ * 0.52).normalize();
+
+        // Right hand hovers over datapad screen to tap coordinates
+        rWrist.set(chestP.x + rSide * 0.02, chestP.y + 0.05 + tapPulse, chestP.z + camZ * 0.26);
+        rPole.set(rSide * 0.70, -0.60, camZ * 0.35);
+        rFDir.set(-rSide * 0.25, 0.30, camZ * 0.92).normalize();
+        rPalm.set(-rSide * 0.75, -0.35, camZ * 0.55).normalize();
+
+    } else if (currentPose === 'twin_synergy_combat') {
+        // Dual Twin Combat Stance: High-readiness tactical posture
+        rightHandShape = 'fist';
+        leftHandShape = 'fist';
+        hipsRot = [0, -rSide * 0.08, rSide * 0.03];
+        spineRot = [fwd * -0.02, -rSide * 0.05, 0];
+        chestRot = [fwd * 0.03, -rSide * 0.04, 0];
+        headRot = [fwd * -0.02, rSide * 0.08, -rSide * 0.02];
+        rShoulderRot = [fwd * 0.10, 0, rSide * 0.08];
+        lShoulderRot = [fwd * 0.08, 0, lSide * 0.06];
+
+        rWrist.set(rSide * 0.08, chestP.y + 0.06, chestP.z + camZ * 0.22);
+        rPole.set(rSide * 0.75, -0.55, camZ * 0.35);
+        rFDir.set(-rSide * 0.10, 0.94, camZ * 0.32).normalize();
+        rPalm.set(-rSide * 0.85, -0.15, -camZ * 0.50).normalize();
+
+        lWrist.set(lSide * 0.10, chestP.y - 0.02, chestP.z + camZ * 0.18);
+        lPole.set(lSide * 0.75, -0.55, camZ * 0.35);
+        lFDir.set(lSide * 0.40, -0.80, camZ * 0.44).normalize();
+        lPalm.set(-lSide * 0.75, -0.20, -camZ * 0.63).normalize();
+
+    } else if (currentPose === 'twin_synergy_briefing') {
+        // Dual Twin Briefing Stance: Coordinated mission analysis
+        rightHandShape = 'point';
+        leftHandShape = 'cupped';
+        spineRot = [fwd * 0.03, -rSide * 0.04, 0];
+        chestRot = [fwd * 0.02, 0, 0];
+        headRot = [fwd * 0.04, rSide * 0.08, rSide * 0.04];
+
+        rWrist.set(rSide * 0.10, chestP.y + 0.08, chestP.z + camZ * 0.23);
+        rPole.set(rSide * 0.70, -0.55, camZ * 0.35);
+        rFDir.set(-rSide * 0.25, 0.45, camZ * 0.85).normalize();
+        rPalm.set(-rSide * 0.60, 0.35, camZ * 0.70).normalize();
+
+        lWrist.set(lSide * 0.12, hipsP.y + 0.07, hipsP.z + camZ * 0.06);
+        lPole.set(lSide * 0.90, -0.15, -camZ * 0.20);
+        lFDir.set(-lSide * 0.30, -0.88, camZ * 0.36).normalize();
+        lPalm.set(-lSide * 0.85, -0.15, -camZ * 0.50).normalize();
+
     // -----------------------------------------------------------------
     // 6. SEAMLESS INTERACTION & DYADIC POSES (Meta Seamless Dataset Priors)
     // -----------------------------------------------------------------
@@ -1831,8 +3165,32 @@ function applyProceduralPose(time, speed) {
         }
     }
 
+    // Direct Parametric Model Skeleton Control (AI Router / Neural Model Hybrid Director)
+    if (activeSkeletonDirectives) {
+        if (typeof activeSkeletonDirectives.spine_pitch === 'number') {
+            spineRot[0] += fwd * activeSkeletonDirectives.spine_pitch;
+        }
+        if (typeof activeSkeletonDirectives.spine_yaw === 'number') {
+            spineRot[1] += rSide * activeSkeletonDirectives.spine_yaw;
+        }
+        if (typeof activeSkeletonDirectives.spine_roll === 'number') {
+            spineRot[2] += rSide * activeSkeletonDirectives.spine_roll;
+        }
+        if (typeof activeSkeletonDirectives.hips_roll === 'number') {
+            hipsRot[2] += rSide * activeSkeletonDirectives.hips_roll;
+        }
+        if (typeof activeSkeletonDirectives.hips_drop === 'number') {
+            scenePosY -= activeSkeletonDirectives.hips_drop;
+        }
+        if (typeof activeSkeletonDirectives.shoulder_tension === 'number') {
+            const t = activeSkeletonDirectives.shoulder_tension;
+            rShoulderRot[2] += rSide * t * 0.05;
+            lShoulderRot[2] += lSide * t * 0.05;
+        }
+    }
+
     // Superimpose biological breathing, righting reflex, and speech prosody onto active pose
-    if (currentPose !== 'idle' && currentPose !== 'backflip') {
+    if (currentPose !== 'idle') {
         spineRot[0] += breathKin.spinePitch * 0.75 + microPosture.spinePitch * 0.6;
         spineRot[2] += microPosture.spineRoll * 0.55;
         chestRot[0] += breathKin.chestPitch * 0.8;
@@ -1850,6 +3208,57 @@ function applyProceduralPose(time, speed) {
     if (currentState === 'speaking' && audioLipSync && audioLipSync.isPlaying) {
         headRot[0] += Math.sin(time * 5.5) * 0.024;
         headRot[1] += Math.cos(time * 2.5) * 0.018;
+    }
+
+    // Biomechanical Studio Body Pose Adjustments (Real-time Parametric Slider Overrides)
+    if (typeof activeBodyPoseAdjustments !== 'undefined' && activeBodyPoseAdjustments.enabled) {
+        const isTargetMatch = activeBodyPoseAdjustments.target === 'active' || 
+            (activeBodyPoseAdjustments.target === 'airi' && !isRenActive()) ||
+            (activeBodyPoseAdjustments.target === 'ren' && isRenActive()) ||
+            activeBodyPoseAdjustments.target === 'both';
+
+        if (isTargetMatch) {
+            // Head & Neck (radians from degrees)
+            headRot[0] += fwd * (activeBodyPoseAdjustments.headPitch * Math.PI / 180);
+            headRot[1] += rSide * (activeBodyPoseAdjustments.headYaw * Math.PI / 180);
+            headRot[2] += rSide * (activeBodyPoseAdjustments.headRoll * Math.PI / 180);
+            neckRot[0] += fwd * (activeBodyPoseAdjustments.neckPitch * Math.PI / 180);
+
+            // Spine, Torso & Pelvis
+            spineRot[0] += fwd * (activeBodyPoseAdjustments.spineLean * Math.PI / 180);
+            spineRot[1] += rSide * (activeBodyPoseAdjustments.spineTwist * Math.PI / 180);
+            spineRot[2] += rSide * (activeBodyPoseAdjustments.spineRoll * Math.PI / 180);
+            chestRot[0] += fwd * activeBodyPoseAdjustments.chestBreath;
+            hipsRot[1] += rSide * (activeBodyPoseAdjustments.pelvisSway * Math.PI / 180);
+            hipsRot[2] += rSide * (activeBodyPoseAdjustments.pelvisTilt * Math.PI / 180);
+            scenePosY += activeBodyPoseAdjustments.crouch;
+
+            // Stance & Lower Body
+            const sWidthRad = (activeBodyPoseAdjustments.stanceWidth * Math.PI / 180);
+            lUpperLegRot[2] -= sWidthRad;
+            rUpperLegRot[2] += sWidthRad;
+            const kneeRad = (activeBodyPoseAdjustments.kneeBend * Math.PI / 180);
+            lLowerLegRot[0] += kneeRad;
+            rLowerLegRot[0] += kneeRad;
+
+            // Arms & Hand Positions (offset in world/rig space)
+            rWrist.y += activeBodyPoseAdjustments.rArmLift;
+            rWrist.z += camZ * activeBodyPoseAdjustments.rArmReach;
+            rWrist.x += rSide * activeBodyPoseAdjustments.rArmSide;
+            rPole.x += rSide * activeBodyPoseAdjustments.rElbow;
+
+            lWrist.y += activeBodyPoseAdjustments.lArmLift;
+            lWrist.z += camZ * activeBodyPoseAdjustments.lArmReach;
+            lWrist.x += lSide * activeBodyPoseAdjustments.lArmSide;
+            lPole.x += lSide * activeBodyPoseAdjustments.lElbow;
+
+            if (activeBodyPoseAdjustments.rHandShape && activeBodyPoseAdjustments.rHandShape !== 'auto') {
+                rightHandShape = activeBodyPoseAdjustments.rHandShape;
+            }
+            if (activeBodyPoseAdjustments.lHandShape && activeBodyPoseAdjustments.lHandShape !== 'auto') {
+                leftHandShape = activeBodyPoseAdjustments.lHandShape;
+            }
+        }
     }
 
     currentVrm.scene.position.y = THREE.MathUtils.lerp(currentVrm.scene.position.y, scenePosY, speed);
@@ -1929,6 +3338,18 @@ function applyProceduralPose(time, speed) {
 
         applyHandIkSpec(pendingCustomIkSpec.rightWrist, rSide, rWrist, rPole, rFDir, rPalm, 'right');
         applyHandIkSpec(pendingCustomIkSpec.leftWrist, lSide, lWrist, lPole, lFDir, lPalm, 'left');
+
+        if (typeof activeBodyPoseAdjustments !== 'undefined' && activeBodyPoseAdjustments.enabled) {
+            rWrist.y += activeBodyPoseAdjustments.rArmLift;
+            rWrist.z += camZ * activeBodyPoseAdjustments.rArmReach;
+            rWrist.x += rSide * activeBodyPoseAdjustments.rArmSide;
+            rPole.x += rSide * activeBodyPoseAdjustments.rElbow;
+
+            lWrist.y += activeBodyPoseAdjustments.lArmLift;
+            lWrist.z += camZ * activeBodyPoseAdjustments.lArmReach;
+            lWrist.x += lSide * activeBodyPoseAdjustments.lArmSide;
+            lPole.x += lSide * activeBodyPoseAdjustments.lElbow;
+        }
     }
 
     // Solve & apply 2-Bone Analytic IK + Shortest-Path Quaternion Slerp for both arms
@@ -1947,6 +3368,7 @@ let currentState = 'idle';
 let currentEmotion = 'neutral';
 let currentPose = 'idle';
 let currentStyle = 'natural';
+let activeSkeletonDirectives = null;
 let poseResetTimeout = null;
 const customPoseRegistry = new Map();
 let customPoseStartTime = 0;
@@ -1960,7 +3382,8 @@ const SPEAKING_POSE_INTERVAL = 1.65; // Switch speaking pose every 1.65s
 
 function getNextSpeakingPoseForEmotion(emotion) {
     const key = (emotion || currentEmotion || 'neutral').toLowerCase();
-    const pool = EMOTION_SPEAKING_POSE_POOLS[key] || EMOTION_SPEAKING_POSE_POOLS.neutral;
+    const activeChar = isRenActive() ? 'ren' : 'airi';
+    const pool = getSpeakingPosePoolForCharacter(activeChar, key);
     const pose = pool[speakingPoseIndex % pool.length];
     speakingPoseIndex = (speakingPoseIndex + 1) % pool.length;
     return pose;
@@ -2081,14 +3504,30 @@ function focusOnModel(vrm, resetAvatarPos = false) {
         const headPos = new THREE.Vector3();
         head.getWorldPosition(headPos);
         const isFBX = Boolean(vrm.isFBXModel);
-        baseCameraTargetY = headPos.y - (isFBX ? 0.38 : 0.22);
-        baseCameraY = headPos.y - (isFBX ? 0.18 : 0.08);
-        baseCameraZ = headPos.z + (isFBX ? 2.45 : 1.65);
+        const isMobile = window.innerWidth <= 768;
+        const mobileDistMult = isMobile ? (window.innerHeight > window.innerWidth ? 1.35 : 1.15) : 1.0;
+        baseCameraTargetY = headPos.y - (isFBX ? 0.38 : (isMobile ? 0.28 : 0.22));
+        baseCameraY = headPos.y - (isFBX ? 0.18 : (isMobile ? 0.12 : 0.08));
+        baseCameraZ = headPos.z + (isFBX ? 2.45 : 1.65) * mobileDistMult;
         controls.target.set(headPos.x, baseCameraTargetY, headPos.z);
         camera.position.set(headPos.x, baseCameraY, baseCameraZ);
         controls.update();
     }
 }
+
+window.setCameraFraming = (targetY, camY, camZ) => {
+    if (typeof targetY === 'number') baseCameraTargetY = targetY;
+    if (typeof camY === 'number') baseCameraY = camY;
+    if (typeof camZ === 'number') baseCameraZ = camZ;
+    if (controls) {
+        controls.target.y = baseCameraTargetY;
+        controls.update();
+    }
+    if (camera) {
+        camera.position.y = baseCameraY;
+        camera.position.z = baseCameraZ;
+    }
+};
 
 function focusCallCamera(vrm) {
     if (!vrm) return;
@@ -2142,6 +3581,9 @@ function setPose(poseName, autoReturnMs = 0) {
     }
 }
 window.setPose = setPose;
+window.getCurrentPose = () => currentPose;
+window.applyCharacterProtocolState = applyCharacterProtocolState;
+window.getActiveSkeletonDirectives = () => activeSkeletonDirectives;
 
 // Unlock AudioContext on first user interaction anywhere in the document
 ['pointerdown', 'touchstart', 'click', 'keydown'].forEach((evt) => {
@@ -2223,7 +3665,7 @@ const POPUP_STATE_PALETTE = {
     },
     error: {
         bodyClass: 'state-error',
-        btnId: 'btn-thinking',
+        btnId: 'btn-error',
         hex: '#FF3B30',
         trimColor: new THREE.Color('#FF3B30'),     // Alert Crimson
         trimBreathe: new THREE.Color('#FF3B30'),
@@ -2265,7 +3707,7 @@ function applyStateVisualTheme(rawState) {
     );
     document.body.classList.add(theme.bodyClass);
 
-    ['btn-idle', 'btn-listening', 'btn-thinking', 'btn-speaking'].forEach((id) => {
+    ['btn-idle', 'btn-listening', 'btn-thinking', 'btn-speaking', 'btn-error'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) el.classList.toggle('active', id === theme.btnId);
     });
@@ -2294,15 +3736,37 @@ function updateVrmStateColorTransition(delta, elapsed) {
         theme.baseBoost + wave * theme.pulseAmp + speechEnergy * 0.55;
 
     for (let i = 0; i < emissiveMaterials.length; i++) {
-        const { mat, isEye } = emissiveMaterials[i];
-        const baseCol = isEye ? lerpedEyeColor : lerpedTrimColor;
-        const mult = isEye ? Math.max(1.0, pulseFactor) : pulseFactor;
+        const { mat, isEye, isHair, isCloth, isBody } = emissiveMaterials[i];
+        
+        let baseCol = lerpedTrimColor;
+        let mult = pulseFactor;
+        
+        if (isEye) {
+            baseCol = lerpedEyeColor;
+            mult = Math.max(1.15, pulseFactor * 1.35);
+        } else if (isHair) {
+            // Subtle cybernetic hair sheen reacting to active state
+            baseCol = lerpedTrimColor;
+            mult = pulseFactor * 0.42;
+        } else if (isCloth || isBody) {
+            // Cybernetic clothing conduit lines and tactical glove knuckles
+            baseCol = lerpedTrimColor;
+            mult = Math.max(1.0, pulseFactor * 1.35);
+        }
+
         tempEmitOut.copy(baseCol).multiplyScalar(mult);
+
+        // Standard Three.js emissive color
         if (mat.emissive) {
             mat.emissive.copy(tempEmitOut);
         }
+        // Three.js ShaderMaterial / MToon uniform emissive
         if (mat.uniforms?.emissive?.value) {
             mat.uniforms.emissive.value.copy(tempEmitOut);
+        }
+        // Direct MToon emissiveMultiplier or intensity
+        if (typeof mat.emissiveIntensity === 'number') {
+            mat.emissiveIntensity = mult;
         }
     }
 
@@ -2395,6 +3859,10 @@ function setTestState(state, customPose = null, triggerPreview = false) {
             audioLipSync.startSimulatedLipSync(4500);
         }
         updateStatus(`State: Speaking (#3296FA) [${currentEmotion}] | Pose: ${currentPose}`);
+    } else if (state === 'error') {
+        applyExpressionState('angry', 0.85);
+        setPose(customPose || 'refuse');
+        updateStatus(`State: Error / Exception Alert (#FF3B30) | Pose: ${currentPose}`);
     }
 }
 window.setTestState = setTestState;
@@ -2423,6 +3891,74 @@ function clearChoreographyTimers() {
     activeChoreographyTimers = [];
 }
 
+const AIRI_EXCLUSIVE_POSES = [
+    'sassy_hip_pop',
+    'heart_hands_love',
+    'shy_bashful_tuck',
+    'hand_to_heart_sincere',
+    'excited_victory_jump',
+    'idle_airi_butterfly',
+];
+
+const REN_EXCLUSIVE_POSES = [
+    'tactical_stand_at_ease',
+    'arms_folded_relaxed',
+    'hands_pocket_relaxed',
+    'thoughtful_chin_touch',
+    'crossed_arms_think',
+    'idle_ren_drone',
+];
+
+function updatePoseButtonsForActiveModel() {
+    const isRen = isRenActive();
+    const isDual = activeModelId === 'dual';
+    // 1. Filter Synthesized / Custom Poses tab
+    document.querySelectorAll('#custom-pose-buttons button').forEach(btn => {
+        const pose = btn.getAttribute('data-custom-pose');
+        if (!pose) return;
+        if (isDual) {
+            btn.style.display = '';
+        } else if (isRen && AIRI_EXCLUSIVE_POSES.includes(pose)) {
+            btn.style.display = 'none';
+        } else if (!isRen && REN_EXCLUSIVE_POSES.includes(pose)) {
+            btn.style.display = 'none';
+        } else {
+            btn.style.display = '';
+        }
+    });
+
+    // 2. Filter 3D Props & Gadgets tab (e.g. Butterfly for Airi, Recon Drone for Ren)
+    document.querySelectorAll('#idle-interaction-buttons button').forEach(btn => {
+        const pose = btn.getAttribute('data-pose');
+        if (!pose) return;
+        if (isDual) {
+            btn.style.display = '';
+        } else if (isRen && AIRI_EXCLUSIVE_POSES.includes(pose)) {
+            btn.style.display = 'none';
+        } else if (!isRen && REN_EXCLUSIVE_POSES.includes(pose)) {
+            btn.style.display = 'none';
+        } else {
+            btn.style.display = '';
+        }
+    });
+
+    // Update RL Trainer Header Label to reflect the character-specific human reference poses
+    const rlHeader = document.querySelector('#rl-trainer-controls .preset-label, #tab-rl .preset-label');
+    if (rlHeader) {
+        rlHeader.innerText = isRen
+            ? '🛡️ Ren Tactical RL Pose & Style Trainer (19):'
+            : '🌸 Airi Cyber Companion RL Pose & Style Trainer (19):';
+    }
+
+    const exclTitle = document.getElementById('exclusives-tab-title');
+    if (exclTitle) {
+        exclTitle.innerText = isRen
+            ? '🛡️ Ren Tactical Exclusive & Synthesized Poses:'
+            : '🌸 Airi Cyber Exclusive & Synthesized Poses:';
+    }
+}
+window.updatePoseButtonsForActiveModel = updatePoseButtonsForActiveModel;
+
 function registerAndEnsureCustomPoseButton(customPose) {
     if (!customPose || !customPose.name) return;
     const poseName = String(customPose.name).trim();
@@ -2445,6 +3981,7 @@ function registerAndEnsureCustomPoseButton(customPose) {
             updateStatus(`HELIOS Custom Pose: ${poseName}`);
         };
         container.appendChild(existing);
+        updatePoseButtonsForActiveModel();
     }
 }
 
@@ -2480,10 +4017,12 @@ function applyCharacterProtocolState(stateMsg) {
     const style = (stateMsg.style || (stateMsg.custom_pose && stateMsg.custom_pose.style) || currentStyle || 'natural').toLowerCase();
     const choreography = Array.isArray(stateMsg.choreography) ? stateMsg.choreography : [];
     const customPose = stateMsg.custom_pose || null;
+    const skeletonParams = stateMsg.skeleton_params || stateMsg.skeleton || null;
 
     if (customPose && customPose.name) {
         registerAndEnsureCustomPoseButton(customPose);
     }
+    activeSkeletonDirectives = skeletonParams;
 
     currentEmotion = emotion;
     currentState = mode === 'working' || mode === 'error' ? 'thinking' : mode;
@@ -2655,7 +4194,8 @@ function updateRlRewardHud(evalObj = null, statusObj = null) {
 
 async function fetchRlPoseStatus() {
     try {
-        const res = await fetch('/api/character/rl-status');
+        const charKey = isRenActive() ? 'ren' : 'airi';
+        const res = await fetch(`/api/character/rl-status?character=${charKey}`);
         if (res.ok) {
             const st = await res.json();
             if (st && !st.offline) {
@@ -2666,10 +4206,12 @@ async function fetchRlPoseStatus() {
 }
 
 async function triggerRlPoseTraining(poseName = null, episodes = 18, simulateCurriculum = true) {
+    const charKey = isRenActive() ? 'ren' : 'airi';
+    const defaultFallback = charKey === 'ren' ? 'tactical_stand_at_ease' : 'cyber_salute';
     const targetPose =
         poseName ||
-        (customPoseRegistry.has(currentPose) ? currentPose : 'cyber_salute');
-    updateStatus(`⚡ RL Policy Training on Human Reference "${targetPose}" (${episodes} episodes)...`);
+        (customPoseRegistry.has(currentPose) ? currentPose : defaultFallback);
+    updateStatus(`⚡ RL Policy Training [${charKey.toUpperCase()}] on Reference "${targetPose}" (${episodes} episodes)...`);
     try {
         const res = await fetch('/api/character/rl-train', {
             method: 'POST',
@@ -2678,6 +4220,7 @@ async function triggerRlPoseTraining(poseName = null, episodes = 18, simulateCur
                 pose_name: targetPose,
                 episodes,
                 simulate_curriculum: simulateCurriculum,
+                character: charKey,
             }),
         });
         if (res.ok) {
@@ -2696,7 +4239,7 @@ async function triggerRlPoseTraining(poseName = null, episodes = 18, simulateCur
                 });
                 const ptsAwarded = Math.round(data.total_award_points_earned || 0);
                 updateStatus(
-                    `🏆 RL Trained "${lastRes.pose_name}": ${lastRes.initial_reward_pct}% → ${lastRes.final_reward_pct}% | Awarded +${ptsAwarded} pts!`
+                    `🏆 RL Trained [${charKey.toUpperCase()}] "${lastRes.pose_name}": ${lastRes.initial_reward_pct}% → ${lastRes.final_reward_pct}% | Awarded +${ptsAwarded} pts!`
                 );
                 return data;
             }
@@ -2707,9 +4250,11 @@ async function triggerRlPoseTraining(poseName = null, episodes = 18, simulateCur
 }
 
 async function submitRlPoseFeedback(awardDelta = 100.0, poseOverride = null) {
+    const charKey = isRenActive() ? 'ren' : 'airi';
+    const defaultFallback = charKey === 'ren' ? 'tactical_stand_at_ease' : 'cyber_salute';
     const targetPose =
         poseOverride ||
-        (customPoseRegistry.has(currentPose) ? currentPose : 'cyber_salute');
+        (customPoseRegistry.has(currentPose) ? currentPose : defaultFallback);
     const telemetry = computeLiveVrmBiomechanicalTelemetry();
     try {
         const res = await fetch('/api/character/rl-feedback', {
@@ -2719,6 +4264,7 @@ async function submitRlPoseFeedback(awardDelta = 100.0, poseOverride = null) {
                 pose_name: targetPose,
                 user_award_delta: awardDelta,
                 browser_telemetry: telemetry,
+                character: charKey,
             }),
         });
         if (res.ok) {
@@ -2736,7 +4282,7 @@ async function submitRlPoseFeedback(awardDelta = 100.0, poseOverride = null) {
             }
             const sign = awardDelta >= 0 ? `+${awardDelta}` : `${awardDelta}`;
             updateStatus(
-                `${awardDelta >= 0 ? '🏆 Awarded' : '⚠️ Corrected'} "${data.pose_name}" (${sign} RL pts) | Match: ${data.evaluation?.reward_pct ?? 100}%`
+                `${awardDelta >= 0 ? '🏆 Awarded' : '⚠️ Corrected'} [${charKey.toUpperCase()}] "${data.pose_name}" (${sign} RL pts) | Match: ${data.evaluation?.reward_pct ?? 100}%`
             );
         }
     } catch (e) {}
@@ -2817,6 +4363,7 @@ const btnModelHelios = document.getElementById('btn-model-helios');
 const btnModelBase = document.getElementById('btn-model-base');
 const btnModelTwin = document.getElementById('btn-model-twin');
 const btnModelMeshy = document.getElementById('btn-model-meshy');
+const btnModelDual = document.getElementById('btn-model-dual');
 
 const TWIN_VRM_URL = 'models/Helios_Twin.vrm';
 
@@ -2825,13 +4372,101 @@ function clearModelActiveStates() {
     if (btnModelBase)   btnModelBase.classList.remove('active');
     if (btnModelTwin)   btnModelTwin.classList.remove('active');
     if (btnModelMeshy)  btnModelMeshy.classList.remove('active');
+    if (btnModelDual)   btnModelDual.classList.remove('active');
 }
+
+function startDualTwinSynergy() {
+    clearModelActiveStates();
+    if (btnModelDual) btnModelDual.classList.add('active');
+    activeModelId = 'dual';
+    dualTwinModeActive = true;
+    updatePoseButtonsForActiveModel();
+    updateStatus('👥 Synchronizing Dual Twin System: Loading Airi & Ren side-by-side...');
+
+    const setupAiriPosition = () => {
+        if (currentVrm?.scene) {
+            currentVrm.scene.position.set(-0.42, 0, 0);
+            currentVrm.scene.rotation.set(0, baseFacingYaw + 0.12, 0);
+        }
+    };
+
+    const setupRenPosition = (vrm) => {
+        if (vrm?.scene) {
+            vrm.scene.position.set(0.42, 0, 0);
+            vrm.scene.rotation.set(0, baseFacingYaw - 0.12, 0);
+        }
+    };
+
+    const adjustDualCamera = () => {
+        baseCameraTargetY = 1.15;
+        baseCameraY = 1.25;
+        baseCameraZ = 2.45;
+        if (controls) {
+            controls.target.set(0, 1.15, 0);
+            controls.update();
+        }
+        if (camera) {
+            camera.position.set(0, 1.25, 2.45);
+        }
+    };
+
+    const loadRenSecondary = () => {
+        if (secondaryVrm) {
+            setupRenPosition(secondaryVrm);
+            adjustDualCamera();
+            setPose('twin_synergy_briefing');
+            updateStatus('👥 Dual Twin Synergy Active: Airi & Ren Synchronized (Tactical Link Established)');
+            return;
+        }
+
+        updateStatus('Loading Twin (Ren) Tactical Companion VRM...');
+        loader.load(
+            TWIN_VRM_URL,
+            (gltf) => {
+                const vrm = gltf.userData.vrm;
+                secondaryVrm = vrm;
+                window.secondaryVrm = vrm;
+                scene.add(vrm.scene);
+                VRMUtils.rotateVRM0(vrm);
+                setupRenPosition(vrm);
+                calibrateSkeletonAndRestPose(vrm);
+                adjustDualCamera();
+                setPose('twin_synergy_briefing');
+                updateStatus('👥 Dual Twin Synergy Active: Airi & Ren Synchronized (Tactical Link Established)');
+            },
+            undefined,
+            (err) => {
+                console.error('Failed to load secondary Twin VRM:', err);
+                updateStatus('Dual Twin Error: ' + (err?.message || err));
+            }
+        );
+    };
+
+    const isAiriCurrent = currentVrm && !isRenActive() && !currentVrm.isFBXModel;
+    if (isAiriCurrent) {
+        setupAiriPosition();
+        loadRenSecondary();
+    } else {
+        loadVRM(DEFAULT_VRM_URL);
+        const checkAiriReady = setInterval(() => {
+            if (currentVrm && !isRenActive()) {
+                clearInterval(checkAiriReady);
+                setupAiriPosition();
+                loadRenSecondary();
+            }
+        }, 150);
+    }
+}
+window.startDualTwinSynergy = startDualTwinSynergy;
 
 if (btnModelHelios) {
     btnModelHelios.onclick = () => {
         clearModelActiveStates();
         btnModelHelios.classList.add('active');
+        activeModelId = 'airi';
+        updatePoseButtonsForActiveModel();
         loadVRM(DEFAULT_VRM_URL);
+        fetchRlPoseStatus();
     };
 }
 
@@ -2839,7 +4474,16 @@ if (btnModelTwin) {
     btnModelTwin.onclick = () => {
         clearModelActiveStates();
         btnModelTwin.classList.add('active');
+        activeModelId = 'twin';
+        updatePoseButtonsForActiveModel();
         loadVRM(TWIN_VRM_URL);
+        fetchRlPoseStatus();
+    };
+}
+
+if (btnModelDual) {
+    btnModelDual.onclick = () => {
+        startDualTwinSynergy();
     };
 }
 
@@ -2847,7 +4491,10 @@ if (btnModelMeshy) {
     btnModelMeshy.onclick = () => {
         clearModelActiveStates();
         btnModelMeshy.classList.add('active');
+        activeModelId = 'airi';
+        updatePoseButtonsForActiveModel();
         loadFBXModel(MESHY_FBX_URL);
+        fetchRlPoseStatus();
     };
 }
 
@@ -2855,7 +4502,10 @@ if (btnModelBase) {
     btnModelBase.onclick = () => {
         clearModelActiveStates();
         btnModelBase.classList.add('active');
+        activeModelId = 'airi';
+        updatePoseButtonsForActiveModel();
         loadVRM(BASE_VRM_URL);
+        fetchRlPoseStatus();
     };
 }
 
@@ -2933,6 +4583,10 @@ document.getElementById('btn-speaking').onclick = () => {
     speakingPoseIndex = 0;
     setTestState('speaking', null, true);
 };
+const btnErrorEl = document.getElementById('btn-error');
+if (btnErrorEl) {
+    btnErrorEl.onclick = () => setTestState('error', 'refuse');
+}
 document.getElementById('btn-reset-cam').onclick = () => {
     if (currentVrm) focusOnModel(currentVrm, true);
 };
@@ -3154,6 +4808,66 @@ const IDLE_INTERACTION_DESCRIPTIONS = {
         popupBody: 'Taking a relaxed shoulder & arm stretch while waiting on standby.',
         emotion: 'relaxed',
     },
+    idle_airi_butterfly: {
+        status: '🦋 Airi Companion: Interacting with Holographic Cyber-Butterfly',
+        popupBadge: 'CYBER-BUTTERFLY',
+        popupBody: 'Airi is curiously guiding and perching her glowing Cybernetic Data Butterfly...',
+        emotion: 'curious',
+    },
+    idle_ren_drone: {
+        status: '🛰️ Ren Companion: Directing Tactical Recon Scout Drone telemetry',
+        popupBadge: 'TACTICAL RECON',
+        popupBody: 'Ren is coordinating tactical telemetry scanner and scouting perimeter with drone...',
+        emotion: 'serious',
+    },
+    natural_weight_shift: {
+        status: '⚖️ Idle Stance: Contrapposto weight shift with gentle breathing',
+        popupBadge: 'WEIGHT SHIFT',
+        popupBody: 'Standing relaxed in a natural contrapposto weight shift posture...',
+        emotion: 'relaxed',
+    },
+    arms_folded_relaxed: {
+        status: '🪢 Idle Stance: Arms folded across chest with relaxed shoulders',
+        popupBadge: 'FOLDED ARMS',
+        popupBody: 'Observing attentively with arms comfortably crossed across chest...',
+        emotion: 'neutral',
+    },
+    hands_pocket_relaxed: {
+        status: '👖 Idle Stance: Casual posture with hands resting at pockets',
+        popupBadge: 'POCKET REST',
+        popupBody: 'Relaxing casually with hands resting near pocket seams...',
+        emotion: 'relaxed',
+    },
+    thoughtful_chin_touch: {
+        status: '🧐 Idle Stance: Thoughtful conversational chin and jaw rest',
+        popupBadge: 'CHIN TOUCH',
+        popupBody: 'Contemplating and listening closely with hand resting at jawline...',
+        emotion: 'curious',
+    },
+    tactical_stand_at_ease: {
+        status: '🛡️ Idle Stance: Disciplined tactical stand-at-ease posture',
+        popupBadge: 'STAND AT EASE',
+        popupBody: 'Maintaining disciplined tactical readiness with hands clasped low...',
+        emotion: 'serious',
+    },
+    idle_gaming_console: {
+        status: '🎮 Cyber Console: Playing handheld tactical deck with holographic screen',
+        popupBadge: 'CYBER CONSOLE',
+        popupBody: 'Testing code exploits on custom overclocked handheld cyber deck...',
+        emotion: 'excited',
+    },
+    sword_guard_ready: {
+        status: '⚔️ Sword Combat: 2-Handed Cyber Tactical Plasma Blade combat guard',
+        popupBadge: 'PLASMA KATANA',
+        popupBody: 'Plasma blade ignited at full harmonic resonance in two-handed tactical guard...',
+        emotion: 'serious',
+    },
+    sword_sheathe_flourish: {
+        status: '🗡️ Sword Flourish: One-handed plasma blade flourish and ready stance',
+        popupBadge: 'BLADE FLOURISH',
+        popupBody: 'Executing high-speed plasma flourish before locking into defensive stance...',
+        emotion: 'smug',
+    },
 };
 
 let autoIdleEnabled = true;
@@ -3194,6 +4908,27 @@ if (btnAutoIdle) {
         updateStatus(`Autonomous Curious/Waiting Idle: ${autoIdleEnabled ? 'ENABLED' : 'PAUSED'}`);
     };
 }
+
+// Pose Drawer Segmented Tabs Switching
+document.querySelectorAll('.pose-tab-btn').forEach(btn => {
+    btn.onclick = () => {
+        const targetTabId = btn.getAttribute('data-tab');
+        if (!targetTabId) return;
+
+        // Toggle active button
+        document.querySelectorAll('.pose-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Toggle active pane
+        document.querySelectorAll('.pose-tab-pane').forEach(pane => {
+            if (pane.id === targetTabId) {
+                pane.classList.add('active');
+            } else {
+                pane.classList.remove('active');
+            }
+        });
+    };
+});
 
 document.querySelectorAll('#idle-interaction-buttons button').forEach(btn => {
     btn.onclick = () => {
@@ -3660,6 +5395,108 @@ function render3dHeliosPopupCanvas(ctx, canvas, elapsed, pokeImpact, isPopupCuri
     ctx.restore();
 }
 
+function updateCyberDeckCanvas(time) {
+    if (!interactiveSceneObjects) return;
+    const { dckCanvas, dckCtx, dckTexture } = interactiveSceneObjects;
+    if (!dckCtx || !dckCanvas) return;
+    const w = dckCanvas.width, h = dckCanvas.height;
+    dckCtx.fillStyle = '#080b12';
+    dckCtx.fillRect(0, 0, w, h);
+
+    // Cyber grid
+    dckCtx.strokeStyle = 'rgba(0, 229, 255, 0.18)';
+    dckCtx.lineWidth = 1;
+    const gridSize = 24;
+    const offset = (time * 20) % gridSize;
+    for (let x = 0; x < w; x += gridSize) {
+        dckCtx.beginPath();
+        dckCtx.moveTo(x, 0);
+        dckCtx.lineTo(x, h);
+        dckCtx.stroke();
+    }
+    for (let y = offset; y < h; y += gridSize) {
+        dckCtx.beginPath();
+        dckCtx.moveTo(0, y);
+        dckCtx.lineTo(w, y);
+        dckCtx.stroke();
+    }
+
+    // Header banner
+    dckCtx.fillStyle = '#00e5ff';
+    dckCtx.font = 'bold 16px "SF Mono", monospace';
+    dckCtx.fillText('HEL-DCK-01 // ARCADE DECK', 20, 30);
+
+    // Telemetry
+    dckCtx.fillStyle = '#00ff88';
+    dckCtx.font = '12px monospace';
+    dckCtx.fillText('TWIN LINK: ACTIVE  |  144Hz  |  BUFFER: OK', 20, 52);
+
+    // Waveform Oscilloscope
+    dckCtx.strokeStyle = '#00e5ff';
+    dckCtx.lineWidth = 2.5;
+    dckCtx.beginPath();
+    for (let x = 20; x < w - 20; x += 4) {
+        const waveY = h / 2 + Math.sin(x * 0.04 + time * 6.0) * 28 + Math.cos(x * 0.08 - time * 4.0) * 12;
+        if (x === 20) dckCtx.moveTo(x, waveY);
+        else dckCtx.lineTo(x, waveY);
+    }
+    dckCtx.stroke();
+
+    // Energy gauge
+    dckCtx.fillStyle = 'rgba(0, 229, 255, 0.2)';
+    dckCtx.fillRect(20, h - 35, w - 40, 14);
+    const pulseWidth = ((Math.sin(time * 3.0) * 0.5 + 0.5) * (w - 44));
+    dckCtx.fillStyle = '#00e5ff';
+    dckCtx.fillRect(22, h - 33, pulseWidth, 10);
+
+    // Scanlines
+    dckCtx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    for (let y = 0; y < h; y += 4) {
+        dckCtx.fillRect(0, y, w, 2);
+    }
+    if (dckTexture) dckTexture.needsUpdate = true;
+}
+
+function updateDatapadCanvas(time) {
+    if (!interactiveSceneObjects) return;
+    const { padCanvas, padCtx, padTexture } = interactiveSceneObjects;
+    if (!padCtx || !padCanvas) return;
+    const w = padCanvas.width, h = padCanvas.height;
+    padCtx.fillStyle = '#0c1018';
+    padCtx.fillRect(0, 0, w, h);
+
+    // Tactical Radar Sweep
+    const cx = w * 0.28, cy = h * 0.5, r = 68;
+    padCtx.strokeStyle = 'rgba(255, 170, 0, 0.3)';
+    padCtx.lineWidth = 1.5;
+    padCtx.beginPath();
+    padCtx.arc(cx, cy, r, 0, Math.PI * 2);
+    padCtx.stroke();
+    padCtx.beginPath();
+    padCtx.arc(cx, cy, r * 0.6, 0, Math.PI * 2);
+    padCtx.stroke();
+
+    const sweepAngle = time * 2.2;
+    padCtx.strokeStyle = '#ffa000';
+    padCtx.beginPath();
+    padCtx.moveTo(cx, cy);
+    padCtx.lineTo(cx + Math.cos(sweepAngle) * r, cy + Math.sin(sweepAngle) * r);
+    padCtx.stroke();
+
+    // Data text
+    padCtx.fillStyle = '#ffaa00';
+    padCtx.font = 'bold 15px "SF Mono", monospace';
+    padCtx.fillText('HEL-PAD-02 // TACTICAL HUD', w * 0.54, 40);
+    padCtx.fillStyle = '#cbd5e1';
+    padCtx.font = '11px monospace';
+    padCtx.fillText('RECON: SD-04 GHOSTEYE', w * 0.54, 66);
+    padCtx.fillText('ALT: 1.42m | YAW: 104°', w * 0.54, 88);
+    padCtx.fillText('DOWNLINK: 100% SECURE', w * 0.54, 110);
+    padCtx.fillText('SYS: ENCRYPTED // Q-AES', w * 0.54, 132);
+
+    if (padTexture) padTexture.needsUpdate = true;
+}
+
 function updateInteractiveObjectsAndHud(delta, elapsed) {
     if (!interactiveSceneObjects) return;
     const {
@@ -3694,6 +5531,35 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         wristHudGroup,
         wristPlaneMat,
         wristEdgeMat,
+        butterflyGroup,
+        butterflyCoreMesh,
+        bCoreMat,
+        bWingMeshL,
+        bWingMeshR,
+        bWingMatL,
+        bWingMatR,
+        bAuraMesh,
+        bAuraMat,
+        droneGroup,
+        droneChassisMesh,
+        droneChassisMat,
+        droneEdgeMat,
+        droneEyeMat,
+        droneRing1,
+        droneRing2,
+        droneRingMat1,
+        droneRingMat2,
+        droneRotorMeshL,
+        droneRotorMeshR,
+        droneRotorMat,
+        scanConeMesh,
+        scanConeMat,
+        monocleGroup,
+        monocleLensMat,
+        monocleRimMat,
+        monocleEdgeMat,
+        monocleBeamMesh,
+        monocleBeamMat,
     } = interactiveSceneObjects;
 
     const h = currentVrm?.humanoid;
@@ -3705,6 +5571,8 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
     const isOrbCurious = currentPose === 'idle_orb_curious';
     const isScreenCurious = currentPose === 'idle_screen_curious';
     const isWristLook = currentPose === 'idle_waiting_look';
+    const isAiriButterfly = currentPose === 'idle_airi_butterfly';
+    const isRenDrone = currentPose === 'idle_ren_drone';
 
     const phaseT = Math.max(0, elapsed - idleInteractionStartTime);
     const pokeWave = isPopupCurious ? Math.max(0, Math.sin(phaseT * 4.2)) : 0;
@@ -3753,16 +5621,17 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         // so the model's right index finger (rTipBone) taps the model-facing front surface of the SYSTEM ACCESS buttons
         const activeOptIdx = Math.floor((elapsed * 0.75) % 4);
         const optLocalY = (1.5 - activeOptIdx) * 0.022;
+        const popupCalib = propsCalibration.popup || { x: 0, y: 0, z: 0, scale: 1 };
         if (isPopupCurious && rTipBone) {
             rTipBone.getWorldPosition(_charBoneWorldPos);
             _charPopupTargetPos.set(
-                _charBoneWorldPos.x + 0.085,
-                emitterY + 0.152,
-                _charBoneWorldPos.z + 0.008 + pokeImpact * 0.012
+                _charBoneWorldPos.x + 0.085 + popupCalib.x,
+                emitterY + 0.152 + popupCalib.y,
+                _charBoneWorldPos.z + 0.008 + pokeImpact * 0.012 + popupCalib.z
             );
             popupGroup.position.lerp(_charPopupTargetPos, Math.min(1.0, delta * 9.0));
         } else {
-            _charPopupTargetPos.set(emitterX - 0.06, emitterY + 0.152, emitterZ + 0.02);
+            _charPopupTargetPos.set(emitterX - 0.06 + popupCalib.x, emitterY + 0.152 + popupCalib.y, emitterZ + 0.02 + popupCalib.z);
             popupGroup.position.lerp(_charPopupTargetPos, Math.min(1.0, delta * 9.0));
         }
 
@@ -3772,7 +5641,7 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
             Math.PI - 0.05 + pokeImpact * 0.08,
             Math.sin(elapsed * 1.5) * 0.012
         );
-        const targetPopupScale = isPopupCurious ? 0.94 : 0.60;
+        const targetPopupScale = (isPopupCurious ? 0.94 : 0.60) * popupCalib.scale;
         popupGroup.scale.lerp(
             new THREE.Vector3(targetPopupScale, targetPopupScale, targetPopupScale),
             Math.min(1.0, delta * 7.0)
@@ -3832,12 +5701,32 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
 
     if (coreMat.opacity > 0.01) {
         orbGroup.visible = true;
+        const orbCalib = propsCalibration.orb || { x: 0, y: 0, z: 0, scale: 1, pathMode: 'recon_orbit', speed: 1 };
+        const orbSpeed = (orbCalib.speed || 1.0);
+        const orbTime = elapsed * orbSpeed;
+
         if (isOrbCurious && lHandBone) {
             lHandBone.getWorldPosition(_charBoneWorldPos);
+            let orbMotionX = 0;
+            let orbMotionZ = 0;
+            let orbMotionY = Math.sin(orbTime * 3.0) * 0.012;
+
+            if (orbCalib.pathMode === 'figure8') {
+                orbMotionX = Math.sin(orbTime * 1.6) * 0.04;
+                orbMotionZ = Math.sin(orbTime * 3.2) * 0.02;
+            } else if (orbCalib.pathMode === 'spiral_ascent') {
+                orbMotionX = Math.sin(orbTime * 2.0) * 0.035;
+                orbMotionZ = Math.cos(orbTime * 2.0) * 0.035;
+                orbMotionY = Math.sin(orbTime * 2.5) * 0.025;
+            } else if (orbCalib.pathMode === 'recon_orbit') {
+                orbMotionX = Math.sin(orbTime * 2.2) * 0.03;
+                orbMotionZ = Math.cos(orbTime * 2.2) * 0.03;
+            }
+
             _charOrbTargetPos.set(
-                _charBoneWorldPos.x - 0.015,
-                _charBoneWorldPos.y + 0.08 + Math.sin(elapsed * 3.0) * 0.012,
-                _charBoneWorldPos.z + 0.045
+                _charBoneWorldPos.x - 0.015 + orbMotionX + orbCalib.x,
+                _charBoneWorldPos.y + 0.08 + orbMotionY + orbCalib.y,
+                _charBoneWorldPos.z + 0.045 + orbMotionZ + orbCalib.z
             );
             orbGroup.position.lerp(_charOrbTargetPos, Math.min(1.0, delta * 9.0));
         }
@@ -3851,7 +5740,7 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         if (gyroRing2) {
             gyroRing2.rotation.z = THREE.MathUtils.degToRad(-15) - Math.cos(elapsed * 1.8) * 0.08;
         }
-        const orbScale = isOrbCurious ? 1.05 + Math.sin(elapsed * 4.0) * 0.05 : 0.5;
+        const orbScale = (isOrbCurious ? 1.05 + Math.sin(elapsed * 4.0) * 0.05 : 0.5) * (orbCalib.scale || 1.0);
         orbGroup.scale.lerp(new THREE.Vector3(orbScale, orbScale, orbScale), Math.min(1.0, delta * 7.0));
     } else {
         orbGroup.visible = false;
@@ -3915,6 +5804,423 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
             wristHudGroup.visible = false;
         }
     }
+
+    // 5. Update Airi's Unique Companion: 3D Holographic Cyber-Butterfly (AiriCyberButterfly3D)
+    // ONLY visible when Airi interacts with it (idle_airi_butterfly) or when Airi is active
+    if (isAiriButterfly && rTipBone && butterflyGroup) {
+        butterflyGroup.visible = true;
+        rTipBone.getWorldPosition(_charBoneWorldPos);
+
+        const bCalib = propsCalibration.butterfly || { x: 0, y: 0, z: 0, scale: 1, pathMode: 'hover_perch', speed: 1 };
+        const bSpeed = (bCalib.speed || 1.0);
+        const bTime = elapsed * bSpeed;
+
+        // Kinematics based on pathMode
+        let hoverX = 0;
+        let hoverY = 0.055;
+        let hoverZ = 0;
+
+        if (bCalib.pathMode === 'recon_orbit') {
+            hoverX = Math.sin(bTime * 2.0) * 0.12;
+            hoverZ = Math.cos(bTime * 2.0) * 0.10;
+            hoverY = Math.sin(bTime * 3.0) * 0.03 + 0.06;
+        } else if (bCalib.pathMode === 'figure8') {
+            hoverX = Math.sin(bTime * 1.8) * 0.08;
+            hoverZ = Math.sin(bTime * 3.6) * 0.04;
+            hoverY = Math.cos(bTime * 2.5) * 0.02 + 0.055;
+        } else if (bCalib.pathMode === 'spiral_ascent') {
+            hoverX = Math.sin(bTime * 2.4) * 0.07;
+            hoverZ = Math.cos(bTime * 2.4) * 0.07;
+            hoverY = (Math.sin(bTime * 1.5) * 0.05) + 0.07;
+        } else {
+            // Default hover_perch
+            hoverX = Math.sin(bTime * 2.2) * 0.035;
+            hoverY = Math.cos(bTime * 2.8) * 0.025 + 0.055;
+            hoverZ = Math.sin(bTime * 1.8) * 0.025;
+        }
+
+        butterflyGroup.position.set(
+            _charBoneWorldPos.x + hoverX + bCalib.x,
+            _charBoneWorldPos.y + hoverY + bCalib.y,
+            _charBoneWorldPos.z + hoverZ + bCalib.z
+        );
+        butterflyGroup.scale.setScalar(bCalib.scale || 1.0);
+
+        // Wing flap rotations (left and right wings mirror flap)
+        const wingFlap = Math.sin(elapsed * 18.0 * bSpeed); // flutter speed scales
+        bWingMeshL.rotation.y = wingFlap * 0.75;
+        bWingMeshR.rotation.y = -wingFlap * 0.75;
+        bAuraMesh.rotation.z = elapsed * 3.0;
+
+        // Smooth opacity ramp-up
+        bCoreMat.opacity = THREE.MathUtils.lerp(bCoreMat.opacity, 0.95, delta * 8.0);
+        bWingMatL.opacity = THREE.MathUtils.lerp(bWingMatL.opacity, 0.75, delta * 8.0);
+        bWingMatR.opacity = THREE.MathUtils.lerp(bWingMatR.opacity, 0.75, delta * 8.0);
+        bAuraMat.opacity = THREE.MathUtils.lerp(bAuraMat.opacity, 0.55 + Math.sin(elapsed * 4.0) * 0.2, delta * 8.0);
+    } else if (butterflyGroup) {
+        bCoreMat.opacity = THREE.MathUtils.lerp(bCoreMat.opacity, 0.0, delta * 8.0);
+        bWingMatL.opacity = THREE.MathUtils.lerp(bWingMatL.opacity, 0.0, delta * 8.0);
+        bWingMatR.opacity = THREE.MathUtils.lerp(bWingMatR.opacity, 0.0, delta * 8.0);
+        bAuraMat.opacity = THREE.MathUtils.lerp(bAuraMat.opacity, 0.0, delta * 8.0);
+        if (bCoreMat.opacity <= 0.01) {
+            butterflyGroup.visible = false;
+        }
+    }
+
+    // 6. Update Ren's Unique Companion: 3D Tactical Recon Scout Drone (RenTacticalDrone3D)
+    // and Cyber Tactical Monocle HUD (RenCyberMonocle3D)
+    // ONLY visible when Ren interacts with it (idle_ren_drone) or when active with Ren
+    const headBone = h?.getNormalizedBoneNode('head');
+    const lEyeBone = h?.getNormalizedBoneNode('leftEye') || headBone;
+    const lShoulderBone = h?.getNormalizedBoneNode('leftShoulder') || h?.getNormalizedBoneNode('leftUpperArm');
+
+    if (isRenDrone && droneGroup) {
+        droneGroup.visible = true;
+
+        const droneCalib = propsCalibration.drone || { x: 0, y: 0, z: 0, scale: 1, pathMode: 'recon_orbit', speed: 1 };
+        const droneSpeed = (droneCalib.speed || 1.0);
+        const orbitAngle = elapsed * 1.6 * droneSpeed;
+
+        // Center orbit around Ren's upper chest / head position
+        const centerPos = new THREE.Vector3();
+        if (headBone) {
+            headBone.getWorldPosition(centerPos);
+        } else {
+            centerPos.set(0, 1.25, 0);
+        }
+
+        const shoulderAnchorY = centerPos.y + 0.16 + Math.sin(elapsed * 2.8 * droneSpeed) * 0.035;
+        let droneX = centerPos.x - 0.10;
+        let droneY = shoulderAnchorY;
+        let droneZ = centerPos.z + 0.05;
+        let bankAngle = 0;
+        let yawAngle = orbitAngle + Math.PI * 0.5;
+
+        if (droneCalib.pathMode === 'figure8') {
+            const f8Angle = elapsed * 1.4 * droneSpeed;
+            droneX = centerPos.x + Math.sin(f8Angle) * 0.32;
+            droneZ = centerPos.z + Math.sin(2.0 * f8Angle) * 0.18;
+            bankAngle = Math.cos(f8Angle) * 0.35;
+            yawAngle = Math.atan2(Math.cos(2.0 * f8Angle) * 0.36, Math.cos(f8Angle) * 0.32) + Math.PI * 0.5;
+        } else if (droneCalib.pathMode === 'hover_perch') {
+            droneX = centerPos.x - 0.22 + Math.sin(elapsed * 1.5 * droneSpeed) * 0.03;
+            droneZ = centerPos.z + 0.12 + Math.cos(elapsed * 1.5 * droneSpeed) * 0.03;
+            droneY = centerPos.y + 0.18 + Math.sin(elapsed * 2.2 * droneSpeed) * 0.02;
+            bankAngle = Math.sin(elapsed * 1.5 * droneSpeed) * 0.08;
+            yawAngle = 0.25;
+        } else if (droneCalib.pathMode === 'spiral_ascent') {
+            const rad = 0.22 + Math.sin(elapsed * 0.9 * droneSpeed) * 0.10;
+            droneX = centerPos.x + Math.sin(orbitAngle) * rad - 0.05;
+            droneZ = centerPos.z + Math.cos(orbitAngle) * rad + 0.05;
+            droneY = shoulderAnchorY + Math.sin(elapsed * 1.2 * droneSpeed) * 0.09;
+            bankAngle = Math.cos(orbitAngle) * 0.28;
+            yawAngle = orbitAngle + Math.PI * 0.5;
+        } else {
+            // Default recon_orbit
+            const orbitRadiusX = 0.32;
+            const orbitRadiusZ = 0.28;
+            droneX = centerPos.x + Math.sin(orbitAngle) * orbitRadiusX - 0.10;
+            droneZ = centerPos.z + Math.cos(orbitAngle) * orbitRadiusZ + 0.05;
+            bankAngle = Math.cos(orbitAngle) * 0.28;
+        }
+
+        droneGroup.position.set(
+            droneX + droneCalib.x,
+            droneY + droneCalib.y,
+            droneZ + droneCalib.z
+        );
+        droneGroup.scale.setScalar(droneCalib.scale || 1.0);
+
+        // Drone banks into its flight path tangentially + slight forward tilt
+        const pitchAngle = -0.12 + Math.sin(elapsed * 2.5) * 0.06;
+        droneGroup.rotation.set(pitchAngle, yawAngle, bankAngle);
+
+        // Enclosed counter-rotating ducted fan rotors
+        if (droneRotorMeshL) droneRotorMeshL.rotation.y = elapsed * 24.0 * droneSpeed;
+        if (droneRotorMeshR) droneRotorMeshR.rotation.y = -elapsed * 24.0 * droneSpeed;
+
+        // Counter-rotating telemetry lidar rings
+        droneRing1.rotation.z = elapsed * 4.2;
+        droneRing2.rotation.z = -elapsed * 3.5;
+
+        // Smooth opacity ramp-up
+        droneChassisMat.opacity = THREE.MathUtils.lerp(droneChassisMat.opacity, 0.95, delta * 8.0);
+        droneEdgeMat.opacity = THREE.MathUtils.lerp(droneEdgeMat.opacity, 0.92, delta * 8.0);
+        droneEyeMat.opacity = THREE.MathUtils.lerp(droneEyeMat.opacity, 0.98, delta * 8.0);
+        if (droneRotorMat) droneRotorMat.opacity = THREE.MathUtils.lerp(droneRotorMat.opacity, 0.85, delta * 8.0);
+        droneRingMat1.opacity = THREE.MathUtils.lerp(droneRingMat1.opacity, 0.85, delta * 8.0);
+        droneRingMat2.opacity = THREE.MathUtils.lerp(droneRingMat2.opacity, 0.85, delta * 8.0);
+
+        // Update Ren's Cyber Tactical Monocle HUD (mounted directly over left eye)
+        if (monocleGroup && (headBone || lEyeBone)) {
+            monocleGroup.visible = true;
+            const mCalib = propsCalibration.monocle || { x: 0.0336, y: 0.0575, z: 0.0760, scale: 1.0 };
+
+            if (headBone) {
+                const headPos = new THREE.Vector3();
+                const headRotQ = new THREE.Quaternion();
+                headBone.getWorldPosition(headPos);
+                headBone.getWorldQuaternion(headRotQ);
+                monocleGroup.quaternion.copy(headRotQ);
+
+                // Calibrated anatomical offset in Ren's head local coordinates:
+                const localOffset = new THREE.Vector3(
+                    mCalib.x,
+                    mCalib.y,
+                    mCalib.z
+                );
+                localOffset.applyQuaternion(headRotQ);
+                monocleGroup.position.copy(headPos).add(localOffset);
+                monocleGroup.scale.setScalar(mCalib.scale);
+            } else {
+                const eyePos = new THREE.Vector3();
+                lEyeBone.getWorldPosition(eyePos);
+                monocleGroup.position.set(
+                    eyePos.x + mCalib.x,
+                    eyePos.y + mCalib.y,
+                    eyePos.z + mCalib.z
+                );
+                monocleGroup.scale.setScalar(mCalib.scale);
+            }
+
+            // Aim telemetry tracking beam from monocle towards orbiting drone
+            if (monocleBeamMesh) {
+                const toDrone = new THREE.Vector3().subVectors(droneGroup.position, monocleGroup.position).normalize();
+                monocleBeamMesh.lookAt(droneGroup.position);
+            }
+
+            const hudPulse = 0.80 + 0.18 * Math.sin(elapsed * 7.0);
+            monocleLensMat.opacity = THREE.MathUtils.lerp(monocleLensMat.opacity, hudPulse, delta * 8.0);
+            monocleRimMat.opacity = THREE.MathUtils.lerp(monocleRimMat.opacity, 0.95, delta * 8.0);
+            if (interactiveSceneObjects.monocleAccentMat) {
+                interactiveSceneObjects.monocleAccentMat.opacity = THREE.MathUtils.lerp(interactiveSceneObjects.monocleAccentMat.opacity, 0.95, delta * 8.0);
+            }
+            if (interactiveSceneObjects.monocleLedMat) {
+                const ledFlicker = 0.85 + 0.15 * Math.sin(elapsed * 12.0);
+                interactiveSceneObjects.monocleLedMat.opacity = THREE.MathUtils.lerp(interactiveSceneObjects.monocleLedMat.opacity, ledFlicker, delta * 8.0);
+            }
+            monocleEdgeMat.opacity = THREE.MathUtils.lerp(monocleEdgeMat.opacity, 0.92, delta * 8.0);
+        }
+    } else {
+        if (droneGroup) {
+            droneChassisMat.opacity = THREE.MathUtils.lerp(droneChassisMat.opacity, 0.0, delta * 8.0);
+            droneEdgeMat.opacity = THREE.MathUtils.lerp(droneEdgeMat.opacity, 0.0, delta * 8.0);
+            droneEyeMat.opacity = THREE.MathUtils.lerp(droneEyeMat.opacity, 0.0, delta * 8.0);
+            if (droneRotorMat) droneRotorMat.opacity = THREE.MathUtils.lerp(droneRotorMat.opacity, 0.0, delta * 8.0);
+            droneRingMat1.opacity = THREE.MathUtils.lerp(droneRingMat1.opacity, 0.0, delta * 8.0);
+            droneRingMat2.opacity = THREE.MathUtils.lerp(droneRingMat2.opacity, 0.0, delta * 8.0);
+            if (droneChassisMat.opacity <= 0.01) {
+                droneGroup.visible = false;
+            }
+        }
+        if (monocleGroup) {
+            monocleLensMat.opacity = THREE.MathUtils.lerp(monocleLensMat.opacity, 0.0, delta * 8.0);
+            monocleRimMat.opacity = THREE.MathUtils.lerp(monocleRimMat.opacity, 0.0, delta * 8.0);
+            if (interactiveSceneObjects.monocleAccentMat) {
+                interactiveSceneObjects.monocleAccentMat.opacity = THREE.MathUtils.lerp(interactiveSceneObjects.monocleAccentMat.opacity, 0.0, delta * 8.0);
+            }
+            if (interactiveSceneObjects.monocleLedMat) {
+                interactiveSceneObjects.monocleLedMat.opacity = THREE.MathUtils.lerp(interactiveSceneObjects.monocleLedMat.opacity, 0.0, delta * 8.0);
+            }
+            monocleEdgeMat.opacity = THREE.MathUtils.lerp(monocleEdgeMat.opacity, 0.0, delta * 8.0);
+            if (monocleLensMat.opacity <= 0.01) {
+                monocleGroup.visible = false;
+            }
+        }
+    }
+
+    // 7. Update Cyber Handheld Console (CyberHandheldConsole3D)
+    // ONLY visible during idle_gaming_console
+    const isGamingConsole = currentPose === 'idle_gaming_console';
+    if (isGamingConsole && rHandBone && lHandBone && interactiveSceneObjects.consoleGroup) {
+        const {
+            consoleGroup,
+            consoleBodyMat,
+            consoleEdgeMat,
+            consoleScreenMat,
+            stickMat,
+        } = interactiveSceneObjects;
+        consoleGroup.visible = true;
+        updateCyberDeckCanvas(elapsed);
+
+        const cCalib = propsCalibration.console || { x: 0, y: 0, z: 0, scale: 1 };
+        const rPos = new THREE.Vector3();
+        const lPos = new THREE.Vector3();
+        rHandBone.getWorldPosition(rPos);
+        lHandBone.getWorldPosition(lPos);
+
+        const mid = rPos.clone().add(lPos).multiplyScalar(0.5);
+        consoleGroup.position.set(mid.x + cCalib.x, mid.y + 0.015 + cCalib.y, mid.z + 0.015 + cCalib.z);
+        consoleGroup.scale.setScalar(cCalib.scale || 1.0);
+
+        // Screen glows with subtle pulse while playing; bottom edge turns inward toward the body, screen tilted upward facing the avatar
+        const screenPulse = 0.85 + Math.sin(elapsed * 6.0) * 0.15;
+        consoleGroup.rotation.set(0.68, Math.sin(elapsed * 2.0) * 0.04, 0);
+
+        consoleBodyMat.opacity = THREE.MathUtils.lerp(consoleBodyMat.opacity, 0.95, delta * 8.0);
+        consoleEdgeMat.opacity = THREE.MathUtils.lerp(consoleEdgeMat.opacity, 0.92, delta * 8.0);
+        consoleScreenMat.opacity = THREE.MathUtils.lerp(consoleScreenMat.opacity, screenPulse, delta * 8.0);
+        stickMat.opacity = THREE.MathUtils.lerp(stickMat.opacity, 0.95, delta * 8.0);
+    } else if (interactiveSceneObjects.consoleGroup) {
+        const {
+            consoleGroup,
+            consoleBodyMat,
+            consoleEdgeMat,
+            consoleScreenMat,
+            stickMat,
+        } = interactiveSceneObjects;
+        consoleBodyMat.opacity = THREE.MathUtils.lerp(consoleBodyMat.opacity, 0.0, delta * 8.0);
+        consoleEdgeMat.opacity = THREE.MathUtils.lerp(consoleEdgeMat.opacity, 0.0, delta * 8.0);
+        consoleScreenMat.opacity = THREE.MathUtils.lerp(consoleScreenMat.opacity, 0.0, delta * 8.0);
+        stickMat.opacity = THREE.MathUtils.lerp(stickMat.opacity, 0.0, delta * 8.0);
+        if (consoleBodyMat.opacity <= 0.01) {
+            consoleGroup.visible = false;
+        }
+    }
+
+    // 8. Update Cyber Tactical Plasma Blade (CyberTacticalBlade3D)
+    // ONLY visible during sword_guard_ready or sword_sheathe_flourish
+    const isSwordActive = currentPose === 'sword_guard_ready' || currentPose === 'sword_sheathe_flourish';
+    if (isSwordActive && rHandBone && interactiveSceneObjects.bladeGroup) {
+        const {
+            bladeGroup,
+            hiltMat,
+            guardMat,
+            bladeMat,
+            bladeEdgeMat,
+        } = interactiveSceneObjects;
+        bladeGroup.visible = true;
+
+        const kCalib = propsCalibration.katana || { x: 0, y: 0, z: 0, scale: 1 };
+        rHandBone.getWorldPosition(_charBoneWorldPos);
+        const rHandRotQ = new THREE.Quaternion();
+        rHandBone.getWorldQuaternion(rHandRotQ);
+
+        const isGuard = currentPose === 'sword_guard_ready';
+
+        if (isGuard) {
+            // Guard: Two-handed combat stance.
+            // Sword blade points along the forearm/fist direction (+X world ≈ upright/slightly forward).
+            // Blade local +Y (blade axis) aligns with hand +X direction (fingerDir vector).
+            // Blade local +Z (flat of blade) aligns with hand palm normal.
+            const hiltOffset = new THREE.Vector3(
+                0.035 + kCalib.x,   // offset along hand +X (into the fist grip)
+                -0.015 + kCalib.y,  // lateral palm offset
+                0.010 + kCalib.z    // depth offset
+            );
+            hiltOffset.applyQuaternion(rHandRotQ);
+            bladeGroup.position.copy(_charBoneWorldPos).add(hiltOffset);
+
+            // Rotate so blade axis (+Y) aligns with hand +X and flat aligns with knuckles
+            const qGrip = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -Math.PI * 0.5));
+            bladeGroup.quaternion.copy(rHandRotQ).multiply(qGrip);
+        } else {
+            // Flourish: One-handed drawn sword stance pointing blade downwards-right.
+            // Blade extends out from knuckles/thumb along +X direction, pointed down and away from body.
+            const hiltOffset = new THREE.Vector3(
+                -0.035 + kCalib.x,
+                0.015 + kCalib.y,
+                -0.012 + kCalib.z
+            );
+            hiltOffset.applyQuaternion(rHandRotQ);
+            bladeGroup.position.copy(_charBoneWorldPos).add(hiltOffset);
+
+            const qGrip = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI * 0.5));
+            bladeGroup.quaternion.copy(rHandRotQ).multiply(qGrip);
+        }
+        bladeGroup.scale.setScalar(kCalib.scale || 1.0);
+
+        // Color blade edge: Airi Cyan (#00e5ff) vs Ren Amber/Orange (#ff9900)
+        const bladeColorHex = isRenActive() ? 0xff9900 : 0x00e5ff;
+        guardMat.color.setHex(bladeColorHex);
+        bladeMat.color.setHex(bladeColorHex);
+
+        const plasmaPulse = 0.88 + Math.sin(elapsed * 12.0) * 0.12;
+        hiltMat.opacity = THREE.MathUtils.lerp(hiltMat.opacity, 0.95, delta * 8.0);
+        guardMat.opacity = THREE.MathUtils.lerp(guardMat.opacity, 0.95, delta * 8.0);
+        bladeMat.opacity = THREE.MathUtils.lerp(bladeMat.opacity, plasmaPulse, delta * 8.0);
+        bladeEdgeMat.opacity = THREE.MathUtils.lerp(bladeEdgeMat.opacity, 0.95, delta * 8.0);
+    } else if (interactiveSceneObjects.bladeGroup) {
+        const {
+            bladeGroup,
+            hiltMat,
+            guardMat,
+            bladeMat,
+            bladeEdgeMat,
+        } = interactiveSceneObjects;
+        hiltMat.opacity = THREE.MathUtils.lerp(hiltMat.opacity, 0.0, delta * 8.0);
+        guardMat.opacity = THREE.MathUtils.lerp(guardMat.opacity, 0.0, delta * 8.0);
+        bladeMat.opacity = THREE.MathUtils.lerp(bladeMat.opacity, 0.0, delta * 8.0);
+        bladeEdgeMat.opacity = THREE.MathUtils.lerp(bladeEdgeMat.opacity, 0.0, delta * 8.0);
+        if (bladeMat.opacity <= 0.01) {
+            bladeGroup.visible = false;
+        }
+    }
+
+    // 9. Update Airi's Quantum Holo-Dice (HEL-RNG-01)
+    const isHoloDice = currentPose === 'idle_airi_holodice' || (activeModelId === 'dual' && currentPose === 'twin_synergy_briefing');
+    if (interactiveSceneObjects.holoDiceGroup) {
+        const { holoDiceGroup, diceMat, diceCoreMat } = interactiveSceneObjects;
+        if (isHoloDice && rHandBone) {
+            holoDiceGroup.visible = true;
+            const diceCalib = propsCalibration.holodice || { x: 0, y: 0, z: 0, scale: 1 };
+            rHandBone.getWorldPosition(_charBoneWorldPos);
+
+            const hoverY = 0.075 + Math.sin(elapsed * 3.2) * 0.015;
+            holoDiceGroup.position.set(
+                _charBoneWorldPos.x + diceCalib.x,
+                _charBoneWorldPos.y + hoverY + diceCalib.y,
+                _charBoneWorldPos.z + 0.05 + diceCalib.z
+            );
+            holoDiceGroup.scale.setScalar((diceCalib.scale || 1.0) * (0.92 + 0.08 * Math.sin(elapsed * 2.5)));
+            holoDiceGroup.rotation.y = elapsed * 2.2;
+            holoDiceGroup.rotation.x = elapsed * 1.6;
+
+            diceMat.opacity = THREE.MathUtils.lerp(diceMat.opacity, 0.92, delta * 8.0);
+            diceCoreMat.opacity = THREE.MathUtils.lerp(diceCoreMat.opacity, 0.95, delta * 8.0);
+        } else {
+            diceMat.opacity = THREE.MathUtils.lerp(diceMat.opacity, 0.0, delta * 8.0);
+            diceCoreMat.opacity = THREE.MathUtils.lerp(diceCoreMat.opacity, 0.0, delta * 8.0);
+            if (diceMat.opacity <= 0.01) {
+                holoDiceGroup.visible = false;
+            }
+        }
+    }
+
+    // 10. Update Ren's Tactical Datapad (HEL-PAD-02)
+    const isDatapad = currentPose === 'idle_ren_datapad' || (activeModelId === 'dual' && currentPose === 'twin_synergy_briefing');
+    if (interactiveSceneObjects.datapadGroup) {
+        const { datapadGroup, padChassisMat, padScreenMat } = interactiveSceneObjects;
+        if (isDatapad && (lHandBone || (secondaryVrm && secondaryVrm.humanoid))) {
+            datapadGroup.visible = true;
+            updateDatapadCanvas(elapsed);
+            const padCalib = propsCalibration.datapad || { x: 0, y: 0, z: 0, scale: 1 };
+
+            const anchorBone = (activeModelId === 'dual' && secondaryVrm?.humanoid)
+                ? (secondaryVrm.humanoid.getNormalizedBoneNode('leftHand') || secondaryVrm.humanoid.getNormalizedBoneNode('chest'))
+                : (lHandBone || rHandBone);
+
+            if (anchorBone) {
+                anchorBone.getWorldPosition(_charBoneWorldPos);
+                datapadGroup.position.set(
+                    _charBoneWorldPos.x + 0.04 + padCalib.x,
+                    _charBoneWorldPos.y + 0.06 + padCalib.y,
+                    _charBoneWorldPos.z + 0.08 + padCalib.z
+                );
+                datapadGroup.rotation.set(0.65, Math.sin(elapsed * 1.5) * 0.03, 0);
+                datapadGroup.scale.setScalar(padCalib.scale || 1.0);
+            }
+
+            padChassisMat.opacity = THREE.MathUtils.lerp(padChassisMat.opacity, 0.95, delta * 8.0);
+            padScreenMat.opacity = THREE.MathUtils.lerp(padScreenMat.opacity, 0.92, delta * 8.0);
+        } else {
+            padChassisMat.opacity = THREE.MathUtils.lerp(padChassisMat.opacity, 0.0, delta * 8.0);
+            padScreenMat.opacity = THREE.MathUtils.lerp(padScreenMat.opacity, 0.0, delta * 8.0);
+            if (padChassisMat.opacity <= 0.01) {
+                datapadGroup.visible = false;
+            }
+        }
+    }
 }
 
 function updateAutonomousIdleDirector(delta) {
@@ -3934,10 +6240,87 @@ function updateAutonomousIdleDirector(delta) {
     autoIdleTimer += delta;
     if (currentPose === 'idle' && autoIdleTimer >= AUTO_IDLE_REST_DURATION) {
         autoIdleTimer = 0;
-        const nextIdlePose =
-            IDLE_OBJECT_AND_WAITING_POSES[autoIdlePoseIndex % IDLE_OBJECT_AND_WAITING_POSES.length];
-        autoIdlePoseIndex = (autoIdlePoseIndex + 1) % IDLE_OBJECT_AND_WAITING_POSES.length;
+        // Tailor idle pool to active character: Airi gets butterfly, Ren gets tactical drone
+        const isRen = isRenActive();
+        const candidatePool = IDLE_OBJECT_AND_WAITING_POSES.filter((p) => {
+            if (isRen && p === 'idle_airi_butterfly') return false;
+            if (!isRen && p === 'idle_ren_drone') return false;
+            return true;
+        });
+        const nextIdlePose = candidatePool[autoIdlePoseIndex % candidatePool.length];
+        autoIdlePoseIndex = (autoIdlePoseIndex + 1) % candidatePool.length;
         triggerIdleObjectOrWaitingAnimation(nextIdlePose, false);
+    }
+}
+
+function applySecondaryTwinPose(vrm, time, speed, delta) {
+    if (!vrm || !vrm.humanoid) return;
+    const h = vrm.humanoid;
+    const isCombat = currentPose === 'twin_synergy_combat';
+    const isBriefing = currentPose === 'twin_synergy_briefing';
+
+    const hips = h.getNormalizedBoneNode('hips');
+    const spine = h.getNormalizedBoneNode('spine');
+    const chest = h.getNormalizedBoneNode('chest');
+    const head = h.getNormalizedBoneNode('head');
+    const rUpper = h.getNormalizedBoneNode('rightUpperArm');
+    const rLower = h.getNormalizedBoneNode('rightLowerArm');
+    const rHand = h.getNormalizedBoneNode('rightHand');
+    const lUpper = h.getNormalizedBoneNode('leftUpperArm');
+    const lLower = h.getNormalizedBoneNode('leftLowerArm');
+    const lHand = h.getNormalizedBoneNode('leftHand');
+
+    const breath = Math.sin(time * 2.2) * 0.02;
+
+    if (isCombat) {
+        if (hips) hips.rotation.set(0, -0.15, 0.02);
+        if (spine) spine.rotation.set(-0.04, -0.08, 0);
+        if (chest) chest.rotation.set(0.04 + breath, 0, 0);
+        if (head) head.rotation.set(-0.02, 0.12, -0.03);
+        if (rUpper) rUpper.rotation.set(0.35, -0.15, 0.45);
+        if (rLower) rLower.rotation.set(0, 0.85, 0);
+        if (lUpper) lUpper.rotation.set(-0.25, 0.20, -0.35);
+        if (lLower) lLower.rotation.set(0, -0.45, 0);
+    } else if (isBriefing) {
+        if (hips) hips.rotation.set(0, -0.06, 0);
+        if (spine) spine.rotation.set(0.02, -0.04, 0);
+        if (chest) chest.rotation.set(0.02 + breath, 0, 0);
+        if (head) head.rotation.set(0.12, -0.08, 0.02);
+        if (lUpper) lUpper.rotation.set(0.45, 0.15, -0.25);
+        if (lLower) lLower.rotation.set(0, -0.95, 0);
+        if (rUpper) rUpper.rotation.set(0.35, -0.10, 0.20);
+        if (rLower) rLower.rotation.set(0, 0.70, 0);
+    } else {
+        if (hips) hips.rotation.set(0, 0, 0);
+        if (spine) spine.rotation.set(-0.025, 0, 0);
+        if (chest) chest.rotation.set(-0.02 + breath, 0, 0);
+        if (head) head.rotation.set(-0.015, Math.sin(time * 0.8) * 0.04, 0);
+        if (rUpper) rUpper.rotation.set(0, 0, 0.12);
+        if (rLower) rLower.rotation.set(0, 0.35, 0);
+        if (lUpper) lUpper.rotation.set(0, 0, -0.12);
+        if (lLower) lLower.rotation.set(0, -0.35, 0);
+    }
+
+    if (typeof activeBodyPoseAdjustments !== 'undefined' && activeBodyPoseAdjustments.enabled) {
+        if (activeBodyPoseAdjustments.target === 'both' || activeBodyPoseAdjustments.target === 'ren') {
+            if (head) {
+                head.rotation.x += activeBodyPoseAdjustments.headPitch * Math.PI / 180;
+                head.rotation.y += activeBodyPoseAdjustments.headYaw * Math.PI / 180;
+            }
+            if (spine) {
+                spine.rotation.x += activeBodyPoseAdjustments.spineLean * Math.PI / 180;
+                spine.rotation.y += activeBodyPoseAdjustments.spineTwist * Math.PI / 180;
+            }
+            if (hips) {
+                hips.rotation.y += activeBodyPoseAdjustments.pelvisSway * Math.PI / 180;
+            }
+            if (rUpper) {
+                rUpper.rotation.x += activeBodyPoseAdjustments.rArmLift * 0.5;
+            }
+            if (lUpper) {
+                lUpper.rotation.x += activeBodyPoseAdjustments.lArmLift * 0.5;
+            }
+        }
     }
 }
 
@@ -4004,6 +6387,12 @@ function animate() {
             animManager.update(delta);
         } else {
             applyProceduralPose(elapsed, speed);
+        }
+
+        // Update secondary twin avatar when dual twin synergy mode is active
+        if (dualTwinModeActive && secondaryVrm && secondaryVrm.humanoid) {
+            applySecondaryTwinPose(secondaryVrm, elapsed, speed, delta);
+            secondaryVrm.update(delta);
         }
 
         // Smoothly track vertical crouch/jump offset and pull camera back slightly on deep crouches so full crouch is framed
@@ -4672,11 +7061,15 @@ const urlParams = new URLSearchParams(window.location.search);
 const requestedModel = (urlParams.get('model') || '').toLowerCase();
 if (requestedModel === 'twin' || requestedModel === 'ren' || requestedModel === 'brother') {
     clearModelActiveStates();
+    activeModelId = 'twin';
     if (btnModelTwin) btnModelTwin.classList.add('active');
+    updatePoseButtonsForActiveModel();
     loadVRM(TWIN_VRM_URL);
 } else {
     clearModelActiveStates();
+    activeModelId = 'airi';
     if (btnModelHelios) btnModelHelios.classList.add('active');
+    updatePoseButtonsForActiveModel();
     loadVRM(DEFAULT_VRM_URL);
 }
 animate();
@@ -4689,6 +7082,583 @@ if (urlEdition === 'character_only' || urlEdition === 'standalone' || urlEdition
 } else if (urlEdition === 'full_spec' || urlEdition === 'helios' || urlEdition === 'full') {
     selectHeliosEdition('full_spec');
 }
+
+// ----------------------------------------------------
+// UNIVERSAL 3D PROPS & GADGETS CALIBRATION SUITE UI
+// ----------------------------------------------------
+const selectActiveProp = document.getElementById('select-active-prop');
+const labelSlider1 = document.getElementById('label-slider-1');
+const valSlider1 = document.getElementById('val-slider-1');
+const sliderProp1 = document.getElementById('slider-prop-1');
+
+const labelSlider2 = document.getElementById('label-slider-2');
+const valSlider2 = document.getElementById('val-slider-2');
+const sliderProp2 = document.getElementById('slider-prop-2');
+
+const labelSlider3 = document.getElementById('label-slider-3');
+const valSlider3 = document.getElementById('val-slider-3');
+const sliderProp3 = document.getElementById('slider-prop-3');
+
+const labelSlider4 = document.getElementById('label-slider-4');
+const valSlider4 = document.getElementById('val-slider-4');
+const sliderProp4 = document.getElementById('slider-prop-4');
+
+const rowPropPathMode = document.getElementById('row-prop-path-mode');
+const selectPropPathMode = document.getElementById('select-prop-path-mode');
+const rowPropPathSpeed = document.getElementById('row-prop-path-speed');
+const valSliderSpeed = document.getElementById('val-slider-speed');
+const sliderPropSpeed = document.getElementById('slider-prop-speed');
+
+const btnSavePropsCalib = document.getElementById('btn-save-props-calib');
+const btnResetPropsCalib = document.getElementById('btn-reset-props-calib');
+const propSaveFeedback = document.getElementById('prop-save-feedback');
+
+let activePropId = 'monocle';
+
+function syncActivePropSlidersUI() {
+    const config = PROPS_CONFIG[activePropId] || PROPS_CONFIG.monocle;
+    const calib = propsCalibration[activePropId] || config.defaults;
+
+    if (labelSlider1) labelSlider1.innerText = config.labels.z;
+    if (sliderProp1) {
+        sliderProp1.min = config.ranges.z.min;
+        sliderProp1.max = config.ranges.z.max;
+        sliderProp1.step = config.ranges.z.step;
+        sliderProp1.value = calib.z;
+    }
+    if (valSlider1) {
+        const sign = calib.z >= 0 ? '+' : '';
+        valSlider1.innerText = sign + calib.z.toFixed(3) + ' ' + config.ranges.z.unit;
+    }
+
+    if (labelSlider2) labelSlider2.innerText = config.labels.x;
+    if (sliderProp2) {
+        sliderProp2.min = config.ranges.x.min;
+        sliderProp2.max = config.ranges.x.max;
+        sliderProp2.step = config.ranges.x.step;
+        sliderProp2.value = calib.x;
+    }
+    if (valSlider2) {
+        const sign = calib.x >= 0 ? '+' : '';
+        valSlider2.innerText = sign + calib.x.toFixed(3) + ' ' + config.ranges.x.unit;
+    }
+
+    if (labelSlider3) labelSlider3.innerText = config.labels.y;
+    if (sliderProp3) {
+        sliderProp3.min = config.ranges.y.min;
+        sliderProp3.max = config.ranges.y.max;
+        sliderProp3.step = config.ranges.y.step;
+        sliderProp3.value = calib.y;
+    }
+    if (valSlider3) {
+        const sign = calib.y >= 0 ? '+' : '';
+        valSlider3.innerText = sign + calib.y.toFixed(3) + ' ' + config.ranges.y.unit;
+    }
+
+    if (labelSlider4) labelSlider4.innerText = config.labels.scale;
+    if (sliderProp4) {
+        sliderProp4.min = config.ranges.scale.min;
+        sliderProp4.max = config.ranges.scale.max;
+        sliderProp4.step = config.ranges.scale.step;
+        sliderProp4.value = calib.scale;
+    }
+    if (valSlider4) {
+        valSlider4.innerText = calib.scale.toFixed(2) + config.ranges.scale.unit;
+    }
+
+    // Path & Speed visibility
+    if (rowPropPathMode) {
+        rowPropPathMode.style.display = config.hasPath ? 'block' : 'none';
+    }
+    if (selectPropPathMode && config.hasPath) {
+        selectPropPathMode.value = calib.pathMode || 'recon_orbit';
+    }
+    if (rowPropPathSpeed) {
+        rowPropPathSpeed.style.display = config.hasPath ? 'block' : 'none';
+    }
+    if (sliderPropSpeed && config.hasPath) {
+        sliderPropSpeed.value = calib.speed || 1.0;
+        if (valSliderSpeed) valSliderSpeed.innerText = (calib.speed || 1.0).toFixed(2) + 'x';
+    }
+}
+window.syncActivePropSlidersUI = syncActivePropSlidersUI;
+
+if (selectActiveProp) {
+    selectActiveProp.addEventListener('change', (e) => {
+        activePropId = e.target.value;
+        syncActivePropSlidersUI();
+    });
+}
+
+if (sliderProp1) {
+    sliderProp1.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        window.setPropCalibration(activePropId, { z: val });
+        const config = PROPS_CONFIG[activePropId];
+        if (valSlider1) valSlider1.innerText = (val >= 0 ? '+' : '') + val.toFixed(3) + ' ' + config.ranges.z.unit;
+    });
+}
+if (sliderProp2) {
+    sliderProp2.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        window.setPropCalibration(activePropId, { x: val });
+        const config = PROPS_CONFIG[activePropId];
+        if (valSlider2) valSlider2.innerText = (val >= 0 ? '+' : '') + val.toFixed(3) + ' ' + config.ranges.x.unit;
+    });
+}
+if (sliderProp3) {
+    sliderProp3.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        window.setPropCalibration(activePropId, { y: val });
+        const config = PROPS_CONFIG[activePropId];
+        if (valSlider3) valSlider3.innerText = (val >= 0 ? '+' : '') + val.toFixed(3) + ' ' + config.ranges.y.unit;
+    });
+}
+if (sliderProp4) {
+    sliderProp4.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        window.setPropCalibration(activePropId, { scale: val });
+        const config = PROPS_CONFIG[activePropId];
+        if (valSlider4) valSlider4.innerText = val.toFixed(2) + config.ranges.scale.unit;
+    });
+}
+
+if (selectPropPathMode) {
+    selectPropPathMode.addEventListener('change', (e) => {
+        window.setPropCalibration(activePropId, { pathMode: e.target.value });
+    });
+}
+
+if (sliderPropSpeed) {
+    sliderPropSpeed.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        window.setPropCalibration(activePropId, { speed: val });
+        if (valSliderSpeed) valSliderSpeed.innerText = val.toFixed(2) + 'x';
+    });
+}
+
+if (btnSavePropsCalib) {
+    btnSavePropsCalib.addEventListener('click', () => {
+        const ok = window.savePropsCalibration();
+        if (propSaveFeedback) {
+            propSaveFeedback.style.display = 'block';
+            propSaveFeedback.innerText = ok ? '✓ Saved to Local Storage!' : '❌ Save Error';
+            setTimeout(() => {
+                propSaveFeedback.style.display = 'none';
+            }, 2500);
+        }
+    });
+}
+
+if (btnResetPropsCalib) {
+    btnResetPropsCalib.addEventListener('click', () => {
+        window.resetPropCalibration(activePropId);
+    });
+}
+
+// Initial UI synchronization
+syncActivePropSlidersUI();
+
+// ----------------------------------------------------
+// DEDICATED 3D PROP & BIOMECHANICAL BODY POSE ADJUSTER STUDIO
+// ----------------------------------------------------
+const activeBodyPoseAdjustments = {
+    enabled: true,
+    target: 'active', // 'active', 'airi', 'ren', 'both'
+    headPitch: 0,
+    headYaw: 0,
+    headRoll: 0,
+    neckPitch: 0,
+    spineLean: 0,
+    spineTwist: 0,
+    spineRoll: 0,
+    chestBreath: 0,
+    pelvisSway: 0,
+    pelvisTilt: 0,
+    crouch: 0,
+    rArmLift: 0,
+    rArmReach: 0,
+    rArmSide: 0,
+    rElbow: 0,
+    rHandShape: 'auto',
+    lArmLift: 0,
+    lArmReach: 0,
+    lArmSide: 0,
+    lElbow: 0,
+    lHandShape: 'auto',
+    stanceWidth: 0,
+    kneeBend: 0,
+};
+window.activeBodyPoseAdjustments = activeBodyPoseAdjustments;
+
+// Adjuster Sub-Tab Switching (3D Prop Tuner vs Biomechanical Body Pose Tuner)
+document.querySelectorAll('.adjust-subtab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const targetSubpaneId = btn.getAttribute('data-subtab');
+        if (!targetSubpaneId) return;
+
+        document.querySelectorAll('.adjust-subtab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        document.querySelectorAll('.adjust-subpane').forEach(p => {
+            p.classList.toggle('active', p.id === targetSubpaneId);
+        });
+    });
+});
+
+// Top Sidebar Studio Button trigger
+const btnOpenAdjustMenu = document.getElementById('btn-open-adjust-menu');
+if (btnOpenAdjustMenu) {
+    btnOpenAdjustMenu.addEventListener('click', () => {
+        const sidebar = document.getElementById('top-ui');
+        if (sidebar && sidebar.classList.contains('collapsed')) {
+            const toggle = document.getElementById('sidebar-toggle');
+            if (toggle) toggle.click();
+        }
+        const adjustTabBtn = document.getElementById('tab-btn-adjust');
+        if (adjustTabBtn) adjustTabBtn.click();
+        const drawer = document.getElementById('poses-segmented-drawer');
+        if (drawer) drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+}
+
+// Shortcut from Props Tab into Adjuster Studio
+const btnGotoPropAdjust = document.getElementById('btn-goto-prop-adjust');
+if (btnGotoPropAdjust) {
+    btnGotoPropAdjust.addEventListener('click', () => {
+        const adjustTabBtn = document.getElementById('tab-btn-adjust');
+        if (adjustTabBtn) adjustTabBtn.click();
+        const propsSubtabBtn = document.getElementById('subtab-btn-props');
+        if (propsSubtabBtn) propsSubtabBtn.click();
+    });
+}
+
+// Body Pose Sliders & Elements Binding
+const selectBodyTarget = document.getElementById('select-body-target');
+const btnBodyToggleApply = document.getElementById('btn-body-toggle-apply');
+const btnBodyReset = document.getElementById('btn-body-reset');
+const btnBodyCapture = document.getElementById('btn-body-capture');
+const btnBodySave = document.getElementById('btn-body-save');
+const bodySaveFeedback = document.getElementById('body-save-feedback');
+
+const sliderBodyHeadPitch = document.getElementById('slider-body-head-pitch');
+const valBodyHeadPitch = document.getElementById('val-body-head-pitch');
+const sliderBodyHeadYaw = document.getElementById('slider-body-head-yaw');
+const valBodyHeadYaw = document.getElementById('val-body-head-yaw');
+const sliderBodyHeadRoll = document.getElementById('slider-body-head-roll');
+const valBodyHeadRoll = document.getElementById('val-body-head-roll');
+const sliderBodyNeckPitch = document.getElementById('slider-body-neck-pitch');
+const valBodyNeckPitch = document.getElementById('val-body-neck-pitch');
+
+const sliderBodySpineLean = document.getElementById('slider-body-spine-lean');
+const valBodySpineLean = document.getElementById('val-body-spine-lean');
+const sliderBodySpineTwist = document.getElementById('slider-body-spine-twist');
+const valBodySpineTwist = document.getElementById('val-body-spine-twist');
+const sliderBodySpineRoll = document.getElementById('slider-body-spine-roll');
+const valBodySpineRoll = document.getElementById('val-body-spine-roll');
+const sliderBodyChestBreath = document.getElementById('slider-body-chest-breath');
+const valBodyChestBreath = document.getElementById('val-body-chest-breath');
+const sliderBodyPelvisSway = document.getElementById('slider-body-pelvis-sway');
+const valBodyPelvisSway = document.getElementById('val-body-pelvis-sway');
+const sliderBodyPelvisTilt = document.getElementById('slider-body-pelvis-tilt');
+const valBodyPelvisTilt = document.getElementById('val-body-pelvis-tilt');
+const sliderBodyCrouch = document.getElementById('slider-body-crouch');
+const valBodyCrouch = document.getElementById('val-body-crouch');
+
+const sliderBodyRLift = document.getElementById('slider-body-r-lift');
+const valBodyRLift = document.getElementById('val-body-r-lift');
+const sliderBodyRReach = document.getElementById('slider-body-r-reach');
+const valBodyRReach = document.getElementById('val-body-r-reach');
+const sliderBodyRSide = document.getElementById('slider-body-r-side');
+const valBodyRSide = document.getElementById('val-body-r-side');
+const sliderBodyRElbow = document.getElementById('slider-body-r-elbow');
+const valBodyRElbow = document.getElementById('val-body-r-elbow');
+const selectBodyRHand = document.getElementById('select-body-r-hand');
+
+const sliderBodyLLift = document.getElementById('slider-body-l-lift');
+const valBodyLLift = document.getElementById('val-body-l-lift');
+const sliderBodyLReach = document.getElementById('slider-body-l-reach');
+const valBodyLReach = document.getElementById('val-body-l-reach');
+const sliderBodyLSide = document.getElementById('slider-body-l-side');
+const valBodyLSide = document.getElementById('val-body-l-side');
+const sliderBodyLElbow = document.getElementById('slider-body-l-elbow');
+const valBodyLElbow = document.getElementById('val-body-l-elbow');
+const selectBodyLHand = document.getElementById('select-body-l-hand');
+
+const sliderBodyStanceWidth = document.getElementById('slider-body-stance-width');
+const valBodyStanceWidth = document.getElementById('val-body-stance-width');
+const sliderBodyKneeBend = document.getElementById('slider-body-knee-bend');
+const valBodyKneeBend = document.getElementById('val-body-knee-bend');
+
+function syncBodyPoseSlidersUI() {
+    const adj = activeBodyPoseAdjustments;
+    if (sliderBodyHeadPitch) sliderBodyHeadPitch.value = adj.headPitch;
+    if (valBodyHeadPitch) valBodyHeadPitch.innerText = adj.headPitch + '°';
+    if (sliderBodyHeadYaw) sliderBodyHeadYaw.value = adj.headYaw;
+    if (valBodyHeadYaw) valBodyHeadYaw.innerText = adj.headYaw + '°';
+    if (sliderBodyHeadRoll) sliderBodyHeadRoll.value = adj.headRoll;
+    if (valBodyHeadRoll) valBodyHeadRoll.innerText = adj.headRoll + '°';
+    if (sliderBodyNeckPitch) sliderBodyNeckPitch.value = adj.neckPitch;
+    if (valBodyNeckPitch) valBodyNeckPitch.innerText = adj.neckPitch + '°';
+
+    if (sliderBodySpineLean) sliderBodySpineLean.value = adj.spineLean;
+    if (valBodySpineLean) valBodySpineLean.innerText = adj.spineLean + '°';
+    if (sliderBodySpineTwist) sliderBodySpineTwist.value = adj.spineTwist;
+    if (valBodySpineTwist) valBodySpineTwist.innerText = adj.spineTwist + '°';
+    if (sliderBodySpineRoll) sliderBodySpineRoll.value = adj.spineRoll;
+    if (valBodySpineRoll) valBodySpineRoll.innerText = adj.spineRoll + '°';
+    if (sliderBodyChestBreath) sliderBodyChestBreath.value = adj.chestBreath;
+    if (valBodyChestBreath) valBodyChestBreath.innerText = adj.chestBreath.toFixed(2);
+    if (sliderBodyPelvisSway) sliderBodyPelvisSway.value = adj.pelvisSway;
+    if (valBodyPelvisSway) valBodyPelvisSway.innerText = adj.pelvisSway + '°';
+    if (sliderBodyPelvisTilt) sliderBodyPelvisTilt.value = adj.pelvisTilt;
+    if (valBodyPelvisTilt) valBodyPelvisTilt.innerText = adj.pelvisTilt + '°';
+    if (sliderBodyCrouch) sliderBodyCrouch.value = adj.crouch;
+    if (valBodyCrouch) valBodyCrouch.innerText = adj.crouch.toFixed(2) + ' m';
+
+    if (sliderBodyRLift) sliderBodyRLift.value = adj.rArmLift;
+    if (valBodyRLift) valBodyRLift.innerText = adj.rArmLift.toFixed(2) + ' m';
+    if (sliderBodyRReach) sliderBodyRReach.value = adj.rArmReach;
+    if (valBodyRReach) valBodyRReach.innerText = adj.rArmReach.toFixed(2) + ' m';
+    if (sliderBodyRSide) sliderBodyRSide.value = adj.rArmSide;
+    if (valBodyRSide) valBodyRSide.innerText = adj.rArmSide.toFixed(2) + ' m';
+    if (sliderBodyRElbow) sliderBodyRElbow.value = adj.rElbow;
+    if (valBodyRElbow) valBodyRElbow.innerText = adj.rElbow.toFixed(2);
+    if (selectBodyRHand) selectBodyRHand.value = adj.rHandShape;
+
+    if (sliderBodyLLift) sliderBodyLLift.value = adj.lArmLift;
+    if (valBodyLLift) valBodyLLift.innerText = adj.lArmLift.toFixed(2) + ' m';
+    if (sliderBodyLReach) sliderBodyLReach.value = adj.lArmReach;
+    if (valBodyLReach) valBodyLReach.innerText = adj.lArmReach.toFixed(2) + ' m';
+    if (sliderBodyLSide) sliderBodyLSide.value = adj.lArmSide;
+    if (valBodyLSide) valBodyLSide.innerText = adj.lArmSide.toFixed(2) + ' m';
+    if (sliderBodyLElbow) sliderBodyLElbow.value = adj.lElbow;
+    if (valBodyLElbow) valBodyLElbow.innerText = adj.lElbow.toFixed(2);
+    if (selectBodyLHand) selectBodyLHand.value = adj.lHandShape;
+
+    if (sliderBodyStanceWidth) sliderBodyStanceWidth.value = adj.stanceWidth;
+    if (valBodyStanceWidth) valBodyStanceWidth.innerText = adj.stanceWidth + '°';
+    if (sliderBodyKneeBend) sliderBodyKneeBend.value = adj.kneeBend;
+    if (valBodyKneeBend) valBodyKneeBend.innerText = adj.kneeBend + '°';
+
+    if (selectBodyTarget) selectBodyTarget.value = adj.target;
+    if (btnBodyToggleApply) {
+        btnBodyToggleApply.classList.toggle('active', adj.enabled);
+        btnBodyToggleApply.innerText = adj.enabled ? '⚡ Live: ON' : '⏸️ Live: OFF';
+    }
+}
+window.syncBodyPoseSlidersUI = syncBodyPoseSlidersUI;
+
+// Attach input listeners
+if (selectBodyTarget) {
+    selectBodyTarget.addEventListener('change', (e) => {
+        activeBodyPoseAdjustments.target = e.target.value;
+    });
+}
+if (btnBodyToggleApply) {
+    btnBodyToggleApply.addEventListener('click', () => {
+        activeBodyPoseAdjustments.enabled = !activeBodyPoseAdjustments.enabled;
+        btnBodyToggleApply.classList.toggle('active', activeBodyPoseAdjustments.enabled);
+        btnBodyToggleApply.innerText = activeBodyPoseAdjustments.enabled ? '⚡ Live: ON' : '⏸️ Live: OFF';
+        updateStatus(`🦾 Pose Adjustment: ${activeBodyPoseAdjustments.enabled ? 'LIVE' : 'BYPASSED'}`);
+    });
+}
+
+function bindBodySlider(sliderEl, valEl, key, formatFn) {
+    if (!sliderEl) return;
+    sliderEl.addEventListener('input', (e) => {
+        const num = parseFloat(e.target.value);
+        activeBodyPoseAdjustments[key] = num;
+        if (valEl) valEl.innerText = formatFn ? formatFn(num) : num;
+    });
+}
+
+bindBodySlider(sliderBodyHeadPitch, valBodyHeadPitch, 'headPitch', v => v + '°');
+bindBodySlider(sliderBodyHeadYaw, valBodyHeadYaw, 'headYaw', v => v + '°');
+bindBodySlider(sliderBodyHeadRoll, valBodyHeadRoll, 'headRoll', v => v + '°');
+bindBodySlider(sliderBodyNeckPitch, valBodyNeckPitch, 'neckPitch', v => v + '°');
+
+bindBodySlider(sliderBodySpineLean, valBodySpineLean, 'spineLean', v => v + '°');
+bindBodySlider(sliderBodySpineTwist, valBodySpineTwist, 'spineTwist', v => v + '°');
+bindBodySlider(sliderBodySpineRoll, valBodySpineRoll, 'spineRoll', v => v + '°');
+bindBodySlider(sliderBodyChestBreath, valBodyChestBreath, 'chestBreath', v => v.toFixed(2));
+bindBodySlider(sliderBodyPelvisSway, valBodyPelvisSway, 'pelvisSway', v => v + '°');
+bindBodySlider(sliderBodyPelvisTilt, valBodyPelvisTilt, 'pelvisTilt', v => v + '°');
+bindBodySlider(sliderBodyCrouch, valBodyCrouch, 'crouch', v => v.toFixed(2) + ' m');
+
+bindBodySlider(sliderBodyRLift, valBodyRLift, 'rArmLift', v => v.toFixed(2) + ' m');
+bindBodySlider(sliderBodyRReach, valBodyRReach, 'rArmReach', v => v.toFixed(2) + ' m');
+bindBodySlider(sliderBodyRSide, valBodyRSide, 'rArmSide', v => v.toFixed(2) + ' m');
+bindBodySlider(sliderBodyRElbow, valBodyRElbow, 'rElbow', v => v.toFixed(2));
+
+bindBodySlider(sliderBodyLLift, valBodyLLift, 'lArmLift', v => v.toFixed(2) + ' m');
+bindBodySlider(sliderBodyLReach, valBodyLReach, 'lArmReach', v => v.toFixed(2) + ' m');
+bindBodySlider(sliderBodyLSide, valBodyLSide, 'lArmSide', v => v.toFixed(2) + ' m');
+bindBodySlider(sliderBodyLElbow, valBodyLElbow, 'lElbow', v => v.toFixed(2));
+
+bindBodySlider(sliderBodyStanceWidth, valBodyStanceWidth, 'stanceWidth', v => v + '°');
+bindBodySlider(sliderBodyKneeBend, valBodyKneeBend, 'kneeBend', v => v + '°');
+
+if (selectBodyRHand) {
+    selectBodyRHand.addEventListener('change', (e) => {
+        activeBodyPoseAdjustments.rHandShape = e.target.value;
+    });
+}
+if (selectBodyLHand) {
+    selectBodyLHand.addEventListener('change', (e) => {
+        activeBodyPoseAdjustments.lHandShape = e.target.value;
+    });
+}
+
+// Reset Pose Adjustments
+if (btnBodyReset) {
+    btnBodyReset.addEventListener('click', () => {
+        Object.assign(activeBodyPoseAdjustments, {
+            headPitch: 0,
+            headYaw: 0,
+            headRoll: 0,
+            neckPitch: 0,
+            spineLean: 0,
+            spineTwist: 0,
+            spineRoll: 0,
+            chestBreath: 0,
+            pelvisSway: 0,
+            pelvisTilt: 0,
+            crouch: 0,
+            rArmLift: 0,
+            rArmReach: 0,
+            rArmSide: 0,
+            rElbow: 0,
+            rHandShape: 'auto',
+            lArmLift: 0,
+            lArmReach: 0,
+            lArmSide: 0,
+            lElbow: 0,
+            lHandShape: 'auto',
+            stanceWidth: 0,
+            kneeBend: 0,
+        });
+        syncBodyPoseSlidersUI();
+        updateStatus('↺ Body pose adjustments reset to neutral.');
+    });
+}
+
+// Capture Live Pose into Sliders
+if (btnBodyCapture) {
+    btnBodyCapture.addEventListener('click', () => {
+        if (!currentVrm || !currentVrm.humanoid) return;
+        const h = currentVrm.humanoid;
+        const headNode = h.getNormalizedBoneNode('head');
+        const neckNode = h.getNormalizedBoneNode('neck');
+        const spineNode = h.getNormalizedBoneNode('spine');
+        const chestNode = h.getNormalizedBoneNode('chest');
+        const hipsNode = h.getNormalizedBoneNode('hips');
+
+        const toDeg = (rad) => Math.round(THREE.MathUtils.radToDeg(rad || 0));
+
+        if (headNode) {
+            activeBodyPoseAdjustments.headPitch = toDeg(headNode.rotation.x);
+            activeBodyPoseAdjustments.headYaw = toDeg(headNode.rotation.y);
+            activeBodyPoseAdjustments.headRoll = toDeg(headNode.rotation.z);
+        }
+        if (neckNode) {
+            activeBodyPoseAdjustments.neckPitch = toDeg(neckNode.rotation.x);
+        }
+        if (spineNode) {
+            activeBodyPoseAdjustments.spineLean = toDeg(spineNode.rotation.x);
+            activeBodyPoseAdjustments.spineTwist = toDeg(spineNode.rotation.y);
+            activeBodyPoseAdjustments.spineRoll = toDeg(spineNode.rotation.z);
+        }
+        if (chestNode) {
+            activeBodyPoseAdjustments.chestBreath = Number(chestNode.rotation.x.toFixed(2));
+        }
+        if (hipsNode) {
+            activeBodyPoseAdjustments.pelvisSway = toDeg(hipsNode.rotation.y);
+            activeBodyPoseAdjustments.pelvisTilt = toDeg(hipsNode.rotation.z);
+        }
+        if (currentVrm.scene) {
+            activeBodyPoseAdjustments.crouch = Number(currentVrm.scene.position.y.toFixed(2));
+        }
+
+        syncBodyPoseSlidersUI();
+        updateStatus('📸 Live Model Pose captured into sliders!');
+    });
+}
+
+// Save Custom Pose from Adjuster into Custom Poses list
+if (btnBodySave) {
+    btnBodySave.addEventListener('click', () => {
+        const defaultName = `Custom Pose ${customPoseRegistry.size + 1}`;
+        const poseName = prompt('Enter a label for this custom pose:', defaultName) || defaultName;
+        if (!poseName || !poseName.trim()) return;
+
+        const cleanKey = 'custom_' + poseName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        const poseData = {
+            label: poseName.trim(),
+            bones: {
+                head: [activeBodyPoseAdjustments.headPitch, activeBodyPoseAdjustments.headYaw, activeBodyPoseAdjustments.headRoll],
+                neck: [activeBodyPoseAdjustments.neckPitch, 0, 0],
+                spine: [activeBodyPoseAdjustments.spineLean, activeBodyPoseAdjustments.spineTwist, activeBodyPoseAdjustments.spineRoll],
+                chest: [activeBodyPoseAdjustments.chestBreath * 20, 0, 0],
+                hips: [0, activeBodyPoseAdjustments.pelvisSway, activeBodyPoseAdjustments.pelvisTilt],
+                leftUpperLeg: [0, 0, -activeBodyPoseAdjustments.stanceWidth],
+                rightUpperLeg: [0, 0, activeBodyPoseAdjustments.stanceWidth],
+                leftLowerLeg: [activeBodyPoseAdjustments.kneeBend, 0, 0],
+                rightLowerLeg: [activeBodyPoseAdjustments.kneeBend, 0, 0]
+            },
+            ik: {
+                rightWrist: {
+                    anchor: 'chest',
+                    offset: [0.15 + activeBodyPoseAdjustments.rArmSide, activeBodyPoseAdjustments.rArmLift, 0.20 + activeBodyPoseAdjustments.rArmReach],
+                    pole: [0.70 + activeBodyPoseAdjustments.rElbow, -0.40, 0.30]
+                },
+                leftWrist: {
+                    anchor: 'chest',
+                    offset: [-0.15 - activeBodyPoseAdjustments.lArmSide, activeBodyPoseAdjustments.lArmLift, 0.20 + activeBodyPoseAdjustments.lArmReach],
+                    pole: [-0.70 - activeBodyPoseAdjustments.lElbow, -0.40, 0.30]
+                },
+                rightHandShape: activeBodyPoseAdjustments.rHandShape !== 'auto' ? activeBodyPoseAdjustments.rHandShape : 'relaxed',
+                leftHandShape: activeBodyPoseAdjustments.lHandShape !== 'auto' ? activeBodyPoseAdjustments.lHandShape : 'relaxed',
+            },
+            hipsOffsetY: activeBodyPoseAdjustments.crouch
+        };
+
+        customPoseRegistry.set(cleanKey, poseData);
+
+        // Store into localStorage
+        try {
+            const savedPoses = JSON.parse(localStorage.getItem('helios_studio_custom_poses') || '{}');
+            savedPoses[cleanKey] = poseData;
+            localStorage.setItem('helios_studio_custom_poses', JSON.stringify(savedPoses));
+        } catch (e) {
+            console.warn('Could not persist pose to localStorage:', e);
+        }
+
+        // Add button to #custom-pose-buttons
+        const customGrid = document.getElementById('custom-pose-buttons');
+        if (customGrid) {
+            const btn = document.createElement('button');
+            btn.setAttribute('data-custom-pose', cleanKey);
+            btn.innerText = `🦾 ${poseName.trim()}`;
+            btn.onclick = () => {
+                document.querySelectorAll('#custom-pose-buttons button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                setPose(cleanKey);
+            };
+            customGrid.appendChild(btn);
+        }
+
+        if (bodySaveFeedback) {
+            bodySaveFeedback.style.display = 'block';
+            bodySaveFeedback.innerText = `✓ Saved "${poseName.trim()}" into Custom Poses!`;
+            setTimeout(() => { bodySaveFeedback.style.display = 'none'; }, 3000);
+        }
+        updateStatus(`💾 Custom pose saved: ${poseName.trim()}`);
+    });
+}
+
+// Initial Sync
+syncBodyPoseSlidersUI();
 
 
 
