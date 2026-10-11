@@ -1753,7 +1753,7 @@ function buildArmSegmentQuaternion(dirVec, palmHint, sideSign, outQuat) {
     return outQuat.setFromRotationMatrix(_m4);
 }
 
-function solveAndApplyArmIK(humanoid, rootNode, side, wristTarget, poleDir, fingerDir, palmNormal, slerpSpeed) {
+function solveAndApplyArmIK(humanoid, rootNode, side, wristTarget, poleDir, fingerDir, palmNormal, slerpSpeed, handRotOffset = null) {
     const isRight = side === 'right';
     const sideSign = isRight ? rigMetrics.rSide : rigMetrics.lSide;
     const upperBone = humanoid.getNormalizedBoneNode(isRight ? 'rightUpperArm' : 'leftUpperArm');
@@ -1838,6 +1838,13 @@ function solveAndApplyArmIK(humanoid, rootNode, side, wristTarget, poleDir, fing
     slerpShortestPath(lowerBone.quaternion, _qLocal, slerpSpeed);
 
     _qLocal.copy(_qLower).invert().multiply(_qHand);
+    if (handRotOffset && (handRotOffset.pitch || handRotOffset.yaw || handRotOffset.roll)) {
+        const pitchRad = THREE.MathUtils.degToRad(handRotOffset.pitch || 0);
+        const yawRad = THREE.MathUtils.degToRad(handRotOffset.yaw || 0);
+        const rollRad = THREE.MathUtils.degToRad(handRotOffset.roll || 0);
+        const _qHandOffset = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitchRad, yawRad, rollRad, 'YXZ'));
+        _qLocal.multiply(_qHandOffset);
+    }
     slerpShortestPath(handBone.quaternion, _qLocal, slerpSpeed);
 }
 
@@ -3346,9 +3353,26 @@ function applyProceduralPose(time, speed) {
         }
     }
 
+    const isTargetMatch = typeof activeBodyPoseAdjustments !== 'undefined' && activeBodyPoseAdjustments.enabled && (
+        activeBodyPoseAdjustments.target === 'active' ||
+        (activeBodyPoseAdjustments.target === 'airi' && !isRenActive()) ||
+        (activeBodyPoseAdjustments.target === 'ren' && isRenActive()) ||
+        activeBodyPoseAdjustments.target === 'both'
+    );
+    const rHandRotOffset = isTargetMatch ? {
+        pitch: activeBodyPoseAdjustments.rHandPitch || 0,
+        yaw: activeBodyPoseAdjustments.rHandYaw || 0,
+        roll: activeBodyPoseAdjustments.rHandRoll || 0,
+    } : null;
+    const lHandRotOffset = isTargetMatch ? {
+        pitch: activeBodyPoseAdjustments.lHandPitch || 0,
+        yaw: activeBodyPoseAdjustments.lHandYaw || 0,
+        roll: activeBodyPoseAdjustments.lHandRoll || 0,
+    } : null;
+
     // Solve & apply 2-Bone Analytic IK + Shortest-Path Quaternion Slerp for both arms
-    solveAndApplyArmIK(h, rootNode, 'right', rWrist, rPole, rFDir, rPalm, speed);
-    solveAndApplyArmIK(h, rootNode, 'left', lWrist, lPole, lFDir, lPalm, speed);
+    solveAndApplyArmIK(h, rootNode, 'right', rWrist, rPole, rFDir, rPalm, speed, rHandRotOffset);
+    solveAndApplyArmIK(h, rootNode, 'left', lWrist, lPole, lFDir, lPalm, speed, lHandRotOffset);
 
     // Apply 30-bone finger shapes with physiological micro-tonus
     applyHandShape(h, 'left', leftHandShape, speed, time);
@@ -4463,6 +4487,9 @@ if (btnModelHelios) {
         window.activeModelId = 'airi';
         dualTwinModeActive = false;
         window.dualTwinModeActive = false;
+        if (typeof selectBodyTarget !== 'undefined' && selectBodyTarget && selectBodyTarget.value !== 'active') {
+            selectBodyTarget.value = 'airi';
+        }
         updatePoseButtonsForActiveModel();
         loadVRM(DEFAULT_VRM_URL);
         fetchRlPoseStatus();
@@ -4477,6 +4504,9 @@ if (btnModelTwin) {
         window.activeModelId = 'twin';
         dualTwinModeActive = false;
         window.dualTwinModeActive = false;
+        if (typeof selectBodyTarget !== 'undefined' && selectBodyTarget && selectBodyTarget.value !== 'active') {
+            selectBodyTarget.value = 'ren';
+        }
         updatePoseButtonsForActiveModel();
         loadVRM(TWIN_VRM_URL);
         fetchRlPoseStatus();
@@ -4485,6 +4515,9 @@ if (btnModelTwin) {
 
 if (btnModelDual) {
     btnModelDual.onclick = () => {
+        if (typeof selectBodyTarget !== 'undefined' && selectBodyTarget && selectBodyTarget.value !== 'active') {
+            selectBodyTarget.value = 'both';
+        }
         startDualTwinSynergy();
     };
 }
@@ -6575,11 +6608,17 @@ function applySecondaryTwinPose(vrm, time, speed, delta) {
             rUpperArmRot[1] += activeBodyPoseAdjustments.rArmReach * 0.6;
             rUpperArmRot[2] += activeBodyPoseAdjustments.rArmSide * 0.8;
             rLowerArmRot[1] += activeBodyPoseAdjustments.rElbow * 0.8;
+            rHandRot[0] += (activeBodyPoseAdjustments.rHandPitch || 0) * Math.PI / 180;
+            rHandRot[1] += (activeBodyPoseAdjustments.rHandYaw || 0) * Math.PI / 180;
+            rHandRot[2] += (activeBodyPoseAdjustments.rHandRoll || 0) * Math.PI / 180;
 
             lUpperArmRot[0] += activeBodyPoseAdjustments.lArmLift * 0.8;
             lUpperArmRot[1] -= activeBodyPoseAdjustments.lArmReach * 0.6;
             lUpperArmRot[2] -= activeBodyPoseAdjustments.lArmSide * 0.8;
             lLowerArmRot[1] -= activeBodyPoseAdjustments.lElbow * 0.8;
+            lHandRot[0] += (activeBodyPoseAdjustments.lHandPitch || 0) * Math.PI / 180;
+            lHandRot[1] += (activeBodyPoseAdjustments.lHandYaw || 0) * Math.PI / 180;
+            lHandRot[2] += (activeBodyPoseAdjustments.lHandRoll || 0) * Math.PI / 180;
 
             if (activeBodyPoseAdjustments.rHandShape && activeBodyPoseAdjustments.rHandShape !== 'auto') {
                 rHandShape = activeBodyPoseAdjustments.rHandShape;
@@ -7703,11 +7742,17 @@ const activeBodyPoseAdjustments = {
     rArmReach: 0,
     rArmSide: 0,
     rElbow: 0,
+    rHandPitch: 0,
+    rHandYaw: 0,
+    rHandRoll: 0,
     rHandShape: 'auto',
     lArmLift: 0,
     lArmReach: 0,
     lArmSide: 0,
     lElbow: 0,
+    lHandPitch: 0,
+    lHandYaw: 0,
+    lHandRoll: 0,
     lHandShape: 'auto',
     stanceWidth: 0,
     kneeBend: 0,
@@ -7807,6 +7852,12 @@ const sliderBodyRSide = document.getElementById('slider-body-r-side');
 const valBodyRSide = document.getElementById('val-body-r-side');
 const sliderBodyRElbow = document.getElementById('slider-body-r-elbow');
 const valBodyRElbow = document.getElementById('val-body-r-elbow');
+const sliderBodyRHandPitch = document.getElementById('slider-body-r-hand-pitch');
+const valBodyRHandPitch = document.getElementById('val-body-r-hand-pitch');
+const sliderBodyRHandYaw = document.getElementById('slider-body-r-hand-yaw');
+const valBodyRHandYaw = document.getElementById('val-body-r-hand-yaw');
+const sliderBodyRHandRoll = document.getElementById('slider-body-r-hand-roll');
+const valBodyRHandRoll = document.getElementById('val-body-r-hand-roll');
 const selectBodyRHand = document.getElementById('select-body-r-hand');
 
 const sliderBodyLLift = document.getElementById('slider-body-l-lift');
@@ -7817,6 +7868,12 @@ const sliderBodyLSide = document.getElementById('slider-body-l-side');
 const valBodyLSide = document.getElementById('val-body-l-side');
 const sliderBodyLElbow = document.getElementById('slider-body-l-elbow');
 const valBodyLElbow = document.getElementById('val-body-l-elbow');
+const sliderBodyLHandPitch = document.getElementById('slider-body-l-hand-pitch');
+const valBodyLHandPitch = document.getElementById('val-body-l-hand-pitch');
+const sliderBodyLHandYaw = document.getElementById('slider-body-l-hand-yaw');
+const valBodyLHandYaw = document.getElementById('val-body-l-hand-yaw');
+const sliderBodyLHandRoll = document.getElementById('slider-body-l-hand-roll');
+const valBodyLHandRoll = document.getElementById('val-body-l-hand-roll');
 const selectBodyLHand = document.getElementById('select-body-l-hand');
 
 const sliderBodyStanceWidth = document.getElementById('slider-body-stance-width');
@@ -7858,6 +7915,12 @@ function syncBodyPoseSlidersUI() {
     if (valBodyRSide) valBodyRSide.innerText = adj.rArmSide.toFixed(2) + ' m';
     if (sliderBodyRElbow) sliderBodyRElbow.value = adj.rElbow;
     if (valBodyRElbow) valBodyRElbow.innerText = adj.rElbow.toFixed(2);
+    if (sliderBodyRHandPitch) sliderBodyRHandPitch.value = adj.rHandPitch || 0;
+    if (valBodyRHandPitch) valBodyRHandPitch.innerText = (adj.rHandPitch || 0) + '°';
+    if (sliderBodyRHandYaw) sliderBodyRHandYaw.value = adj.rHandYaw || 0;
+    if (valBodyRHandYaw) valBodyRHandYaw.innerText = (adj.rHandYaw || 0) + '°';
+    if (sliderBodyRHandRoll) sliderBodyRHandRoll.value = adj.rHandRoll || 0;
+    if (valBodyRHandRoll) valBodyRHandRoll.innerText = (adj.rHandRoll || 0) + '°';
     if (selectBodyRHand) selectBodyRHand.value = adj.rHandShape;
 
     if (sliderBodyLLift) sliderBodyLLift.value = adj.lArmLift;
@@ -7868,6 +7931,12 @@ function syncBodyPoseSlidersUI() {
     if (valBodyLSide) valBodyLSide.innerText = adj.lArmSide.toFixed(2) + ' m';
     if (sliderBodyLElbow) sliderBodyLElbow.value = adj.lElbow;
     if (valBodyLElbow) valBodyLElbow.innerText = adj.lElbow.toFixed(2);
+    if (sliderBodyLHandPitch) sliderBodyLHandPitch.value = adj.lHandPitch || 0;
+    if (valBodyLHandPitch) valBodyLHandPitch.innerText = (adj.lHandPitch || 0) + '°';
+    if (sliderBodyLHandYaw) sliderBodyLHandYaw.value = adj.lHandYaw || 0;
+    if (valBodyLHandYaw) valBodyLHandYaw.innerText = (adj.lHandYaw || 0) + '°';
+    if (sliderBodyLHandRoll) sliderBodyLHandRoll.value = adj.lHandRoll || 0;
+    if (valBodyLHandRoll) valBodyLHandRoll.innerText = (adj.lHandRoll || 0) + '°';
     if (selectBodyLHand) selectBodyLHand.value = adj.lHandShape;
 
     if (sliderBodyStanceWidth) sliderBodyStanceWidth.value = adj.stanceWidth;
@@ -7886,19 +7955,62 @@ window.syncBodyPoseSlidersUI = syncBodyPoseSlidersUI;
 // Attach input listeners
 if (selectBodyTarget) {
     selectBodyTarget.addEventListener('change', (e) => {
-        activeBodyPoseAdjustments.target = e.target.value;
+        const val = e.target.value;
+        activeBodyPoseAdjustments.target = val;
         activeBodyPoseAdjustments.enabled = true;
         if (btnBodyToggleApply) {
             btnBodyToggleApply.classList.add('active');
             btnBodyToggleApply.innerText = '⚡ Live: ON';
         }
+
+        // Auto-switch VRM avatar model when target avatar is chosen
+        if (val === 'airi') {
+            if (activeModelId !== 'airi' || dualTwinModeActive) {
+                if (btnModelHelios) {
+                    btnModelHelios.click();
+                } else {
+                    clearModelActiveStates();
+                    activeModelId = 'airi';
+                    window.activeModelId = 'airi';
+                    dualTwinModeActive = false;
+                    window.dualTwinModeActive = false;
+                    updatePoseButtonsForActiveModel();
+                    loadVRM(DEFAULT_VRM_URL);
+                    fetchRlPoseStatus();
+                }
+            }
+        } else if (val === 'ren') {
+            if (activeModelId !== 'twin' || dualTwinModeActive) {
+                if (btnModelTwin) {
+                    btnModelTwin.click();
+                } else {
+                    clearModelActiveStates();
+                    activeModelId = 'twin';
+                    window.activeModelId = 'twin';
+                    dualTwinModeActive = false;
+                    window.dualTwinModeActive = false;
+                    updatePoseButtonsForActiveModel();
+                    loadVRM(TWIN_VRM_URL);
+                    fetchRlPoseStatus();
+                }
+            }
+        } else if (val === 'both') {
+            if (!dualTwinModeActive) {
+                if (btnModelDual) {
+                    btnModelDual.click();
+                } else {
+                    startDualTwinSynergy();
+                }
+            }
+        }
+
         const targetLabel = {
             both: 'BOTH TWINS (Synchronized Kinematics)',
             airi: 'AIRI (Sister)',
             ren: 'REN (Brother)',
             active: 'ACTIVE AVATAR'
-        }[e.target.value] || e.target.value;
-        updateStatus(`🦾 Pose Adjuster: Target set to ${targetLabel} (Live Kinematics Active)`);
+        }[val] || val;
+        updateStatus(`🦾 Pose Adjuster: Target switched to ${targetLabel}`);
     });
 }
 if (btnBodyToggleApply) {
@@ -7943,11 +8055,17 @@ bindBodySlider(sliderBodyRLift, valBodyRLift, 'rArmLift', v => v.toFixed(2) + ' 
 bindBodySlider(sliderBodyRReach, valBodyRReach, 'rArmReach', v => v.toFixed(2) + ' m');
 bindBodySlider(sliderBodyRSide, valBodyRSide, 'rArmSide', v => v.toFixed(2) + ' m');
 bindBodySlider(sliderBodyRElbow, valBodyRElbow, 'rElbow', v => v.toFixed(2));
+bindBodySlider(sliderBodyRHandPitch, valBodyRHandPitch, 'rHandPitch', v => v + '°');
+bindBodySlider(sliderBodyRHandYaw, valBodyRHandYaw, 'rHandYaw', v => v + '°');
+bindBodySlider(sliderBodyRHandRoll, valBodyRHandRoll, 'rHandRoll', v => v + '°');
 
 bindBodySlider(sliderBodyLLift, valBodyLLift, 'lArmLift', v => v.toFixed(2) + ' m');
 bindBodySlider(sliderBodyLReach, valBodyLReach, 'lArmReach', v => v.toFixed(2) + ' m');
 bindBodySlider(sliderBodyLSide, valBodyLSide, 'lArmSide', v => v.toFixed(2) + ' m');
 bindBodySlider(sliderBodyLElbow, valBodyLElbow, 'lElbow', v => v.toFixed(2));
+bindBodySlider(sliderBodyLHandPitch, valBodyLHandPitch, 'lHandPitch', v => v + '°');
+bindBodySlider(sliderBodyLHandYaw, valBodyLHandYaw, 'lHandYaw', v => v + '°');
+bindBodySlider(sliderBodyLHandRoll, valBodyLHandRoll, 'lHandRoll', v => v + '°');
 
 bindBodySlider(sliderBodyStanceWidth, valBodyStanceWidth, 'stanceWidth', v => v + '°');
 bindBodySlider(sliderBodyKneeBend, valBodyKneeBend, 'kneeBend', v => v + '°');
@@ -7982,11 +8100,17 @@ if (btnBodyReset) {
             rArmReach: 0,
             rArmSide: 0,
             rElbow: 0,
+            rHandPitch: 0,
+            rHandYaw: 0,
+            rHandRoll: 0,
             rHandShape: 'auto',
             lArmLift: 0,
             lArmReach: 0,
             lArmSide: 0,
             lElbow: 0,
+            lHandPitch: 0,
+            lHandYaw: 0,
+            lHandRoll: 0,
             lHandShape: 'auto',
             stanceWidth: 0,
             kneeBend: 0,
@@ -8006,6 +8130,8 @@ if (btnBodyCapture) {
         const spineNode = h.getNormalizedBoneNode('spine');
         const chestNode = h.getNormalizedBoneNode('chest');
         const hipsNode = h.getNormalizedBoneNode('hips');
+        const rHandNode = h.getNormalizedBoneNode('rightHand');
+        const lHandNode = h.getNormalizedBoneNode('leftHand');
 
         const toDeg = (rad) => Math.round(THREE.MathUtils.radToDeg(rad || 0));
 
@@ -8028,6 +8154,16 @@ if (btnBodyCapture) {
         if (hipsNode) {
             activeBodyPoseAdjustments.pelvisSway = toDeg(hipsNode.rotation.y);
             activeBodyPoseAdjustments.pelvisTilt = toDeg(hipsNode.rotation.z);
+        }
+        if (rHandNode) {
+            activeBodyPoseAdjustments.rHandPitch = toDeg(rHandNode.rotation.x);
+            activeBodyPoseAdjustments.rHandYaw = toDeg(rHandNode.rotation.y);
+            activeBodyPoseAdjustments.rHandRoll = toDeg(rHandNode.rotation.z);
+        }
+        if (lHandNode) {
+            activeBodyPoseAdjustments.lHandPitch = toDeg(lHandNode.rotation.x);
+            activeBodyPoseAdjustments.lHandYaw = toDeg(lHandNode.rotation.y);
+            activeBodyPoseAdjustments.lHandRoll = toDeg(lHandNode.rotation.z);
         }
         if (currentVrm.scene) {
             activeBodyPoseAdjustments.crouch = Number(currentVrm.scene.position.y.toFixed(2));
@@ -8054,6 +8190,8 @@ if (btnBodySave) {
                 spine: [activeBodyPoseAdjustments.spineLean, activeBodyPoseAdjustments.spineTwist, activeBodyPoseAdjustments.spineRoll],
                 chest: [activeBodyPoseAdjustments.chestBreath * 20, 0, 0],
                 hips: [0, activeBodyPoseAdjustments.pelvisSway, activeBodyPoseAdjustments.pelvisTilt],
+                rightHand: [activeBodyPoseAdjustments.rHandPitch, activeBodyPoseAdjustments.rHandYaw, activeBodyPoseAdjustments.rHandRoll],
+                leftHand: [activeBodyPoseAdjustments.lHandPitch, activeBodyPoseAdjustments.lHandYaw, activeBodyPoseAdjustments.lHandRoll],
                 leftUpperLeg: [0, 0, -activeBodyPoseAdjustments.stanceWidth],
                 rightUpperLeg: [0, 0, activeBodyPoseAdjustments.stanceWidth],
                 leftLowerLeg: [activeBodyPoseAdjustments.kneeBend, 0, 0],

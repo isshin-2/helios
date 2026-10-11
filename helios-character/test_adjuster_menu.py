@@ -222,6 +222,57 @@ async def test_adjuster_menu():
                 selectRHand.dispatchEvent(new Event('change'));
             }
 
+            // Hand 3D Rotations (Pitch, Yaw, Roll)
+            const sliderRHandPitch = document.getElementById('slider-body-r-hand-pitch');
+            const sliderRHandYaw = document.getElementById('slider-body-r-hand-yaw');
+            const sliderRHandRoll = document.getElementById('slider-body-r-hand-roll');
+            const sliderLHandPitch = document.getElementById('slider-body-l-hand-pitch');
+            const sliderLHandYaw = document.getElementById('slider-body-l-hand-yaw');
+            const sliderLHandRoll = document.getElementById('slider-body-l-hand-roll');
+
+            if (sliderRHandPitch) {
+                sliderRHandPitch.value = '25';
+                sliderRHandPitch.dispatchEvent(new Event('input'));
+            }
+            if (sliderRHandYaw) {
+                sliderRHandYaw.value = '-30';
+                sliderRHandYaw.dispatchEvent(new Event('input'));
+            }
+            if (sliderRHandRoll) {
+                sliderRHandRoll.value = '15';
+                sliderRHandRoll.dispatchEvent(new Event('input'));
+            }
+            if (sliderLHandPitch) {
+                sliderLHandPitch.value = '-10';
+                sliderLHandPitch.dispatchEvent(new Event('input'));
+            }
+            if (sliderLHandYaw) {
+                sliderLHandYaw.value = '20';
+                sliderLHandYaw.dispatchEvent(new Event('input'));
+            }
+            if (sliderLHandRoll) {
+                sliderLHandRoll.value = '-45';
+                sliderLHandRoll.dispatchEvent(new Event('input'));
+            }
+
+            // Test target avatar switching the VRM
+            const selectTarget = document.getElementById('select-body-target');
+            let modelAfterRen = null;
+            let dualAfterBoth = null;
+
+            if (selectTarget) {
+                selectTarget.value = 'ren';
+                selectTarget.dispatchEvent(new Event('change'));
+                modelAfterRen = window.activeModelId;
+
+                selectTarget.value = 'both';
+                selectTarget.dispatchEvent(new Event('change'));
+                dualAfterBoth = window.dualTwinModeActive;
+
+                selectTarget.value = 'airi';
+                selectTarget.dispatchEvent(new Event('change'));
+            }
+
             const adj = window.activeBodyPoseAdjustments || {};
 
             return {
@@ -232,7 +283,16 @@ async def test_adjuster_menu():
                 rArmLift: adj.rArmLift,
                 lArmLift: adj.lArmLift,
                 stanceWidth: adj.stanceWidth,
-                rHandShape: adj.rHandShape
+                rHandShape: adj.rHandShape,
+                rHandPitch: adj.rHandPitch,
+                rHandYaw: adj.rHandYaw,
+                rHandRoll: adj.rHandRoll,
+                lHandPitch: adj.lHandPitch,
+                lHandYaw: adj.lHandYaw,
+                lHandRoll: adj.lHandRoll,
+                modelAfterRen,
+                dualAfterBoth,
+                modelAfterAiri: window.activeModelId
             };
         }""")
         print("  Body Pose Tuner Result:", body_tuner_res)
@@ -242,6 +302,15 @@ async def test_adjuster_menu():
         assert body_tuner_res['crouch'] == -0.15, "Crouch depth must be -0.15"
         assert body_tuner_res['rArmLift'] == 0.36, "Right arm lift must be 0.36"
         assert body_tuner_res['rHandShape'] == 'peace', "Right hand shape must be peace"
+        assert body_tuner_res['rHandPitch'] == 25, "Right hand pitch must be 25"
+        assert body_tuner_res['rHandYaw'] == -30, "Right hand yaw must be -30"
+        assert body_tuner_res['rHandRoll'] == 15, "Right hand roll must be 15"
+        assert body_tuner_res['lHandPitch'] == -10, "Left hand pitch must be -10"
+        assert body_tuner_res['lHandYaw'] == 20, "Left hand yaw must be 20"
+        assert body_tuner_res['lHandRoll'] == -45, "Left hand roll must be -45"
+        assert body_tuner_res['modelAfterRen'] == 'twin', "Selecting ren must switch avatar model to twin"
+        assert body_tuner_res['dualAfterBoth'] == True, "Selecting both must activate dual twin mode"
+        assert body_tuner_res['modelAfterAiri'] == 'airi', "Selecting airi must switch avatar model to airi"
 
         # 5. Test Live Pose Capture & Reset
         print("5. Testing Live Pose Capture and Reset...")
@@ -270,7 +339,9 @@ async def test_adjuster_menu():
                 capturedHeadPitch: typeof capturedAdj.headPitch,
                 resetHeadPitch: resetAdj.headPitch,
                 resetSpineLean: resetAdj.spineLean,
-                resetCrouch: resetAdj.crouch
+                resetCrouch: resetAdj.crouch,
+                resetRHandPitch: resetAdj.rHandPitch,
+                resetLHandRoll: resetAdj.lHandRoll
             };
         }""")
         print("  Capture & Reset Result:", capture_and_reset_res)
@@ -279,6 +350,8 @@ async def test_adjuster_menu():
         assert capture_and_reset_res['resetHeadPitch'] == 0, "Reset should restore 0"
         assert capture_and_reset_res['resetSpineLean'] == 0, "Reset should restore 0"
         assert capture_and_reset_res['resetCrouch'] == 0, "Reset should restore 0"
+        assert capture_and_reset_res['resetRHandPitch'] == 0, "Reset should restore rHandPitch 0"
+        assert capture_and_reset_res['resetLHandRoll'] == 0, "Reset should restore lHandRoll 0"
 
         # 6. Test Zero UI element overlap
         print("6. Testing UI bounding box non-overlap...")

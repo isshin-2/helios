@@ -51,6 +51,7 @@
 | **TASK-29** | `helios-character` | Dedicated 3D Prop & Biomechanical Body Pose Adjustment Studio Menu | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-30** | `helios-character` | Dual Twin Synergy Stabilization, Bone Kinematics & Reactive Auto-Apply System | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-31** | `helios-character` | Remove Monocle Black Line/Square Clutter & Add 3D Prop Rotation Suite | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-32** | `helios-character` | 3D Hand/Wrist Rotation Controls & Target Avatar Auto VRM Switching | `@Orchestrator VERIFIED` | Orchestrator |
 
 ---
 
@@ -579,6 +580,33 @@ otation.x = +0.68 rad ~ 39 deg) with hands and wrists ergonomically holding the 
   - Automated tests in `test_adjuster_menu.py` verified 100% pass rate: dynamic Pitch, Yaw, Roll slider adjustments (`droneRotX: 15`, `droneRotY: -25`, `droneRotZ: 45`) properly updated badge labels, mutated calibration objects, and persisted to `localStorage`.
   - `test_props_and_dual_twin.py` passed 100%: verified 0 blue light on drone, 9 high-rendered objects, and `hasBoomArmOrBoxes: False` on monocle.
   - Visual verification with Playwright close-up screenshot (`viewer/test_monocle_no_black_clutter.png`) confirmed 100% clean ocular HUD optic with zero boom mic line or square clutter.
+
+---
+
+### [TASK-32] 3D Hand/Wrist Rotation Controls & Target Avatar Auto VRM Switching
+- **Status:** `@Orchestrator VERIFIED`
+- **Component:** `helios-character/viewer/app.js`, `viewer/index.html`, & `test_adjuster_menu.py`
+- **Resolution:**
+  1. **3D Hand / Wrist Rotation Controls**:
+     - Added 3D rotation sliders into both Right Arm & Left Arm cards in `#adjust-subpane-body`:
+       - Right Hand Pitch (`slider-body-r-hand-pitch`), Yaw (`slider-body-r-hand-yaw`), Roll (`slider-body-r-hand-roll`) from `-90°` to `+90°` (step `1°`).
+       - Left Hand Pitch (`slider-body-l-hand-pitch`), Yaw (`slider-body-l-hand-yaw`), Roll (`slider-body-l-hand-roll`) from `-90°` to `+90°` (step `1°`).
+     - Added `rHandPitch/Yaw/Roll` and `lHandPitch/Yaw/Roll` to `activeBodyPoseAdjustments`.
+     - Integrated `handRotOffset` into `solveAndApplyArmIK()` using local quaternion multiplication (`_qLocal.multiply(_qHandOffset)` with `'YXZ'` Euler order) for natural wrist flexion, extension, pronation, supination, and deviation.
+     - Integrated corresponding Euler offsets into `applySecondaryTwinPose()` for Ren (`rHandRot` / `lHandRot`).
+     - Supported Live Capture (`btnBodyCapture`) to read live hand joint rotations, Reset (`btnBodyReset`) to restore neutral 0°, and Save (`btnBodySave`) to serialize custom hand rotations into preset bone data.
+  2. **Target Avatar Auto VRM Model Switching**:
+     - Upgraded `#select-body-target` (`active`, `airi`, `ren`, `both`) change listener:
+       - Selecting `airi`: Automatically switches scene to HELIOS Airi VRM (`DEFAULT_VRM_URL`).
+       - Selecting `ren`: Automatically switches scene to HELIOS Twin (Brother Ren) VRM (`TWIN_VRM_URL`).
+       - Selecting `both`: Automatically activates Dual Twin Synergy mode with Airi & Ren on-screen side-by-side.
+     - Maintained full bidirectional sync from main avatar buttons (`btnModelHelios`, `btnModelTwin`, `btnModelDual`) back to `#select-body-target`.
+- **Verification:**
+  - Automated tests in `test_adjuster_menu.py`: 100% passed (verified right/left hand pitch, yaw, roll sliders, reset restoration, and avatar switching from `ren` -> `twin`, `both` -> `dualTwinModeActive: True`, and `airi` -> `airi`).
+  - Automated tests in `test_props_and_dual_twin.py`: 100% passed.
+  - Automated tests in `test_menu_states.py`: 100% passed.
+  - Visual verification with Playwright screenshot (`viewer/test_hand_rotation_ui.png`) confirmed non-overlapping layout and proper slider rendering.
+
 
 
 
