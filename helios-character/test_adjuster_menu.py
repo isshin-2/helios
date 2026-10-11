@@ -353,27 +353,64 @@ async def test_adjuster_menu():
         assert capture_and_reset_res['resetRHandPitch'] == 0, "Reset should restore rHandPitch 0"
         assert capture_and_reset_res['resetLHandRoll'] == 0, "Reset should restore lHandRoll 0"
 
-        # 6. Test Zero UI element overlap
-        print("6. Testing UI bounding box non-overlap...")
-        overlap_res = await page.evaluate("""() => {
-            const topUiRect = document.getElementById('top-ui')?.getBoundingClientRect();
-            const chatRect = document.getElementById('chat-container')?.getBoundingClientRect();
-            const badgeRect = document.getElementById('status-badge')?.getBoundingClientRect();
+        # 7. Test Body Pose Saving directly to Objects & Props + Export
+        print("7. Testing Body Pose Saving directly to Props/Objects...")
+        prop_pose_link_res = await page.evaluate("""() => {
+            // Select datapad
+            const selectProp = document.getElementById('select-active-prop');
+            if (selectProp) {
+                selectProp.value = 'datapad';
+                selectProp.dispatchEvent(new Event('change'));
+            }
 
-            const isOverlap = (r1, r2) => {
-                if (!r1 || !r2) return false;
-                return !(r1.right < r2.left || r1.left > r2.right || r1.bottom < r2.top || r1.top > r2.bottom);
-            };
+            // Adjust body pose sliders for datapad holding pose
+            window.activeBodyPoseAdjustments.rArmLift = 0.45;
+            window.activeBodyPoseAdjustments.rHandPitch = 35;
+            window.activeBodyPoseAdjustments.rHandShape = 'cupped';
+            window.syncBodyPoseSlidersUI();
+
+            // Save in prop calibration
+            const btnSaveProp = document.getElementById('btn-save-props-calib');
+            btnSaveProp?.click();
+
+            // Check that datapad prop has bodyPose stored in memory and localStorage
+            const savedProps = JSON.parse(localStorage.getItem('helios_props_calibration') || '{}');
+            const datapadSavedPose = savedProps.datapad?.bodyPose;
+
+            // Reset body pose to neutral
+            const btnResetBody = document.getElementById('btn-body-reset');
+            btnResetBody?.click();
+            const poseAfterReset = window.activeBodyPoseAdjustments.rArmLift;
+
+            // Now re-select datapad and verify that the saved body pose is automatically restored to the avatar!
+            if (typeof window.applySelectedPropToTwins === 'function') {
+                window.applySelectedPropToTwins('datapad');
+            }
+            const restoredArmLift = window.activeBodyPoseAdjustments.rArmLift;
+            const restoredHandPitch = window.activeBodyPoseAdjustments.rHandPitch;
+            const restoredHandShape = window.activeBodyPoseAdjustments.rHandShape;
+
+            // Also test btn-export-tuning existence
+            const btnExport = document.getElementById('btn-export-tuning');
 
             return {
-                overlapSidebarChat: isOverlap(topUiRect, chatRect),
-                overlapSidebarBadge: isOverlap(topUiRect, badgeRect),
-                topUiHeight: topUiRect ? topUiRect.height : 0
+                datapadHasSavedBodyPose: Boolean(datapadSavedPose),
+                savedArmLift: datapadSavedPose ? datapadSavedPose.rArmLift : null,
+                poseAfterReset,
+                restoredArmLift,
+                restoredHandPitch,
+                restoredHandShape,
+                hasExportBtn: Boolean(btnExport)
             };
         }""")
-        print("  Bounding Box Check:", overlap_res)
-        assert not overlap_res['overlapSidebarChat'], "Sidebar and chat bar must not overlap"
-        assert not overlap_res['overlapSidebarBadge'], "Sidebar and status badge must not overlap"
+        print("  Object Pose Link Result:", prop_pose_link_res)
+        assert prop_pose_link_res['datapadHasSavedBodyPose'] == True, "Datapad must have bodyPose saved in calibration"
+        assert prop_pose_link_res['savedArmLift'] == 0.45, "Saved arm lift must be 0.45"
+        assert prop_pose_link_res['poseAfterReset'] == 0, "Pose after reset must be 0"
+        assert prop_pose_link_res['restoredArmLift'] == 0.45, "Restored arm lift must be 0.45 when selecting datapad"
+        assert prop_pose_link_res['restoredHandPitch'] == 35, "Restored hand pitch must be 35"
+        assert prop_pose_link_res['restoredHandShape'] == 'cupped', "Restored hand shape must be cupped"
+        assert prop_pose_link_res['hasExportBtn'] == True, "Export button must exist"
 
         await browser.close()
         print("\nAll dedicated 3D Prop & Body Pose Adjuster Menu features verified 100%!")

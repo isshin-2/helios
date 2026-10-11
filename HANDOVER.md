@@ -52,6 +52,7 @@
 | **TASK-30** | `helios-character` | Dual Twin Synergy Stabilization, Bone Kinematics & Reactive Auto-Apply System | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-31** | `helios-character` | Remove Monocle Black Line/Square Clutter & Add 3D Prop Rotation Suite | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-32** | `helios-character` | 3D Hand/Wrist Rotation Controls & Target Avatar Auto VRM Switching | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-33** | `helios-character` | Prop-Object Body Pose Binding, Auto-Restoration & JSON Calibration Export | `@Orchestrator VERIFIED` | Orchestrator |
 
 ---
 

@@ -226,6 +226,9 @@ window.monocleCalibration = monocleCalibration;
 
 window.savePropsCalibration = () => {
     try {
+        if (typeof activePropId !== 'undefined' && propsCalibration[activePropId] && typeof activeBodyPoseAdjustments !== 'undefined') {
+            propsCalibration[activePropId].bodyPose = JSON.parse(JSON.stringify(activeBodyPoseAdjustments));
+        }
         localStorage.setItem('helios_props_calibration', JSON.stringify(propsCalibration));
         localStorage.setItem('helios_monocle_calibration', JSON.stringify(propsCalibration.monocle));
         return true;
@@ -238,6 +241,7 @@ window.savePropsCalibration = () => {
 window.resetPropCalibration = (propId) => {
     if (PROPS_CONFIG[propId]) {
         propsCalibration[propId] = { ...PROPS_CONFIG[propId].defaults };
+        delete propsCalibration[propId].bodyPose;
         window.savePropsCalibration();
         if (window.syncActivePropSlidersUI) window.syncActivePropSlidersUI();
     }
@@ -3569,6 +3573,18 @@ function setPose(poseName, autoReturnMs = 0) {
     const nowTime = typeof clock !== 'undefined' && clock ? clock.getElapsedTime() : 0;
     if (customPoseRegistry.has(cleanPose)) {
         customPoseStartTime = nowTime;
+        const cPose = customPoseRegistry.get(cleanPose);
+        if (cPose && cPose.propId && typeof window.applySelectedPropToTwins === 'function') {
+            if (cPose.propCalibration && window.propsCalibration && window.propsCalibration[cPose.propId]) {
+                Object.assign(window.propsCalibration[cPose.propId], cPose.propCalibration);
+            }
+            window.applySelectedPropToTwins(cPose.propId);
+        }
+    } else if (typeof POSE_TO_PROP_MAP !== 'undefined' && POSE_TO_PROP_MAP[cleanPose] && typeof window.applySelectedPropToTwins === 'function') {
+        const mappedProp = POSE_TO_PROP_MAP[cleanPose];
+        if (typeof activePropId !== 'undefined' && activePropId !== mappedProp) {
+            window.applySelectedPropToTwins(mappedProp);
+        }
     }
     if (isIdleObjectOrWaitingPose(cleanPose)) {
         idleInteractionStartTime = nowTime;
@@ -7621,6 +7637,14 @@ function applySelectedPropToTwins(propId) {
             updateStatus('📑 Wrist Holographic HUD Projected');
             break;
     }
+
+    // If this prop has an associated body pose saved to it, restore and apply it seamlessly!
+    if (propsCalibration[propId] && propsCalibration[propId].bodyPose) {
+        Object.assign(activeBodyPoseAdjustments, propsCalibration[propId].bodyPose);
+        if (typeof syncBodyPoseSlidersUI === 'function') {
+            syncBodyPoseSlidersUI();
+        }
+    }
 }
 window.applySelectedPropToTwins = applySelectedPropToTwins;
 
@@ -8184,6 +8208,10 @@ if (btnBodySave) {
         const cleanKey = 'custom_' + poseName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
         const poseData = {
             label: poseName.trim(),
+            propId: typeof activePropId !== 'undefined' ? activePropId : null,
+            propCalibration: (typeof activePropId !== 'undefined' && propsCalibration[activePropId]) ? JSON.parse(JSON.stringify(propsCalibration[activePropId])) : null,
+            targetAvatar: activeBodyPoseAdjustments.target || 'active',
+            bodyAdjustments: JSON.parse(JSON.stringify(activeBodyPoseAdjustments)),
             bones: {
                 head: [activeBodyPoseAdjustments.headPitch, activeBodyPoseAdjustments.headYaw, activeBodyPoseAdjustments.headRoll],
                 neck: [activeBodyPoseAdjustments.neckPitch, 0, 0],
@@ -8216,6 +8244,12 @@ if (btnBodySave) {
 
         customPoseRegistry.set(cleanKey, poseData);
 
+        // Also save this body pose directly to the active prop object!
+        if (typeof activePropId !== 'undefined' && propsCalibration[activePropId]) {
+            propsCalibration[activePropId].bodyPose = JSON.parse(JSON.stringify(activeBodyPoseAdjustments));
+            window.savePropsCalibration();
+        }
+
         // Store into localStorage
         try {
             const savedPoses = JSON.parse(localStorage.getItem('helios_studio_custom_poses') || '{}');
@@ -8225,26 +8259,95 @@ if (btnBodySave) {
             console.warn('Could not persist pose to localStorage:', e);
         }
 
-        // Add button to #custom-pose-buttons
+        // Add button to #custom-pose-buttons if not present
         const customGrid = document.getElementById('custom-pose-buttons');
         if (customGrid) {
-            const btn = document.createElement('button');
-            btn.setAttribute('data-custom-pose', cleanKey);
-            btn.innerText = `🦾 ${poseName.trim()}`;
-            btn.onclick = () => {
-                document.querySelectorAll('#custom-pose-buttons button').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                setPose(cleanKey);
-            };
-            customGrid.appendChild(btn);
+            let btn = customGrid.querySelector(`button[data-custom-pose="${cleanKey}"]`);
+            if (!btn) {
+                btn = document.createElement('button');
+                btn.setAttribute('data-custom-pose', cleanKey);
+                btn.innerText = `🦾 ${poseName.trim()}`;
+                btn.onclick = () => {
+                    document.querySelectorAll('#custom-pose-buttons button').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    setPose(cleanKey);
+                };
+                customGrid.appendChild(btn);
+            }
         }
 
         if (bodySaveFeedback) {
             bodySaveFeedback.style.display = 'block';
-            bodySaveFeedback.innerText = `✓ Saved "${poseName.trim()}" into Custom Poses!`;
+            bodySaveFeedback.innerText = `✓ Saved "${poseName.trim()}" linked to [${activePropId.toUpperCase()}]!`;
             setTimeout(() => { bodySaveFeedback.style.display = 'none'; }, 3000);
         }
-        updateStatus(`💾 Custom pose saved: ${poseName.trim()}`);
+        updateStatus(`💾 Custom pose "${poseName.trim()}" saved & bound to object ${activePropId.toUpperCase()}!`);
+    });
+}
+
+// ----------------------------------------------------
+// LOAD PERSISTED CUSTOM POSES & INITIALIZE EXPORT TUNING
+// ----------------------------------------------------
+function loadSavedCustomPosesFromStorage() {
+    try {
+        const savedPoses = JSON.parse(localStorage.getItem('helios_studio_custom_poses') || '{}');
+        const customGrid = document.getElementById('custom-pose-buttons');
+        for (const [key, poseData] of Object.entries(savedPoses)) {
+            customPoseRegistry.set(key, poseData);
+            if (customGrid && !customGrid.querySelector(`button[data-custom-pose="${key}"]`)) {
+                const btn = document.createElement('button');
+                btn.setAttribute('data-custom-pose', key);
+                btn.innerText = `🦾 ${poseData.label || key}`;
+                btn.onclick = () => {
+                    document.querySelectorAll('#custom-pose-buttons button').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    setPose(key);
+                };
+                customGrid.appendChild(btn);
+            }
+        }
+    } catch (e) {
+        console.warn('Error loading custom poses from storage:', e);
+    }
+}
+loadSavedCustomPosesFromStorage();
+
+// Export Calibration and Body Poses into Downloadable JSON or Clipboard
+const btnExportTuning = document.getElementById('btn-export-tuning');
+if (btnExportTuning) {
+    btnExportTuning.addEventListener('click', () => {
+        const exportData = {
+            version: 'helios-2.0-tuning',
+            exportedAt: new Date().toISOString(),
+            activeProp: activePropId,
+            propsCalibration: propsCalibration,
+            activeBodyPoseAdjustments: activeBodyPoseAdjustments,
+            customPoses: JSON.parse(localStorage.getItem('helios_studio_custom_poses') || '{}')
+        };
+        const jsonStr = JSON.stringify(exportData, null, 2);
+
+        // Try copying to clipboard
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(jsonStr).then(() => {
+                updateStatus('📋 Tuning config copied to clipboard!');
+            }).catch(() => {});
+        }
+
+        // Trigger JSON download file
+        try {
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `helios_tuning_${activePropId}_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            updateStatus('📥 Tuning configuration JSON downloaded!');
+        } catch (e) {
+            console.error('Download export failed:', e);
+        }
     });
 }
 
