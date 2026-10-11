@@ -301,6 +301,34 @@
                                 </div>
                                 <input id="slider-prop-4" type="range" min="0.70" max="1.40" value="1.00" step="0.02" style="width: 100%;">
                             </div>
+                            <!-- 3D Prop Rotation (Pitch, Yaw, Roll) -->
+                            <div id="row-prop-rot-container" style="margin-top: 4px; padding-top: 6px; border-top: 1px solid rgba(0, 229, 255, 0.15); display: flex; flex-direction: column; gap: 4px;">
+                                <div style="font-size: 9px; font-weight: 700; color: #00e5ff; text-transform: uppercase; letter-spacing: 0.5px;">🔄 Prop Rotation / Orientation:</div>
+                                <!-- Pitch (Rot X) -->
+                                <div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                        <span id="label-slider-rot-x">Pitch (Rot X):</span>
+                                        <span id="val-slider-rot-x" style="color: #00e5ff; font-weight: 600;">0°</span>
+                                    </div>
+                                    <input id="slider-prop-rot-x" type="range" min="-180" max="180" value="0" step="1" style="width: 100%;">
+                                </div>
+                                <!-- Yaw (Rot Y) -->
+                                <div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                        <span id="label-slider-rot-y">Yaw (Rot Y):</span>
+                                        <span id="val-slider-rot-y" style="color: #00e5ff; font-weight: 600;">0°</span>
+                                    </div>
+                                    <input id="slider-prop-rot-y" type="range" min="-180" max="180" value="0" step="1" style="width: 100%;">
+                                </div>
+                                <!-- Roll (Rot Z) -->
+                                <div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                        <span id="label-slider-rot-z">Roll (Rot Z):</span>
+                                        <span id="val-slider-rot-z" style="color: #00e5ff; font-weight: 600;">0°</span>
+                                    </div>
+                                    <input id="slider-prop-rot-z" type="range" min="-180" max="180" value="0" step="1" style="width: 100%;">
+                                </div>
+                            </div>
                             <!-- Movement Path / Orbit Mode (for drone / butterfly / orb) -->
                             <div id="row-prop-path-mode" style="margin-top: 2px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">

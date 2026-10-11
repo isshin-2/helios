@@ -50,6 +50,7 @@
 | **TASK-28** | `helios-character` | High-Rendered PBR 3D Objects, Zero Blue Light Drone Optics & Dual Twin Synergy Mode | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-29** | `helios-character` | Dedicated 3D Prop & Biomechanical Body Pose Adjustment Studio Menu | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-30** | `helios-character` | Dual Twin Synergy Stabilization, Bone Kinematics & Reactive Auto-Apply System | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-31** | `helios-character` | Remove Monocle Black Line/Square Clutter & Add 3D Prop Rotation Suite | `@Orchestrator VERIFIED` | Orchestrator |
 
 ---
 
@@ -556,5 +557,28 @@ otation.x = +0.68 rad ~ 39 deg) with hands and wrists ergonomically holding the 
   - Automated tests in `test_adjuster_menu.py` verified auto-apply on prop selection (`butterfly` -> `idle_airi_butterfly`, `katana` -> `sword_guard_ready`, `drone` -> `idle_ren_drone`).
   - `python test_props_and_dual_twin.py` passed 100% (zero blue light on drone, 9 high-rendered objects, dual twin synergy mode).
   - `python test_menu_states.py` passed 100% (all state buttons, gender-specific pose pools, zero UI bounding-box overlap).
+
+---
+
+### [TASK-31] Remove Monocle Black Line/Square Clutter & Add 3D Prop Rotation Suite
+- **Status:** `@Orchestrator VERIFIED`
+- **Component:** `helios-character/viewer/app.js`, `viewer/index.html`, `test_adjuster_menu.py`, & `test_props_and_dual_twin.py`
+- **Resolution:**
+  1. **Monocle Clutter Removal (Zero Black Line & Square Geometries)**:
+     - Identified that the black diagonal line and square clutter depicted in user capture `media_1791720600319.png` originated from the articulated collar boom microphone cylinder (`micArmGeo` / `micArmMesh` in dark charcoal `0x1b202c`), the mic capsule block (`micCapsuleGeo` / `micCapsuleMesh`), the horizontal brow block (`browArchGeo`), and the lateral sensor pod box (`sensorPodGeo`, `microCamMesh`, `noseClawMesh`, `templeArm1/2`).
+     - Removed all dark box and cylinder meshes from `monocleGroup`.
+     - Preserved and enhanced the sleek glowing holographic ocular HUD optic: sapphire AR prism lens (`monocleLensMesh`), titanium ocular bezel ring (`monocleRimMesh`), glowing wireframe edges (`monocleEdgeMesh`), telemetry target ring (`innerRingMesh`), and retinal tracking reticle crosshairs (`monocleReticleMesh`).
+     - Upgraded materials to glowing cyan titanium PBR (`color: 0x00e5ff`, `emissive: 0x0088aa`, roughness: 0.15, metalness: 0.85).
+     - Verified in `test_props_and_dual_twin.py` that `monocleGroup.children` contains **0** `BoxGeometry` or `CylinderGeometry` meshes (`hasBoomArmOrBoxes: False`).
+  2. **3D Prop Rotation Tuner (Pitch, Yaw, Roll)**:
+     - Added Pitch (`slider-prop-rot-x`), Yaw (`slider-prop-rot-y`), and Roll (`slider-prop-rot-z`) sliders with real-time degree badges (`-180°` to `+180°`, step `1°`) into `#prop-sliders-container` in `index.html`.
+     - Configured `rotX: 0, rotY: 0, rotZ: 0` defaults across all 9 props in `PROPS_CONFIG` (`monocle`, `drone`, `butterfly`, `console`, `katana`, `holodice`, `datapad`, `orb`, `popup`).
+     - Integrated live UI sync in `syncActivePropSlidersUI()` and live bidirectional input listeners persisting orientation offsets to `propsCalibration[activePropId]` and `localStorage`.
+     - Integrated dynamic Euler / Quaternion rotation offsets across all 9 props in `updateInteractiveObjectsAndHud()`, supporting anatomical bone-relative quaternion multiplication for head-anchored props (`monocle`) and hand-anchored props (`katana` for Airi and Ren).
+- **Verification:**
+  - Automated tests in `test_adjuster_menu.py` verified 100% pass rate: dynamic Pitch, Yaw, Roll slider adjustments (`droneRotX: 15`, `droneRotY: -25`, `droneRotZ: 45`) properly updated badge labels, mutated calibration objects, and persisted to `localStorage`.
+  - `test_props_and_dual_twin.py` passed 100%: verified 0 blue light on drone, 9 high-rendered objects, and `hasBoomArmOrBoxes: False` on monocle.
+  - Visual verification with Playwright close-up screenshot (`viewer/test_monocle_no_black_clutter.png`) confirmed 100% clean ocular HUD optic with zero boom mic line or square clutter.
+
 
 

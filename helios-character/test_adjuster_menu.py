@@ -125,6 +125,23 @@ async def test_adjuster_menu():
                 sliderSpeed.dispatchEvent(new Event('input'));
             }
 
+            const sliderRotX = document.getElementById('slider-prop-rot-x');
+            const sliderRotY = document.getElementById('slider-prop-rot-y');
+            const sliderRotZ = document.getElementById('slider-prop-rot-z');
+
+            if (sliderRotX) {
+                sliderRotX.value = '15';
+                sliderRotX.dispatchEvent(new Event('input'));
+            }
+            if (sliderRotY) {
+                sliderRotY.value = '-25';
+                sliderRotY.dispatchEvent(new Event('input'));
+            }
+            if (sliderRotZ) {
+                sliderRotZ.value = '45';
+                sliderRotZ.dispatchEvent(new Event('input'));
+            }
+
             // Click save
             if (btnSave) btnSave.click();
 
@@ -138,6 +155,9 @@ async def test_adjuster_menu():
                 katanaScale: calib.katana?.scale,
                 dronePath: calib.drone?.pathMode,
                 droneSpeed: calib.drone?.speed,
+                droneRotX: calib.drone?.rotX,
+                droneRotY: calib.drone?.rotY,
+                droneRotZ: calib.drone?.rotZ,
                 savedInStorage: Boolean(storageItem && storageItem.includes('figure8'))
             };
         }""")
@@ -148,6 +168,9 @@ async def test_adjuster_menu():
         assert prop_tuner_res['katanaScale'] == 1.26, f"Expected katana scale 1.26, got {prop_tuner_res['katanaScale']}"
         assert prop_tuner_res['dronePath'] == 'figure8', f"Expected drone path figure8, got {prop_tuner_res['dronePath']}"
         assert prop_tuner_res['droneSpeed'] == 1.75, f"Expected drone speed 1.75, got {prop_tuner_res['droneSpeed']}"
+        assert prop_tuner_res['droneRotX'] == 15, f"Expected drone rotX 15, got {prop_tuner_res['droneRotX']}"
+        assert prop_tuner_res['droneRotY'] == -25, f"Expected drone rotY -25, got {prop_tuner_res['droneRotY']}"
+        assert prop_tuner_res['droneRotZ'] == 45, f"Expected drone rotZ 45, got {prop_tuner_res['droneRotZ']}"
         assert prop_tuner_res['savedInStorage'], "Prop calibration must persist into localStorage"
 
         # 4. Test Biomechanical Body Pose Tuner

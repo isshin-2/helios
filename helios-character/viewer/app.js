@@ -84,7 +84,7 @@ window.rigEditor = rigEditor;
 // ----------------------------------------------------
 const PROPS_CONFIG = {
     monocle: {
-        name: "Ren's Neural Monocle HUD (HEL-MIC-02 / MN-01)",
+        name: "Ren's Neural Monocle HUD (MN-01)",
         hasPath: false,
         labels: { x: "Left / Right (X):", y: "Up / Down (Y):", z: "Forward / Back (Z):", scale: "Scale Size:" },
         ranges: {
@@ -93,7 +93,7 @@ const PROPS_CONFIG = {
             z: { min: 0.040, max: 0.120, step: 0.001, unit: "m" },
             scale: { min: 0.70, max: 1.40, step: 0.02, unit: "x" }
         },
-        defaults: { x: 0.0336, y: 0.0575, z: 0.0760, scale: 1.00, pathMode: 'none', speed: 1.00 }
+        defaults: { x: 0.0336, y: 0.0575, z: 0.0760, scale: 1.00, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'none', speed: 1.00 }
     },
     drone: {
         name: "Ren's Tactical Recon Drone (SD-04 Ghosteye)",
@@ -105,7 +105,7 @@ const PROPS_CONFIG = {
             z: { min: -0.40, max: 0.40, step: 0.01, unit: "m" },
             scale: { min: 0.60, max: 1.80, step: 0.05, unit: "x" }
         },
-        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'recon_orbit', speed: 1.00 }
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'recon_orbit', speed: 1.00 }
     },
     butterfly: {
         name: "Airi's Bio-Quantum Butterfly (SD-01)",
@@ -117,7 +117,7 @@ const PROPS_CONFIG = {
             z: { min: -0.25, max: 0.25, step: 0.01, unit: "m" },
             scale: { min: 0.60, max: 1.80, step: 0.05, unit: "x" }
         },
-        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'hover_perch', speed: 1.00 }
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'hover_perch', speed: 1.00 }
     },
     console: {
         name: "Arcade Cyber Deck (HEL-DCK-01)",
@@ -129,7 +129,7 @@ const PROPS_CONFIG = {
             z: { min: -0.15, max: 0.25, step: 0.005, unit: "m" },
             scale: { min: 0.70, max: 1.50, step: 0.02, unit: "x" }
         },
-        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'none', speed: 1.00 }
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'none', speed: 1.00 }
     },
     katana: {
         name: "Tactical Plasma Blade (HEL-BLD-01 / 02)",
@@ -141,7 +141,7 @@ const PROPS_CONFIG = {
             z: { min: -0.20, max: 0.25, step: 0.005, unit: "m" },
             scale: { min: 0.70, max: 1.60, step: 0.02, unit: "x" }
         },
-        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'none', speed: 1.00 }
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'none', speed: 1.00 }
     },
     holodice: {
         name: "Airi's Quantum Holo-Dice (HEL-RNG-01)",
@@ -153,7 +153,7 @@ const PROPS_CONFIG = {
             z: { min: -0.25, max: 0.25, step: 0.01, unit: "m" },
             scale: { min: 0.60, max: 2.00, step: 0.05, unit: "x" }
         },
-        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'hover_perch', speed: 1.00 }
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'hover_perch', speed: 1.00 }
     },
     datapad: {
         name: "Ren's Tactical Datapad (HEL-PAD-02)",
@@ -165,7 +165,7 @@ const PROPS_CONFIG = {
             z: { min: -0.15, max: 0.25, step: 0.005, unit: "m" },
             scale: { min: 0.70, max: 1.50, step: 0.02, unit: "x" }
         },
-        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'none', speed: 1.00 }
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'none', speed: 1.00 }
     },
     orb: {
         name: "HELIOS Black Hole Core Orb",
@@ -177,7 +177,7 @@ const PROPS_CONFIG = {
             z: { min: -0.30, max: 0.30, step: 0.01, unit: "m" },
             scale: { min: 0.60, max: 1.80, step: 0.05, unit: "x" }
         },
-        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'recon_orbit', speed: 1.00 }
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'recon_orbit', speed: 1.00 }
     },
     popup: {
         name: "Left-Wrist Holographic Popup HUD",
@@ -189,7 +189,7 @@ const PROPS_CONFIG = {
             z: { min: -0.25, max: 0.35, step: 0.01, unit: "m" },
             scale: { min: 0.60, max: 1.60, step: 0.02, unit: "x" }
         },
-        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, pathMode: 'none', speed: 1.00 }
+        defaults: { x: 0.00, y: 0.00, z: 0.00, scale: 1.00, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'none', speed: 1.00 }
     }
 };
 
@@ -1003,23 +1003,27 @@ function createInteractiveIdleObjects(parentScene) {
     monocleGroup.name = 'RenCyberMonocle3D';
     monocleGroup.visible = false;
 
-    // Materials (High-Rendered PBR)
+    // Materials (High-Rendered Holographic PBR - Zero Black Line or Square Clutter)
     const monocleRimMat = new THREE.MeshStandardMaterial({
-        color: 0x1b202c,
-        roughness: 0.25,
-        metalness: 0.9,
+        color: 0x00e5ff,
+        emissive: 0x0088aa,
+        emissiveIntensity: 0.8,
+        roughness: 0.15,
+        metalness: 0.85,
         transparent: true,
         opacity: 0.0,
     });
     const monocleAccentMat = new THREE.MeshStandardMaterial({
-        color: 0x10141c,
-        roughness: 0.35,
+        color: 0x00e5ff,
+        roughness: 0.25,
         metalness: 0.85,
         transparent: true,
         opacity: 0.0,
     });
     const monocleLensMat = new THREE.MeshStandardMaterial({
         color: 0x00e5ff,
+        emissive: 0x006688,
+        emissiveIntensity: 0.5,
         roughness: 0.08,
         metalness: 0.15,
         transparent: true,
@@ -1027,7 +1031,7 @@ function createInteractiveIdleObjects(parentScene) {
         side: THREE.DoubleSide,
     });
     const monocleEdgeMat = new THREE.LineBasicMaterial({
-        color: 0x00e5ff,
+        color: 0x00ffff,
         transparent: true,
         opacity: 0.0,
     });
@@ -1070,81 +1074,6 @@ function createInteractiveIdleObjects(parentScene) {
     reticleGeo.setAttribute('position', new THREE.BufferAttribute(reticleVerts, 3));
     const monocleReticleMesh = new THREE.LineSegments(reticleGeo, monocleEdgeMat);
     monocleGroup.add(monocleReticleMesh);
-
-    // 5. Eyebrow Housing / Bridge Arch
-    const browArchGeo = new THREE.BoxGeometry(0.038, 0.004, 0.006);
-    const browArchMesh = new THREE.Mesh(browArchGeo, monocleRimMat);
-    browArchMesh.position.set(-0.004, 0.0175, 0.001);
-    browArchMesh.rotation.z = -0.08;
-    monocleGroup.add(browArchMesh);
-    const browEdgeMesh = new THREE.LineSegments(new THREE.EdgesGeometry(browArchGeo), monocleEdgeMat);
-    browArchMesh.add(browEdgeMesh);
-
-    // 6. Lateral Sensor Pod / Neural Data-Link Transmitter
-    const sensorPodGeo = new THREE.BoxGeometry(0.010, 0.022, 0.008);
-    const sensorPodMesh = new THREE.Mesh(sensorPodGeo, monocleAccentMat);
-    sensorPodMesh.position.set(0.021, 0.002, 0.002);
-    monocleGroup.add(sensorPodMesh);
-    const sensorPodEdge = new THREE.LineSegments(new THREE.EdgesGeometry(sensorPodGeo), monocleEdgeMat);
-    sensorPodMesh.add(sensorPodEdge);
-
-    // Dual horizontal telemetry LEDs on sensor pod
-    const monocleLedGeo = new THREE.BoxGeometry(0.006, 0.0018, 0.001);
-    const led1 = new THREE.Mesh(monocleLedGeo, monocleLedMat);
-    led1.position.set(0.021, 0.007, 0.0065);
-    monocleGroup.add(led1);
-    const led2 = new THREE.Mesh(monocleLedGeo, monocleLedMat);
-    led2.position.set(0.021, 0.002, 0.0065);
-    monocleGroup.add(led2);
-
-    // Micro-sensor optical camera aperture
-    const microCamGeo = new THREE.CylinderGeometry(0.0018, 0.0018, 0.002, 12);
-    microCamGeo.rotateX(Math.PI * 0.5);
-    const microCamMesh = new THREE.Mesh(microCamGeo, monocleRimMat);
-    microCamMesh.position.set(0.021, -0.006, 0.0065);
-    monocleGroup.add(microCamMesh);
-
-    // 7. Tactical Collar Boom Mic (HEL-MIC-02): Articulated arm extending along jaw
-    const micArmGeo = new THREE.CylinderGeometry(0.0014, 0.0014, 0.052, 8);
-    micArmGeo.translate(0, -0.026, 0);
-    const micArmMesh = new THREE.Mesh(micArmGeo, monocleRimMat);
-    micArmMesh.position.set(0.019, -0.008, 0.004);
-    micArmMesh.rotation.set(0.22, 0.12, 0.55);
-    monocleGroup.add(micArmMesh);
-
-    // Mic Capsule Head
-    const micCapsuleGeo = new THREE.CylinderGeometry(0.0028, 0.0028, 0.008, 12);
-    const micCapsuleMesh = new THREE.Mesh(micCapsuleGeo, monocleAccentMat);
-    micCapsuleMesh.position.set(0.046, -0.052, 0.015);
-    micCapsuleMesh.rotation.set(0.2, 0.4, 0);
-    monocleGroup.add(micCapsuleMesh);
-
-    // 8. Ergonomic Temple Arm (Curves seamlessly along left temple toward Ren's ear)
-    const templeArmGeo1 = new THREE.CylinderGeometry(0.0018, 0.0018, 0.035, 8);
-    templeArmGeo1.translate(0, 0.0175, 0);
-    const templeArm1 = new THREE.Mesh(templeArmGeo1, monocleRimMat);
-    templeArm1.position.set(0.024, 0.008, 0.0);
-    templeArm1.rotation.set(-0.25, 1.45, 0);
-    monocleGroup.add(templeArm1);
-
-    const templeArmGeo2 = new THREE.CylinderGeometry(0.0018, 0.0025, 0.030, 8);
-    templeArmGeo2.translate(0, 0.015, 0);
-    const templeArm2 = new THREE.Mesh(templeArmGeo2, monocleAccentMat);
-    templeArm2.position.set(0.027, 0.003, -0.032);
-    templeArm2.rotation.set(-0.55, 1.35, 0);
-    monocleGroup.add(templeArm2);
-
-    const earNodeGeo = new THREE.SphereGeometry(0.0022, 8, 8);
-    const earNodeMesh = new THREE.Mesh(earNodeGeo, monocleLensMat);
-    earNodeMesh.position.set(0.028, -0.008, -0.054);
-    monocleGroup.add(earNodeMesh);
-
-    // 9. Nose Bridge Stabilizer (Small inner titanium claw towards nasal bridge)
-    const noseClawGeo = new THREE.BoxGeometry(0.008, 0.003, 0.005);
-    const noseClawMesh = new THREE.Mesh(noseClawGeo, monocleRimMat);
-    noseClawMesh.position.set(-0.019, -0.002, -0.002);
-    noseClawMesh.rotation.set(0, 0.35, -0.2);
-    monocleGroup.add(noseClawMesh);
 
     parentScene.add(monocleGroup);
 
@@ -5743,9 +5672,9 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
 
         // Rotate ~180 deg around Y (Math.PI) so the FRONT of the popup faces the MODEL (not the user)
         popupGroup.rotation.set(
-            0.03 - pokeImpact * 0.07,
-            Math.PI - 0.05 + pokeImpact * 0.08,
-            Math.sin(elapsed * 1.5) * 0.012
+            0.03 - pokeImpact * 0.07 + THREE.MathUtils.degToRad(popupCalib.rotX || 0),
+            Math.PI - 0.05 + pokeImpact * 0.08 + THREE.MathUtils.degToRad(popupCalib.rotY || 0),
+            Math.sin(elapsed * 1.5) * 0.012 + THREE.MathUtils.degToRad(popupCalib.rotZ || 0)
         );
         const targetPopupScale = (isPopupCurious ? 0.94 : 0.60) * popupCalib.scale;
         popupGroup.scale.lerp(
@@ -5807,7 +5736,7 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
 
     if (coreMat.opacity > 0.01) {
         orbGroup.visible = true;
-        const orbCalib = propsCalibration.orb || { x: 0, y: 0, z: 0, scale: 1, pathMode: 'recon_orbit', speed: 1 };
+        const orbCalib = propsCalibration.orb || { x: 0, y: 0, z: 0, scale: 1, rotX: 0, rotY: 0, rotZ: 0, pathMode: 'recon_orbit', speed: 1 };
         const orbSpeed = (orbCalib.speed || 1.0);
         const orbTime = elapsed * orbSpeed;
 
@@ -5846,6 +5775,11 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         if (gyroRing2) {
             gyroRing2.rotation.z = THREE.MathUtils.degToRad(-15) - Math.cos(elapsed * 1.8) * 0.08;
         }
+        orbGroup.rotation.set(
+            THREE.MathUtils.degToRad(orbCalib.rotX || 0),
+            THREE.MathUtils.degToRad(orbCalib.rotY || 0),
+            THREE.MathUtils.degToRad(orbCalib.rotZ || 0)
+        );
         const orbScale = (isOrbCurious ? 1.05 + Math.sin(elapsed * 4.0) * 0.05 : 0.5) * (orbCalib.scale || 1.0);
         orbGroup.scale.lerp(new THREE.Vector3(orbScale, orbScale, orbScale), Math.min(1.0, delta * 7.0));
     } else {
@@ -5951,6 +5885,11 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
             _charBoneWorldPos.z + hoverZ + bCalib.z
         );
         butterflyGroup.scale.setScalar(bCalib.scale || 1.0);
+        butterflyGroup.rotation.set(
+            THREE.MathUtils.degToRad(bCalib.rotX || 0),
+            THREE.MathUtils.degToRad(bCalib.rotY || 0),
+            THREE.MathUtils.degToRad(bCalib.rotZ || 0)
+        );
 
         // Wing flap rotations (left and right wings mirror flap)
         const wingFlap = Math.sin(elapsed * 18.0 * bSpeed); // flutter speed scales
@@ -6049,9 +5988,13 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         );
         droneGroup.scale.setScalar(droneCalib.scale || 1.0);
 
-        // Drone banks into its flight path tangentially + slight forward tilt
+        // Drone banks into its flight path tangentially + slight forward tilt + user calibrated rotation
         const pitchAngle = -0.12 + Math.sin(elapsed * 2.5) * 0.06;
-        droneGroup.rotation.set(pitchAngle, yawAngle, bankAngle);
+        droneGroup.rotation.set(
+            pitchAngle + THREE.MathUtils.degToRad(droneCalib.rotX || 0),
+            yawAngle + THREE.MathUtils.degToRad(droneCalib.rotY || 0),
+            bankAngle + THREE.MathUtils.degToRad(droneCalib.rotZ || 0)
+        );
 
         // Enclosed counter-rotating ducted fan rotors
         if (droneRotorMeshL) droneRotorMeshL.rotation.y = elapsed * 24.0 * droneSpeed;
@@ -6072,7 +6015,7 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         // Update Ren's Cyber Tactical Monocle HUD (mounted directly over left eye)
         if (monocleGroup && (renHeadBone || renEyeBone)) {
             monocleGroup.visible = true;
-            const mCalib = propsCalibration.monocle || { x: 0.0336, y: 0.0575, z: 0.0760, scale: 1.0 };
+            const mCalib = propsCalibration.monocle || { x: 0.0336, y: 0.0575, z: 0.0760, scale: 1.0, rotX: 0, rotY: 0, rotZ: 0 };
 
             if (renHeadBone) {
                 const headPos = new THREE.Vector3();
@@ -6080,6 +6023,17 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
                 renHeadBone.getWorldPosition(headPos);
                 renHeadBone.getWorldQuaternion(headRotQ);
                 monocleGroup.quaternion.copy(headRotQ);
+
+                if (mCalib.rotX || mCalib.rotY || mCalib.rotZ) {
+                    const rotEuler = new THREE.Euler(
+                        THREE.MathUtils.degToRad(mCalib.rotX || 0),
+                        THREE.MathUtils.degToRad(mCalib.rotY || 0),
+                        THREE.MathUtils.degToRad(mCalib.rotZ || 0),
+                        'YXZ'
+                    );
+                    const rotQ = new THREE.Quaternion().setFromEuler(rotEuler);
+                    monocleGroup.quaternion.multiply(rotQ);
+                }
 
                 // Calibrated anatomical offset in Ren's head local coordinates:
                 const localOffset = new THREE.Vector3(
@@ -6097,6 +6051,11 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
                     eyePos.x + mCalib.x,
                     eyePos.y + mCalib.y,
                     eyePos.z + mCalib.z
+                );
+                monocleGroup.rotation.set(
+                    THREE.MathUtils.degToRad(mCalib.rotX || 0),
+                    THREE.MathUtils.degToRad(mCalib.rotY || 0),
+                    THREE.MathUtils.degToRad(mCalib.rotZ || 0)
                 );
             }
 
@@ -6170,9 +6129,13 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         consoleGroup.position.set(mid.x + cCalib.x, mid.y + 0.015 + cCalib.y, mid.z + 0.015 + cCalib.z);
         consoleGroup.scale.setScalar(cCalib.scale || 1.0);
 
-        // Screen glows with subtle pulse while playing; bottom edge turns inward toward the body, screen tilted upward facing the avatar
+        // Screen glows with subtle pulse while playing; bottom edge turns inward toward the body, screen tilted upward facing the avatar + user calibrated rotation
         const screenPulse = 0.85 + Math.sin(elapsed * 6.0) * 0.15;
-        consoleGroup.rotation.set(0.68, Math.sin(elapsed * 2.0) * 0.04, 0);
+        consoleGroup.rotation.set(
+            0.68 + THREE.MathUtils.degToRad(cCalib.rotX || 0),
+            Math.sin(elapsed * 2.0) * 0.04 + THREE.MathUtils.degToRad(cCalib.rotY || 0),
+            THREE.MathUtils.degToRad(cCalib.rotZ || 0)
+        );
 
         consoleBodyMat.opacity = THREE.MathUtils.lerp(consoleBodyMat.opacity, 0.95, delta * 8.0);
         consoleEdgeMat.opacity = THREE.MathUtils.lerp(consoleEdgeMat.opacity, 0.92, delta * 8.0);
@@ -6210,7 +6173,7 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         } = interactiveSceneObjects;
         bladeGroup.visible = true;
 
-        const kCalib = propsCalibration.katana || { x: 0, y: 0, z: 0, scale: 1 };
+        const kCalib = propsCalibration.katana || { x: 0, y: 0, z: 0, scale: 1, rotX: 0, rotY: 0, rotZ: 0 };
         rHandBone.getWorldPosition(_charBoneWorldPos);
         const rHandRotQ = new THREE.Quaternion();
         rHandBone.getWorldQuaternion(rHandRotQ);
@@ -6246,6 +6209,15 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
 
             const qGrip = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI * 0.5));
             bladeGroup.quaternion.copy(rHandRotQ).multiply(qGrip);
+        }
+        if (kCalib.rotX || kCalib.rotY || kCalib.rotZ) {
+            const kRotQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+                THREE.MathUtils.degToRad(kCalib.rotX || 0),
+                THREE.MathUtils.degToRad(kCalib.rotY || 0),
+                THREE.MathUtils.degToRad(kCalib.rotZ || 0),
+                'YXZ'
+            ));
+            bladeGroup.quaternion.multiply(kRotQ);
         }
         bladeGroup.scale.setScalar(kCalib.scale || 1.0);
 
@@ -6291,7 +6263,7 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         } = interactiveSceneObjects;
         bladeGroupRen.visible = true;
 
-        const kCalib = propsCalibration.katana || { x: 0, y: 0, z: 0, scale: 1 };
+        const kCalib = propsCalibration.katana || { x: 0, y: 0, z: 0, scale: 1, rotX: 0, rotY: 0, rotZ: 0 };
         const renPos = new THREE.Vector3();
         const renRotQ = new THREE.Quaternion();
         renRHandBone.getWorldPosition(renPos);
@@ -6307,6 +6279,15 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
 
         const qGrip = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -Math.PI * 0.5));
         bladeGroupRen.quaternion.copy(renRotQ).multiply(qGrip);
+        if (kCalib.rotX || kCalib.rotY || kCalib.rotZ) {
+            const kRotQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+                THREE.MathUtils.degToRad(kCalib.rotX || 0),
+                THREE.MathUtils.degToRad(kCalib.rotY || 0),
+                THREE.MathUtils.degToRad(kCalib.rotZ || 0),
+                'YXZ'
+            ));
+            bladeGroupRen.quaternion.multiply(kRotQ);
+        }
         bladeGroupRen.scale.setScalar(kCalib.scale || 1.0);
 
         const plasmaPulseRen = 0.88 + Math.sin((elapsed + 0.5) * 12.0) * 0.12;
@@ -6337,7 +6318,7 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         const { holoDiceGroup, diceMat, diceCoreMat } = interactiveSceneObjects;
         if (isHoloDice && rHandBone) {
             holoDiceGroup.visible = true;
-            const diceCalib = propsCalibration.holodice || { x: 0, y: 0, z: 0, scale: 1 };
+            const diceCalib = propsCalibration.holodice || { x: 0, y: 0, z: 0, scale: 1, rotX: 0, rotY: 0, rotZ: 0 };
             rHandBone.getWorldPosition(_charBoneWorldPos);
 
             const hoverY = 0.075 + Math.sin(elapsed * 3.2) * 0.015;
@@ -6347,8 +6328,11 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
                 _charBoneWorldPos.z + 0.05 + diceCalib.z
             );
             holoDiceGroup.scale.setScalar((diceCalib.scale || 1.0) * (0.92 + 0.08 * Math.sin(elapsed * 2.5)));
-            holoDiceGroup.rotation.y = elapsed * 2.2;
-            holoDiceGroup.rotation.x = elapsed * 1.6;
+            holoDiceGroup.rotation.set(
+                elapsed * 1.6 + THREE.MathUtils.degToRad(diceCalib.rotX || 0),
+                elapsed * 2.2 + THREE.MathUtils.degToRad(diceCalib.rotY || 0),
+                THREE.MathUtils.degToRad(diceCalib.rotZ || 0)
+            );
 
             diceMat.opacity = THREE.MathUtils.lerp(diceMat.opacity, 0.92, delta * 8.0);
             diceCoreMat.opacity = THREE.MathUtils.lerp(diceCoreMat.opacity, 0.95, delta * 8.0);
@@ -6368,7 +6352,7 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
         if (isDatapad && (lHandBone || (secondaryVrm && secondaryVrm.humanoid))) {
             datapadGroup.visible = true;
             updateDatapadCanvas(elapsed);
-            const padCalib = propsCalibration.datapad || { x: 0, y: 0, z: 0, scale: 1 };
+            const padCalib = propsCalibration.datapad || { x: 0, y: 0, z: 0, scale: 1, rotX: 0, rotY: 0, rotZ: 0 };
 
             const anchorBone = (activeModelId === 'dual' && secondaryVrm?.humanoid)
                 ? (secondaryVrm.humanoid.getNormalizedBoneNode('leftHand') || secondaryVrm.humanoid.getNormalizedBoneNode('chest'))
@@ -6381,7 +6365,11 @@ function updateInteractiveObjectsAndHud(delta, elapsed) {
                     _charBoneWorldPos.y + 0.06 + padCalib.y,
                     _charBoneWorldPos.z + 0.08 + padCalib.z
                 );
-                datapadGroup.rotation.set(0.65, Math.sin(elapsed * 1.5) * 0.03, 0);
+                datapadGroup.rotation.set(
+                    0.65 + THREE.MathUtils.degToRad(padCalib.rotX || 0),
+                    Math.sin(elapsed * 1.5) * 0.03 + THREE.MathUtils.degToRad(padCalib.rotY || 0),
+                    THREE.MathUtils.degToRad(padCalib.rotZ || 0)
+                );
                 datapadGroup.scale.setScalar(padCalib.scale || 1.0);
             }
 
@@ -7412,6 +7400,13 @@ const labelSlider4 = document.getElementById('label-slider-4');
 const valSlider4 = document.getElementById('val-slider-4');
 const sliderProp4 = document.getElementById('slider-prop-4');
 
+const sliderPropRotX = document.getElementById('slider-prop-rot-x');
+const valSliderRotX = document.getElementById('val-slider-rot-x');
+const sliderPropRotY = document.getElementById('slider-prop-rot-y');
+const valSliderRotY = document.getElementById('val-slider-rot-y');
+const sliderPropRotZ = document.getElementById('slider-prop-rot-z');
+const valSliderRotZ = document.getElementById('val-slider-rot-z');
+
 const rowPropPathMode = document.getElementById('row-prop-path-mode');
 const selectPropPathMode = document.getElementById('select-prop-path-mode');
 const rowPropPathSpeed = document.getElementById('row-prop-path-speed');
@@ -7474,6 +7469,16 @@ function syncActivePropSlidersUI() {
     if (valSlider4) {
         valSlider4.innerText = calib.scale.toFixed(2) + config.ranges.scale.unit;
     }
+
+    // Prop Rotation (Pitch, Yaw, Roll)
+    if (sliderPropRotX) sliderPropRotX.value = calib.rotX || 0;
+    if (valSliderRotX) valSliderRotX.innerText = (calib.rotX || 0) + '°';
+
+    if (sliderPropRotY) sliderPropRotY.value = calib.rotY || 0;
+    if (valSliderRotY) valSliderRotY.innerText = (calib.rotY || 0) + '°';
+
+    if (sliderPropRotZ) sliderPropRotZ.value = calib.rotZ || 0;
+    if (valSliderRotZ) valSliderRotZ.innerText = (calib.rotZ || 0) + '°';
 
     // Path & Speed visibility
     if (rowPropPathMode) {
@@ -7616,6 +7621,28 @@ if (sliderProp4) {
         window.setPropCalibration(activePropId, { scale: val });
         const config = PROPS_CONFIG[activePropId];
         if (valSlider4) valSlider4.innerText = val.toFixed(2) + config.ranges.scale.unit;
+    });
+}
+
+if (sliderPropRotX) {
+    sliderPropRotX.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        window.setPropCalibration(activePropId, { rotX: val });
+        if (valSliderRotX) valSliderRotX.innerText = val + '°';
+    });
+}
+if (sliderPropRotY) {
+    sliderPropRotY.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        window.setPropCalibration(activePropId, { rotY: val });
+        if (valSliderRotY) valSliderRotY.innerText = val + '°';
+    });
+}
+if (sliderPropRotZ) {
+    sliderPropRotZ.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        window.setPropCalibration(activePropId, { rotZ: val });
+        if (valSliderRotZ) valSliderRotZ.innerText = val + '°';
     });
 }
 
