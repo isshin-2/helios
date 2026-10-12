@@ -233,29 +233,162 @@
                 </div>
             </div>
 
-            <!-- Tab 5: Dedicated 3D Prop & Biomechanical Body Pose Studio -->
+            <!-- Tab 5: Dedicated 3D Prop & Biomechanical Body Pose Studio Launcher -->
             <div id="tab-adjust" class="pose-tab-pane">
-                <div class="adjust-subtabs-header">
-                    <button type="button" class="adjust-subtab-btn active" id="subtab-btn-props" data-subtab="adjust-subpane-props">🕹️ Prop Tuner</button>
-                    <button type="button" class="adjust-subtab-btn" id="subtab-btn-body" data-subtab="adjust-subpane-body">🦾 Body Pose Tuner</button>
+                <div style="background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 10px; padding: 14px; text-align: center; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="font-size: 26px;">🎛️</div>
+                    <div style="font-size: 13px; font-weight: 700; color: #00e5ff; letter-spacing: 0.5px;">3D Prop & Pose Studio</div>
+                    <div style="font-size: 11px; color: #94a3b8; line-height: 1.45;">
+                        Dedicated slide-over studio to tune 3D gadget positions, hand rotations, and biomechanical posture offsets with isolated twin profiles.
+                    </div>
+                    <div style="display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 10.5px; color: #64748b; background: rgba(0,0,0,0.35); padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+                        <span>Target Avatar:</span>
+                        <span id="launcher-twin-target" style="color: #00e5ff; font-weight: 700;">AIRI</span>
+                    </div>
+                    <button id="btn-launch-adjust-studio" style="padding: 10px 14px; font-size: 12px; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, rgba(0,229,255,0.22), rgba(0,255,136,0.18)); color: #00e5ff; border: 1px solid rgba(0,229,255,0.45); cursor: pointer; transition: all 0.2s ease;">
+                        🚀 Open Standalone Studio Modal
+                    </button>
+                    <div style="display: flex; gap: 6px; margin-top: 2px;">
+                        <button id="btn-quick-adjust-props" style="flex: 1; padding: 6px; font-size: 10px; background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; cursor: pointer; font-weight: 600;">🕹️ Props</button>
+                        <button id="btn-quick-adjust-body" style="flex: 1; padding: 6px; font-size: 10px; background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; cursor: pointer; font-weight: 600;">🦾 Body Pose</button>
+                    </div>
                 </div>
+            </div>
+        </div>
 
+        <!-- Dynamically populated from VRM model preset expressions -->
+        <div id="preset-controls" class="sidebar-section" style="display: none;">
+            <span class="preset-label">BlendShapes:</span>
+            <div id="preset-buttons" class="sidebar-btn-grid"></div>
+        </div>
+    </aside>
+
+    <!-- Screen Glass Tap Ripple Overlay (triggered when VRM taps camera glass in idle_screen_curious) -->
+    <div id="screen-tap-ripple" class="screen-tap-ripple"></div>
+
+    <!-- Status message overlay -->
+    <div id="status-badge">
+        Loading HELIOS Character Add-On...
+    </div>
+
+    <!-- User-facing Activity HUD (Never exposes chain-of-thought) -->
+    <div id="thought-banner" style="display: none;">
+        <span class="thought-label">⚡ HELIOS Activity:</span>
+        <span id="thought-text"></span>
+    </div>
+
+    <!-- HELIOS Core Chat Relay UI -->
+    <div id="chat-container">
+        <div id="chat-log"></div>
+        <div id="chat-input-wrapper">
+            <button id="chat-mic" title="Hold or click to talk via microphone">🎤</button>
+            <input type="text" id="chat-input" placeholder="Send message to HELIOS Core..." autocomplete="off">
+            <button id="chat-send">Send</button>
+        </div>
+    </div>
+
+    <!-- Floating Quick-Access Bar for Edition Switcher & Personality Studio -->
+    <div id="floating-quick-bar" class="floating-quick-bar">
+        <div style="display: inline-flex; background: rgba(15, 19, 28, 0.9); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 3px; backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
+            <button id="btn-edition-full" title="Full Spec Version: HELIOS Core (:8000) + Tools + Sandbox + RAG + 3D Character" style="cursor: pointer; background: transparent; color: #94a3b8; border: none; border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 600; transition: all 0.15s ease;">
+                ⚡ Full Spec
+            </button>
+            <button id="btn-edition-character" title="Character-Only Version: Standalone 3D VRM Character + Local Chat + Neural TTS (No :8000 required)" style="cursor: pointer; background: rgba(0, 229, 255, 0.18); color: #00e5ff; border: none; border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 600; transition: all 0.15s ease;">
+                🎭 Just the Character
+            </button>
+        </div>
+        <button id="btn-call-mode" class="btn-call-mode" title="Start Hands-Free Voice Call with Airi">
+            📞 Call Mode
+        </button>
+        <button id="btn-floating-personality" style="cursor: pointer; background: rgba(15, 19, 28, 0.88); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.45); border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 600; backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
+            🧠 Personality & Prompts
+        </button>
+        <button id="btn-floating-adjust" style="cursor: pointer; background: rgba(15, 19, 28, 0.88); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.45); border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 600; backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.35);" title="Open 3D Prop & Biomechanical Pose Studio Modal">
+            🎛️ Prop & Pose Studio
+        </button>
+        <a href="personality.html" target="_blank" style="text-decoration: none; background: rgba(15, 19, 28, 0.88); color: #edf2f7; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 600; backdrop-filter: blur(10px);" title="Open Standalone Personality & Prompts Studio Page">
+            ↗️ Studio Page
+        </a>
+    </div>
+
+    <!-- Fullscreen Hands-Free Voice Call Mode Overlay -->
+    <div id="call-mode-overlay">
+        <div class="call-header-hud">
+            <div class="call-caller-badge">
+                <span class="call-pulse-dot" id="call-pulse-indicator"></span>
+                <span class="call-caller-name">Airi</span>
+                <span class="call-timer" id="call-timer-display">00:00</span>
+            </div>
+            <div class="call-status-pill" id="call-status-display">Connected · Listening</div>
+        </div>
+
+        <div class="call-live-caption-box" id="call-caption-box">
+            <span class="speaker-tag" id="call-speaker-tag">Airi:</span>
+            <span id="call-caption-text">"Kehehe, call connected! Hands-free goblin hotline is live—what technical mess are we untangling?"</span>
+        </div>
+
+        <div class="call-controls-bar">
+            <button id="btn-call-mute" class="call-ctrl-btn call-ctrl-mic" title="Mute / Unmute Microphone">🎤</button>
+            <button id="btn-call-interrupt" class="call-ctrl-btn call-ctrl-interrupt" title="Interrupt Airi Speaking">🛑</button>
+            <button id="btn-call-end" class="call-ctrl-btn call-ctrl-end" title="End Call">📞</button>
+        </div>
+    </div>
+
+    <!-- In-Viewer Slide-Over Personality & Prompts Studio Modal -->
+    <div id="personality-studio-modal" style="display: none; position: fixed; inset: 0; z-index: 120; background: rgba(5, 7, 12, 0.65); backdrop-filter: blur(6px); align-items: center; justify-content: flex-end;">
+        <div style="width: min(1080px, 94vw); height: 96vh; margin-right: 16px; background: #0b0d13; border: 1px solid rgba(0, 229, 255, 0.4); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0, 0, 0, 0.65);">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(14, 18, 27, 0.98); border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <span style="font-size: 13px; font-weight: 700; color: #00e5ff;">🧠 HELIOS Live Personality Card & System Prompts Studio</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <a href="personality.html" target="_blank" style="color: #94a3b8; font-size: 12px; text-decoration: none; padding: 5px 10px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px;">↗️ Open Full Tab (`personality.html`)</a>
+                    <button id="btn-close-personality-studio" style="cursor: pointer; background: rgba(255, 75, 75, 0.16); color: #ff8080; border: 1px solid rgba(255, 75, 75, 0.35); border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;">✕ Close</button>
+                </div>
+            </div>
+            <iframe id="personality-studio-iframe" src="personality.html?embed=1" style="flex: 1; width: 100%; border: none; background: #0b0d13;"></iframe>
+        </div>
+    </div>
+
+    <!-- In-Viewer Standalone 3D Prop & Biomechanical Pose Studio Modal -->
+    <div id="adjust-studio-modal" style="display: none; position: fixed; inset: 0; z-index: 125; background: rgba(5, 7, 12, 0.65); backdrop-filter: blur(6px); align-items: center; justify-content: flex-end;">
+        <div style="width: min(580px, 94vw); height: 96vh; margin-right: 16px; background: #0c0f17; border: 1px solid rgba(0, 229, 255, 0.45); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0, 0, 0, 0.75);">
+            <!-- Modal Header -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: rgba(15, 20, 30, 0.98); border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="display: flex; flex-direction: column;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 14px; font-weight: 700; color: #00e5ff; letter-spacing: 0.5px;">🎛️ 3D Prop & Pose Studio</span>
+                        <span id="adjust-twin-badge" style="font-size: 10px; background: rgba(0,229,255,0.15); color: #00e5ff; border: 1px solid rgba(0,229,255,0.35); padding: 2px 7px; border-radius: 10px; font-weight: 700;">AIRI</span>
+                    </div>
+                    <span style="font-size: 10px; color: #94a3b8; font-weight: 500; margin-top: 2px;">Calibrate 3D gadgets, grips & biomechanical body offsets per twin without overlap</span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="btn-save-props-calib" style="padding: 5px 10px; font-size: 11px; border-radius: 6px; background: rgba(0,255,136,0.18); color: #00ff88; border: 1px solid rgba(0,255,136,0.4); cursor: pointer; font-weight: 700;" title="Save all prop calibrations and body poses">💾 Save All</button>
+                    <button id="btn-export-tuning" style="padding: 5px 10px; font-size: 11px; border-radius: 6px; background: rgba(0,229,255,0.15); color: #00e5ff; border: 1px solid rgba(0,229,255,0.35); cursor: pointer; font-weight: 600;" title="Export current object & pose tuning to JSON / clipboard">📤 Export</button>
+                    <button id="btn-close-adjust-studio" style="cursor: pointer; background: rgba(255, 75, 75, 0.16); color: #ff8080; border: 1px solid rgba(255, 75, 75, 0.35); border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;">✕ Close</button>
+                </div>
+            </div>
+
+            <!-- Studio Subtabs Navigation -->
+            <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: rgba(12, 16, 25, 0.9);">
+                <button type="button" class="adjust-subtab-btn active" id="subtab-btn-props" data-subtab="adjust-subpane-props" style="flex: 1; padding: 10px 8px; background: transparent; border: none; border-bottom: 2px solid #00e5ff; color: #00e5ff; font-size: 12px; font-weight: 700; cursor: pointer;">🕹️ 3D Prop & Gadget Tuner</button>
+                <button type="button" class="adjust-subtab-btn" id="subtab-btn-body" data-subtab="adjust-subpane-body" style="flex: 1; padding: 10px 8px; background: transparent; border: none; border-bottom: 2px solid transparent; color: #94a3b8; font-size: 12px; font-weight: 700; cursor: pointer;">🦾 Biomechanical Pose Tuner</button>
+            </div>
+
+            <!-- Scrollable Content Container -->
+            <div style="flex: 1; overflow-y: auto; padding: 16px; font-size: 12px; color: #e2e8f0; display: flex; flex-direction: column; gap: 12px;">
                 <!-- Subpane 1: 3D Props & Gadgets Tuner -->
                 <div id="adjust-subpane-props" class="adjust-subpane active">
-                    <div id="props-adjust-panel" style="width: 100%; box-sizing: border-box; padding: 10px; background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.22); border-radius: 8px;">
+                    <div id="props-adjust-panel" style="width: 100%; box-sizing: border-box; padding: 12px; background: rgba(0, 229, 255, 0.04); border: 1px solid rgba(0, 229, 255, 0.22); border-radius: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <span style="font-size: 11px; font-weight: 700; color: #00e5ff;">🛠️ 3D Props & Gadgets Tuner:</span>
+                            <span style="font-size: 11px; font-weight: 700; color: #00e5ff;">🛠️ Active 3D Prop Tuning:</span>
                             <div style="display: flex; gap: 4px;">
-                                <button id="btn-save-props-calib" style="padding: 2px 7px; font-size: 9px; border-radius: 4px; background: rgba(0,255,136,0.18); color: #00ff88; border: 1px solid rgba(0,255,136,0.4); cursor: pointer; font-weight: 700;" title="Save all prop calibrations and associated body poses to browser storage">💾 Save</button>
-                                <button id="btn-export-tuning" style="padding: 2px 6px; font-size: 9px; border-radius: 4px; background: rgba(0,229,255,0.15); color: #00e5ff; border: 1px solid rgba(0,229,255,0.35); cursor: pointer; font-weight: 600;" title="Export current object & pose tuning to JSON file / clipboard">📤 Export</button>
-                                <button id="btn-reset-props-calib" style="padding: 2px 6px; font-size: 9px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;" title="Reset active prop to defaults">↺ Reset</button>
+                                <button id="btn-reset-props-calib" style="padding: 3px 8px; font-size: 10px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;" title="Reset active prop to defaults">↺ Reset Prop</button>
                             </div>
                         </div>
 
                         <!-- Target Prop Selector -->
-                        <div style="margin-bottom: 8px;">
-                            <label style="font-size: 9px; color: rgba(203,213,225,0.7); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px;">Active Prop to Tune:</label>
-                            <select id="select-active-prop" style="width: 100%; background: #121620; color: #00e5ff; border: 1px solid rgba(0,229,255,0.3); border-radius: 5px; padding: 4px 6px; font-size: 11px; font-weight: 600;">
+                        <div style="margin-bottom: 10px;">
+                            <label style="font-size: 10px; color: rgba(203,213,225,0.7); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Active Prop to Tune:</label>
+                            <select id="select-active-prop" style="width: 100%; background: #121620; color: #00e5ff; border: 1px solid rgba(0,229,255,0.3); border-radius: 6px; padding: 6px 8px; font-size: 11px; font-weight: 600;">
                                 <option value="monocle">Ren's Neural Monocle HUD (HEL-MIC-02 / MN-01)</option>
                                 <option value="drone">Ren's Tactical Recon Drone (SD-04 Ghosteye)</option>
                                 <option value="butterfly">Airi's Bio-Quantum Butterfly (SD-01)</option>
@@ -269,7 +402,7 @@
                         </div>
 
                         <!-- Sliders Section -->
-                        <div id="prop-sliders-container" style="display: flex; flex-direction: column; gap: 6px; font-size: 10px; color: #cbd5e1;">
+                        <div id="prop-sliders-container" style="display: flex; flex-direction: column; gap: 8px; font-size: 11px; color: #cbd5e1;">
                             <!-- Slider 1 -->
                             <div>
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
@@ -303,8 +436,8 @@
                                 <input id="slider-prop-4" type="range" min="0.70" max="1.40" value="1.00" step="0.02" style="width: 100%;">
                             </div>
                             <!-- 3D Prop Rotation (Pitch, Yaw, Roll) -->
-                            <div id="row-prop-rot-container" style="margin-top: 4px; padding-top: 6px; border-top: 1px solid rgba(0, 229, 255, 0.15); display: flex; flex-direction: column; gap: 4px;">
-                                <div style="font-size: 9px; font-weight: 700; color: #00e5ff; text-transform: uppercase; letter-spacing: 0.5px;">🔄 Prop Rotation / Orientation:</div>
+                            <div id="row-prop-rot-container" style="margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(0, 229, 255, 0.15); display: flex; flex-direction: column; gap: 6px;">
+                                <div style="font-size: 10px; font-weight: 700; color: #00e5ff; text-transform: uppercase; letter-spacing: 0.5px;">🔄 Prop Rotation / Orientation:</div>
                                 <!-- Pitch (Rot X) -->
                                 <div>
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
@@ -331,11 +464,11 @@
                                 </div>
                             </div>
                             <!-- Movement Path / Orbit Mode (for drone / butterfly / orb) -->
-                            <div id="row-prop-path-mode" style="margin-top: 2px;">
+                            <div id="row-prop-path-mode" style="margin-top: 4px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
                                     <span id="label-prop-path">Movement Path / Orbit:</span>
                                 </div>
-                                <select id="select-prop-path-mode" style="width: 100%; background: #121620; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 3px 5px; font-size: 10px;">
+                                <select id="select-prop-path-mode" style="width: 100%; background: #121620; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 4px 6px; font-size: 11px;">
                                     <option value="recon_orbit">Elliptical Recon Orbit (Default)</option>
                                     <option value="figure8">Figure-8 Infinite Sweep</option>
                                     <option value="hover_perch">Tactical Hover & Perch</option>
@@ -351,7 +484,7 @@
                                 <input id="slider-prop-speed" type="range" min="0.20" max="2.50" value="1.00" step="0.05" style="width: 100%;">
                             </div>
                         </div>
-                        <div id="prop-save-feedback" style="font-size: 9px; color: #00ff88; margin-top: 6px; text-align: center; display: none;">
+                        <div id="prop-save-feedback" style="font-size: 10px; color: #00ff88; margin-top: 6px; text-align: center; display: none;">
                             ✓ Saved to Local Storage!
                         </div>
                     </div>
@@ -359,30 +492,30 @@
 
                 <!-- Subpane 2: Biomechanical Body Pose Tuner -->
                 <div id="adjust-subpane-body" class="adjust-subpane">
-                    <div style="width: 100%; box-sizing: border-box; padding: 10px; background: rgba(0, 255, 136, 0.04); border: 1px solid rgba(0, 255, 136, 0.25); border-radius: 8px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="width: 100%; box-sizing: border-box; padding: 12px; background: rgba(0, 255, 136, 0.04); border: 1px solid rgba(0, 255, 136, 0.25); border-radius: 8px; display: flex; flex-direction: column; gap: 10px;">
                         <!-- Top Avatar Target & Global Controls -->
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span style="font-size: 11px; font-weight: 700; color: #00ff88;">🦾 Live Body Pose Tuner:</span>
                             <div style="display: flex; gap: 4px;">
-                                <button id="btn-body-toggle-apply" class="active" style="padding: 2px 7px; font-size: 9px; border-radius: 4px; background: rgba(0,255,136,0.2); color: #00ff88; border: 1px solid rgba(0,255,136,0.5); cursor: pointer; font-weight: 700;" title="Toggle live continuous adjustment application">⚡ Live: ON</button>
-                                <button id="btn-body-reset" style="padding: 2px 6px; font-size: 9px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;" title="Reset all pose adjustments to 0">↺ Reset</button>
+                                <button id="btn-body-toggle-apply" class="active" style="padding: 3px 8px; font-size: 10px; border-radius: 4px; background: rgba(0,255,136,0.2); color: #00ff88; border: 1px solid rgba(0,255,136,0.5); cursor: pointer; font-weight: 700;" title="Toggle live continuous adjustment application">⚡ Live: ON</button>
+                                <button id="btn-body-reset" style="padding: 3px 8px; font-size: 10px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); cursor: pointer;" title="Reset all pose adjustments to 0">↺ Reset</button>
                             </div>
                         </div>
 
                         <!-- Target Avatar & Actions Bar -->
                         <div style="display: flex; gap: 6px; align-items: center;">
-                            <select id="select-body-target" style="flex: 1; min-width: 0; background: #121620; color: #00ff88; border: 1px solid rgba(0,255,136,0.3); border-radius: 5px; padding: 4px 6px; font-size: 10px; font-weight: 600;">
+                            <select id="select-body-target" style="flex: 1; min-width: 0; background: #121620; color: #00ff88; border: 1px solid rgba(0,255,136,0.3); border-radius: 5px; padding: 5px 8px; font-size: 11px; font-weight: 600;">
                                 <option value="active">Target: Active Avatar</option>
                                 <option value="airi">Target: Airi (Sister)</option>
                                 <option value="ren">Target: Ren (Brother)</option>
                                 <option value="both">Target: Both Twins</option>
                             </select>
-                            <button id="btn-body-capture" style="padding: 4px 8px; font-size: 10px; border-radius: 5px; background: rgba(0,229,255,0.15); color: #00e5ff; border: 1px solid rgba(0,229,255,0.35); cursor: pointer; font-weight: 600; white-space: nowrap;" title="Capture current live pose into sliders for fine nudging">📸 Capture</button>
-                            <button id="btn-body-save" style="padding: 4px 8px; font-size: 10px; border-radius: 5px; background: rgba(0,255,136,0.18); color: #00ff88; border: 1px solid rgba(0,255,136,0.4); cursor: pointer; font-weight: 700; white-space: nowrap;" title="Save adjusted pose as custom preset">💾 Save</button>
+                            <button id="btn-body-capture" style="padding: 5px 10px; font-size: 11px; border-radius: 5px; background: rgba(0,229,255,0.15); color: #00e5ff; border: 1px solid rgba(0,229,255,0.35); cursor: pointer; font-weight: 600; white-space: nowrap;" title="Capture current live pose into sliders for fine nudging">📸 Capture</button>
+                            <button id="btn-body-save" style="padding: 5px 10px; font-size: 11px; border-radius: 5px; background: rgba(0,255,136,0.18); color: #00ff88; border: 1px solid rgba(0,255,136,0.4); cursor: pointer; font-weight: 700; white-space: nowrap;" title="Save adjusted pose as custom preset">💾 Save</button>
                         </div>
 
-                        <!-- Pose Tuner Scrollable Card Sections -->
-                        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 480px; overflow-y: auto; padding-right: 2px;">
+                        <!-- Pose Tuner Card Sections -->
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
                             <!-- Group 1: Head & Neck -->
                             <div class="adjust-group-card">
                                 <div class="adjust-group-header">👤 Head & Neck</div>
@@ -490,7 +623,7 @@
                                 <div class="adjust-row" style="margin-top: 4px;">
                                     <span>Hand Gesture Shape:</span>
                                 </div>
-                                <select id="select-body-r-hand" style="width: 100%; background: #121620; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 3px 5px; font-size: 10px; margin-top: 2px;">
+                                <select id="select-body-r-hand" style="width: 100%; background: #121620; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 4px 6px; font-size: 11px; margin-top: 2px;">
                                     <option value="auto">Auto (Match Pose)</option>
                                     <option value="relaxed">Relaxed Fingers</option>
                                     <option value="open">Open Palm</option>
@@ -544,7 +677,7 @@
                                 <div class="adjust-row" style="margin-top: 4px;">
                                     <span>Hand Gesture Shape:</span>
                                 </div>
-                                <select id="select-body-l-hand" style="width: 100%; background: #121620; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 3px 5px; font-size: 10px; margin-top: 2px;">
+                                <select id="select-body-l-hand" style="width: 100%; background: #121620; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 4px 6px; font-size: 11px; margin-top: 2px;">
                                     <option value="auto">Auto (Match Pose)</option>
                                     <option value="relaxed">Relaxed Fingers</option>
                                     <option value="open">Open Palm</option>
@@ -572,100 +705,12 @@
                             </div>
                         </div>
 
-                        <div id="body-save-feedback" style="font-size: 9px; color: #00ff88; margin-top: 4px; text-align: center; display: none;">
+                        <div id="body-save-feedback" style="font-size: 10px; color: #00ff88; margin-top: 4px; text-align: center; display: none;">
                             ✓ Saved custom pose preset!
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Dynamically populated from VRM model preset expressions -->
-        <div id="preset-controls" class="sidebar-section" style="display: none;">
-            <span class="preset-label">BlendShapes:</span>
-            <div id="preset-buttons" class="sidebar-btn-grid"></div>
-        </div>
-    </aside>
-
-    <!-- Screen Glass Tap Ripple Overlay (triggered when VRM taps camera glass in idle_screen_curious) -->
-    <div id="screen-tap-ripple" class="screen-tap-ripple"></div>
-
-    <!-- Status message overlay -->
-    <div id="status-badge">
-        Loading HELIOS Character Add-On...
-    </div>
-
-    <!-- User-facing Activity HUD (Never exposes chain-of-thought) -->
-    <div id="thought-banner" style="display: none;">
-        <span class="thought-label">⚡ HELIOS Activity:</span>
-        <span id="thought-text"></span>
-    </div>
-
-    <!-- HELIOS Core Chat Relay UI -->
-    <div id="chat-container">
-        <div id="chat-log"></div>
-        <div id="chat-input-wrapper">
-            <button id="chat-mic" title="Hold or click to talk via microphone">🎤</button>
-            <input type="text" id="chat-input" placeholder="Send message to HELIOS Core..." autocomplete="off">
-            <button id="chat-send">Send</button>
-        </div>
-    </div>
-
-    <!-- Floating Quick-Access Bar for Edition Switcher & Personality Studio -->
-    <div id="floating-quick-bar" class="floating-quick-bar">
-        <div style="display: inline-flex; background: rgba(15, 19, 28, 0.9); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 3px; backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
-            <button id="btn-edition-full" title="Full Spec Version: HELIOS Core (:8000) + Tools + Sandbox + RAG + 3D Character" style="cursor: pointer; background: transparent; color: #94a3b8; border: none; border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 600; transition: all 0.15s ease;">
-                ⚡ Full Spec
-            </button>
-            <button id="btn-edition-character" title="Character-Only Version: Standalone 3D VRM Character + Local Chat + Neural TTS (No :8000 required)" style="cursor: pointer; background: rgba(0, 229, 255, 0.18); color: #00e5ff; border: none; border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 600; transition: all 0.15s ease;">
-                🎭 Just the Character
-            </button>
-        </div>
-        <button id="btn-call-mode" class="btn-call-mode" title="Start Hands-Free Voice Call with Airi">
-            📞 Call Mode
-        </button>
-        <button id="btn-floating-personality" style="cursor: pointer; background: rgba(15, 19, 28, 0.88); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.45); border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 600; backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
-            🧠 Personality & Prompts
-        </button>
-        <a href="personality.html" target="_blank" style="text-decoration: none; background: rgba(15, 19, 28, 0.88); color: #edf2f7; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 600; backdrop-filter: blur(10px);" title="Open Standalone Personality & Prompts Studio Page">
-            ↗️ Studio Page
-        </a>
-    </div>
-
-    <!-- Fullscreen Hands-Free Voice Call Mode Overlay -->
-    <div id="call-mode-overlay">
-        <div class="call-header-hud">
-            <div class="call-caller-badge">
-                <span class="call-pulse-dot" id="call-pulse-indicator"></span>
-                <span class="call-caller-name">Airi</span>
-                <span class="call-timer" id="call-timer-display">00:00</span>
-            </div>
-            <div class="call-status-pill" id="call-status-display">Connected · Listening</div>
-        </div>
-
-        <div class="call-live-caption-box" id="call-caption-box">
-            <span class="speaker-tag" id="call-speaker-tag">Airi:</span>
-            <span id="call-caption-text">"Kehehe, call connected! Hands-free goblin hotline is live—what technical mess are we untangling?"</span>
-        </div>
-
-        <div class="call-controls-bar">
-            <button id="btn-call-mute" class="call-ctrl-btn call-ctrl-mic" title="Mute / Unmute Microphone">🎤</button>
-            <button id="btn-call-interrupt" class="call-ctrl-btn call-ctrl-interrupt" title="Interrupt Airi Speaking">🛑</button>
-            <button id="btn-call-end" class="call-ctrl-btn call-ctrl-end" title="End Call">📞</button>
-        </div>
-    </div>
-
-    <!-- In-Viewer Slide-Over Personality & Prompts Studio Modal -->
-    <div id="personality-studio-modal" style="display: none; position: fixed; inset: 0; z-index: 120; background: rgba(5, 7, 12, 0.65); backdrop-filter: blur(6px); align-items: center; justify-content: flex-end;">
-        <div style="width: min(1080px, 94vw); height: 96vh; margin-right: 16px; background: #0b0d13; border: 1px solid rgba(0, 229, 255, 0.4); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0, 0, 0, 0.65);">
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(14, 18, 27, 0.98); border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-                <span style="font-size: 13px; font-weight: 700; color: #00e5ff;">🧠 HELIOS Live Personality Card & System Prompts Studio</span>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <a href="personality.html" target="_blank" style="color: #94a3b8; font-size: 12px; text-decoration: none; padding: 5px 10px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px;">↗️ Open Full Tab (`personality.html`)</a>
-                    <button id="btn-close-personality-studio" style="cursor: pointer; background: rgba(255, 75, 75, 0.16); color: #ff8080; border: 1px solid rgba(255, 75, 75, 0.35); border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;">✕ Close</button>
-                </div>
-            </div>
-            <iframe id="personality-studio-iframe" src="personality.html?embed=1" style="flex: 1; width: 100%; border: none; background: #0b0d13;"></iframe>
         </div>
     </div>
 

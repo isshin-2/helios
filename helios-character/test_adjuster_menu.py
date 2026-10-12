@@ -16,24 +16,65 @@ async def test_adjuster_menu():
         await page.wait_for_selector("#canvas-container", state="visible")
         await page.wait_for_timeout(3500)
 
-        # 1. Test top studio quick-jump button
-        print("1. Testing top studio button #btn-open-adjust-menu...")
+        # 1. Test top studio quick-jump button and standalone Studio modal
+        print("1. Testing top studio button #btn-open-adjust-menu & Studio Modal...")
         top_btn_res = await page.evaluate("""() => {
             const btn = document.getElementById('btn-open-adjust-menu');
             if (!btn) return { hasBtn: false };
             btn.click();
             const tabPane = document.getElementById('tab-adjust');
             const tabBtn = document.getElementById('tab-btn-adjust');
+            const modal = document.getElementById('adjust-studio-modal');
+            const modalOpen = modal ? modal.style.display === 'flex' : false;
+
+            // Test close button
+            const btnClose = document.getElementById('btn-close-adjust-studio');
+            let closedViaBtn = false;
+            if (btnClose) {
+                btnClose.click();
+                closedViaBtn = modal ? modal.style.display === 'none' : false;
+            }
+
+            // Test opening via launcher card button in sidebar
+            const btnLaunch = document.getElementById('btn-launch-adjust-studio');
+            let reopenedViaLauncher = false;
+            if (btnLaunch) {
+                btnLaunch.click();
+                reopenedViaLauncher = modal ? modal.style.display === 'flex' : false;
+            }
+
+            // Test closing via Escape key
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+            const closedViaEsc = modal ? modal.style.display === 'none' : false;
+
+            // Test opening via floating quick-bar button
+            const btnFloating = document.getElementById('btn-floating-adjust');
+            let reopenedViaFloating = false;
+            if (btnFloating) {
+                btnFloating.click();
+                reopenedViaFloating = modal ? modal.style.display === 'flex' : false;
+            }
+
             return {
                 hasBtn: true,
                 tabPaneActive: tabPane ? tabPane.classList.contains('active') : false,
-                tabBtnActive: tabBtn ? tabBtn.classList.contains('active') : false
+                tabBtnActive: tabBtn ? tabBtn.classList.contains('active') : false,
+                modalOpen,
+                closedViaBtn,
+                reopenedViaLauncher,
+                closedViaEsc,
+                reopenedViaFloating
             };
         }""")
         print("  Top Studio Button Result:", top_btn_res)
         assert top_btn_res['hasBtn'], "Button #btn-open-adjust-menu must exist"
         assert top_btn_res['tabPaneActive'], "#tab-adjust must become active when clicked"
         assert top_btn_res['tabBtnActive'], "#tab-btn-adjust must have active class"
+        assert top_btn_res['modalOpen'], "Standalone #adjust-studio-modal must open with display:flex"
+        assert top_btn_res['closedViaBtn'], "Modal must close when #btn-close-adjust-studio is clicked"
+        assert top_btn_res['reopenedViaLauncher'], "Modal must open when #btn-launch-adjust-studio is clicked"
+        assert top_btn_res['closedViaEsc'], "Modal must close when Escape key is pressed"
+        assert top_btn_res['reopenedViaFloating'], "Modal must open when #btn-floating-adjust is clicked"
 
         # 2. Test sub-tab switching between Prop Tuner and Body Pose Tuner
         print("2. Testing sub-tab switching...")
@@ -411,6 +452,91 @@ async def test_adjuster_menu():
         assert prop_pose_link_res['restoredHandPitch'] == 35, "Restored hand pitch must be 35"
         assert prop_pose_link_res['restoredHandShape'] == 'cupped', "Restored hand shape must be cupped"
         assert prop_pose_link_res['hasExportBtn'] == True, "Export button must exist"
+
+        # 8. Test Twin-Isolated Pose Adjustments and Zero Overlap
+        print("8. Testing Twin-Isolated Pose Adjustments & Zero Overlap...")
+        twin_isolation_res = await page.evaluate("""() => {
+            // Select datapad prop first so adjustments attach to it
+            const selectProp = document.getElementById('select-active-prop');
+            if (selectProp) {
+                selectProp.value = 'datapad';
+                selectProp.dispatchEvent(new Event('change'));
+            }
+
+            // Select Airi target
+            const selectTarget = document.getElementById('select-body-target');
+            if (selectTarget) {
+                selectTarget.value = 'airi';
+                selectTarget.dispatchEvent(new Event('change'));
+            }
+
+            // Adjust Airi sliders
+            const sliderHeadPitch = document.getElementById('slider-body-head-pitch');
+            const sliderRLift = document.getElementById('slider-body-r-lift');
+            if (sliderHeadPitch) {
+                sliderHeadPitch.value = '24';
+                sliderHeadPitch.dispatchEvent(new Event('input'));
+            }
+            if (sliderRLift) {
+                sliderRLift.value = '0.38';
+                sliderRLift.dispatchEvent(new Event('input'));
+            }
+
+            const airiState1 = { ...window.twinBodyPoseAdjustments.airi };
+            const renState1 = { ...window.twinBodyPoseAdjustments.ren };
+
+            // Now switch target to Ren
+            if (selectTarget) {
+                selectTarget.value = 'ren';
+                selectTarget.dispatchEvent(new Event('change'));
+            }
+
+            // Adjust Ren sliders with completely different values
+            if (sliderHeadPitch) {
+                sliderHeadPitch.value = '-16';
+                sliderHeadPitch.dispatchEvent(new Event('input'));
+            }
+            if (sliderRLift) {
+                sliderRLift.value = '-0.22';
+                sliderRLift.dispatchEvent(new Event('input'));
+            }
+
+            const airiState2 = { ...window.twinBodyPoseAdjustments.airi };
+            const renState2 = { ...window.twinBodyPoseAdjustments.ren };
+
+            // Save Datapad prop with both twin poses set
+            const btnSaveProp = document.getElementById('btn-save-props-calib');
+            btnSaveProp?.click();
+
+            const savedProps = JSON.parse(localStorage.getItem('helios_props_calibration') || '{}');
+            const datapadTwinPoses = savedProps.datapad?.twinPoses;
+
+            return {
+                airiInitialHeadPitch: airiState1.headPitch,
+                airiInitialRLift: airiState1.rArmLift,
+                renInitialHeadPitch: renState1.headPitch,
+                renInitialRLift: renState1.rArmLift,
+                airiUntouchedHeadPitch: airiState2.headPitch,
+                airiUntouchedRLift: airiState2.rArmLift,
+                renEditedHeadPitch: renState2.headPitch,
+                renEditedRLift: renState2.rArmLift,
+                hasDatapadTwinPoses: Boolean(datapadTwinPoses),
+                datapadAiriHeadPitch: datapadTwinPoses?.airi?.headPitch,
+                datapadRenHeadPitch: datapadTwinPoses?.ren?.headPitch
+            };
+        }""")
+        print("  Twin Isolation Result:", twin_isolation_res)
+        assert twin_isolation_res['airiInitialHeadPitch'] == 24, "Airi headPitch must be 24"
+        assert twin_isolation_res['airiInitialRLift'] == 0.38, "Airi rArmLift must be 0.38"
+        assert twin_isolation_res['renInitialHeadPitch'] == 0, "Ren headPitch must initially remain neutral 0"
+        assert twin_isolation_res['renInitialRLift'] == 0, "Ren rArmLift must initially remain neutral 0"
+        assert twin_isolation_res['airiUntouchedHeadPitch'] == 24, "Airi headPitch must remain 24 after Ren is adjusted (no overlap!)"
+        assert twin_isolation_res['airiUntouchedRLift'] == 0.38, "Airi rArmLift must remain 0.38 after Ren is adjusted (no overlap!)"
+        assert twin_isolation_res['renEditedHeadPitch'] == -16, "Ren headPitch must be -16"
+        assert twin_isolation_res['renEditedRLift'] == -0.22, "Ren rArmLift must be -0.22"
+        assert twin_isolation_res['hasDatapadTwinPoses'] == True, "Datapad must store twinPoses object"
+        assert twin_isolation_res['datapadAiriHeadPitch'] == 24, "Datapad airi headPitch must be 24"
+        assert twin_isolation_res['datapadRenHeadPitch'] == -16, "Datapad ren headPitch must be -16"
 
         await browser.close()
         print("\nAll dedicated 3D Prop & Body Pose Adjuster Menu features verified 100%!")
