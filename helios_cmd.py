@@ -56,10 +56,6 @@ COMMANDS = {
     "/user": {
         "desc": "Launches HELIOS User Edition (Solstice Companion Engine :8082 + 3D Avatar :8080)",
         "action": lambda args: subprocess.run(["cmd.exe", "/c", os.path.join(BASE_DIR, "start_solstice.bat")] + args)
-    },
-    "/ralph": {
-        "desc": "Runs autonomous Ralph Loop: tests each task, makes atomic git commits, and logs rollback points",
-        "action": lambda args: subprocess.run([PY_EXE, os.path.join(BASE_DIR, "scripts", "ralph_runner.py")] + args)
     }
 }
 
