@@ -53,6 +53,9 @@
 | **TASK-31** | `helios-character` | Remove Monocle Black Line/Square Clutter & Add 3D Prop Rotation Suite | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-32** | `helios-character` | 3D Hand/Wrist Rotation Controls & Target Avatar Auto VRM Switching | `@Orchestrator VERIFIED` | Orchestrator |
 | **TASK-33** | `helios-character` | Prop-Object Body Pose Binding, Auto-Restoration & JSON Calibration Export | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-34** | `helios-character` | Standalone Tuner Studio Modal (`#adjust-studio-modal`) & Isolated Twin Pose Calibrations (Zero Overlap) | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-35** | `System Architecture` | Triad Partitioning (HELIOS, Hikari, Solstice), Zero-Friction Bootstrap (`setup.bat`), Hardware Governor, Voice Biometrics, Connector Registry & Slash Commands | `@Orchestrator VERIFIED` | Orchestrator |
+| **TASK-36** | `Connectors & Customizations` | Interactive Ecosystem Customization Wizard in `setup.bat` & `scripts/bootstrap.py` (`-c`/`--custom`), Developer Connectors Studio Menu & Live Playground in HELIOS Web UI (`ai-router/static/app.html`), and Automated Connector Test Suite (`tests/test_connectors.py`) | `@Orchestrator VERIFIED` | Orchestrator |
 
 ---
 
@@ -611,3 +614,115 @@ otation.x = +0.68 rad ~ 39 deg) with hands and wrists ergonomically holding the 
 
 
 
+
+
+---
+
+### [TASK-34] Standalone Tuner Studio Modal (`#adjust-studio-modal`) & Isolated Twin Pose Calibrations (Zero Overlap)
+- **Status:** `@Orchestrator VERIFIED`
+- **Component:** `helios-character/viewer/index.html`, `viewer/app.js`, & `test_adjuster_menu.py`
+- **Resolution:**
+  1. **Dedicated Standalone Tuner Studio Modal (`#adjust-studio-modal`)**:
+     - Designed and integrated a dedicated slide-over studio modal (`#adjust-studio-modal`) matching `#rig-studio-modal` and `#personality-studio-modal` architecture (`z-index: 125`, `backdrop-filter: blur(14px)`, `max-width: 540px`, `height: 96vh`).
+     - Header equipped with live twin target badge (`#adjust-twin-badge`), persistent JSON export button (`#btn-export-tuning`), and close button (`#btn-close-adjust-studio`).
+     - Includes full-height scrolling subpanes (`#adjust-subpane-props` and `#adjust-subpane-body`) with tab switcher (`#subtab-btn-props`, `#subtab-btn-body`), removing cramped 420px max-height restrictions.
+     - Converted sidebar Tab 5 (`#tab-adjust`) into a clean, modern Studio Launcher Card (`#btn-launch-adjust-studio`, `#launcher-twin-target`, `#btn-quick-adjust-props`, `#btn-quick-adjust-body`).
+     - Added floating quick-access launcher button (`#btn-floating-adjust`) to `#floating-quick-bar`.
+     - Supports seamless open/close via `#btn-open-adjust-menu`, `#tab-btn-adjust`, `#btn-goto-prop-adjust`, `#btn-launch-adjust-studio`, `#btn-floating-adjust`, backdrop click, and `Escape` key.
+  2. **Twin-Isolated Adjustments & Zero Overlap Architecture**:
+     - Segregated adjustment structures: `twinBodyPoseAdjustments.airi` and `twinBodyPoseAdjustments.ren`.
+     - Sliders update strictly the targeted twin (`airi`, `ren`, or both when `both` is selected).
+     - Airi in the main render/animation loop applies ONLY `twinBodyPoseAdjustments.airi`.
+     - Ren in `applySecondaryTwinPose` applies ONLY `twinBodyPoseAdjustments.ren`.
+     - Zero Overlap in Dual Twin Synergy mode: Airi never reads Ren's values and Ren never reads Airi's values. Tuning Airi leaves Ren untouched, and tuning Ren leaves Airi untouched.
+     - Upgraded `propsCalibration[propId].twinPoses` to store isolated twin poses: `{ airi: { ... }, ren: { ... } }`.
+     - Auto-restores the corresponding twin's pose when equipping props without overwriting the sibling twin.
+     - Implemented full-fidelity JavaScript `Proxy` for `window.activeBodyPoseAdjustments` with `get`, `set`, `has`, `ownKeys`, and `getOwnPropertyDescriptor` traps for backward-compatibility and object spread (`{ ...activeBodyPoseAdjustments }`).
+- **Verification:**
+  - Automated tests in `test_adjuster_menu.py`: 100% passed across all 8 test suites:
+    1. Standalone Studio modal open/close via top studio button, close button, launcher card, Escape key, and floating quick-access bar.
+    2. Subtab switching between Prop Tuner and Body Pose Tuner.
+    3. 3D Prop Tuner reactive auto-apply, XYZ sliders, 3D rotations, trajectory path, speed, and persistence.
+    4. Biomechanical Pose Tuner bone sliders, 3D hand rotations, and avatar auto VRM model switching.
+    5. Live Pose capture and reset with full Proxy reflection.
+    6. Prop-object pose binding and auto-restoration.
+    7. Twin-isolated adjustments & zero overlap: Airi adjustments (`headPitch: 24`, `rArmLift: 0.38`) left Ren at neutral `0`, Ren adjustments (`headPitch: -16`, `rArmLift: -0.22`) left Airi untouched at `24` / `0.38`.
+    8. Datapad calibration persisted separate `twinPoses.airi` and `twinPoses.ren`.
+
+---
+
+### [TASK-35] Triad Partitioning (HELIOS, Hikari, Solstice), Zero-Friction Bootstrap (`setup.bat`), Hardware Governor & Budget Warnings, Zero-Leak Biometrics, Connector Registry & Slash Commands
+- **Status:** `@Orchestrator VERIFIED`
+- **Components:** `docs/CORE_TWIN_ARCHITECTURE.md`, `docs/SYSTEM_AUDIT.md`, `core/hardware_governor.py`, `core/security/bridge_guard.py`, `core/security/zero_leak.py`, `core/security/voice_biometrics.py`, `connectors/`, `engines/hikari/server.py`, `engines/solstice/server.py`, `setup.bat`, `helios_cmd.py`, `helios.bat`, `tests/test_isolation.py`, `scripts/run_audit.py`, `scripts/bootstrap.py`, `scripts/verify_voice.py`, `scripts/launch_3d_experience.py`, `start_helios_dev.bat`, `start_solstice.bat`.
+- **Resolution:**
+  1. **Living System Audit & Specification (`docs/SYSTEM_AUDIT.md` & `docs/CORE_TWIN_ARCHITECTURE.md`)**:
+     - Created single source of truth mapping component topologies, process ports, hardware probing profiles, acceleration tiers, connector catalogs, and IPC isolation boundaries.
+  2. **Hard Memory & Process Isolation (HELIOS vs. Hikari vs. Solstice)**:
+     - Partitioned engines into dedicated process ports: HELIOS Core Router (`:8000`), Hikari Coding Swarm (`:8001`), Solstice Avatar Engine (`:8082`), and 3D WebGL Studio (`:8080`).
+     - Physical database segregation: `data/helios.db`, `data/hikari.db`, and `data/solstice.db`.
+     - Zero-Trust BridgeGuard with HMAC-SHA256 signatures, 5s anti-replay window, and route whitelisting. Cross-engine access denied by default unless `BRIDGE_ENABLED=true`.
+  3. **Zero-Friction Bootstrap (`setup.bat` & `scripts/bootstrap.py`)**:
+     - Automated hardware scan (DXGI/WMI/nvidia-smi, VRAM, RAM, CPU topology).
+     - Automated Ollama auto-provisioning via `winget` or direct installer if missing, with daemon auto-start on `:11434`.
+     - Adaptive hardware-matched model ingestion (Tier 1 vs Tier 2 vs Tier 3), skipping existing downloads idempotently.
+     - Preserves existing `.env`, user credentials, and biometric profiles without overwriting.
+  4. **Budget Hardware Governor & Warning System**:
+     - Automatically flags Tier 3 hardware (e.g. Intel Iris Xe / $\le 16\text{ GB}$ RAM) with explicit warning banners.
+     - Enforces capability downgrades: restricts 8B+ VLA models to `moondream` (1B) or `qwen2.5vl:3b` with 540p capture; throttles Hikari swarm to sequential execution; caps 3D WebGL to 30 FPS.
+  5. **Privacy, Zero-Leak & Local Voice Biometrics Gate**:
+     - Regex/token scrubber redacting API keys, JWTs, secrets, absolute filesystem paths, private IPv4s, and PII.
+     - Local speaker verification using 192-dim acoustic embeddings and centroid calibration from 3 voice samples.
+     - Argon2/PBKDF2-hashed fallback PIN protection for noisy or mic-less environments.
+  6. **Extensible Connector Registry**:
+     - Implemented `BaseConnector` abstract class with input/output JSON schemas, timeouts, and structured error containment.
+     - Declarative `config/connectors.manifest.json` auto-surfacing tools to the router.
+     - Built-in `SystemDiagnosticsConnector` exposing realtime hardware and budget metrics.
+  7. **Antigravity Slash Command CLI Dispatcher (`helios <command>`)**:
+     - `/audit`: Scans files, checks IPC boundaries, and refreshes `docs/SYSTEM_AUDIT.md`.
+     - `/setup`: Idempotent environment, Ollama, and hardware readiness check.
+     - `/test-isolation`: Pytest suite verifying cross-namespace data isolation (6/6 passing).
+     - `/verify-voice`: Interactive/synthetic speaker calibration and fallback PIN verification.
+     - `/3d-web-experience`: Boots Solstice avatar engine and dual-avatar 3D WebGL studio.
+     - `/dev` & `/user`: Dual-edition launchers (`start_helios_dev.bat` & `start_solstice.bat`).
+- **Verification:**
+  - `helios /test-isolation`: 6/6 tests passing (100%).
+  - `helios /verify-voice --test`: 100% passed (Similarity: 1.0000, Impostor: 0.2365 rejected, Fallback PIN: verified).
+  - `helios /audit`: Refreshed `docs/SYSTEM_AUDIT.md` with active Tier 3 budget hardware advisory.
+  - `setup.bat --dry-run`: 0 errors, validated runtimes, `.venv`, safe `.env`, and hardware tier.
+  8. **Workspace Sanitation & Reorganization (`C:\projects\HELIOS`)**:
+     - Consolidated root down to 12 essential files (`setup.bat`, `helios.bat`, `helios_cmd.py`, `hikari.bat`, `start_helios_dev.bat`, `start_solstice.bat`, `.env`, `README.md`, `HANDOVER.md`, `AGENTS.md`).
+     - Moved 14 legacy/secondary shell and batch scripts into `scripts/launchers/`.
+     - Moved 37 loose `.png` and 68 test screenshot captures into `helios-character/artifacts/`.
+     - Moved scratch inspection scripts into `helios-character/scripts/`.
+     - All regression suites (`/test-isolation`, `/verify-voice`, `/audit`, `setup.bat`) verified passing 100%.
+
+
+---
+
+### [TASK-36] Interactive Ecosystem Customizations & Developer Connectors Studio Menu
+- **Status:** `@Orchestrator VERIFIED`
+- **Files Modified / Created:**
+  - `setup.bat` (Added `-c` / `--custom` CLI flag handling and interactive post-bootstrap action menu)
+  - `scripts/bootstrap.py` (Added `run_customization_wizard()`, `update_env_file()`, and `-c`/`--custom` support)
+  - `ai-router/static/app.html` (Added `🔌 Dev Connectors` sidebar button, `#connectors-modal` markup with 3 tabs, and full JS controller)
+  - `helios_cmd.py` (Added `/custom` operational slash command)
+  - `tests/test_connectors.py` (Automated pytest suite for discovery, scaffolding, sandbox execution, and state toggling)
+  - `config/custom_profile.json` (Structured declarative custom profile configuration)
+- **Key Deliverables & Verification:**
+  1. **Interactive Customization Wizard in `setup.bat` & `scripts/bootstrap.py`**:
+     - Configures default ecosystem edition (Developer `:8000`, Solstice `:8082`, or Co-existence).
+     - Allows selecting Compute & Model Tier Profiles (Tier 3 Budget, Tier 2 Balanced, Tier 1 Heavy, or Auto-detect).
+     - Configures Solstice avatar persona (Ren, Airi, or Dual).
+     - Triggers zero-cloud local voice biometrics calibration & fallback PIN setup.
+     - Toggles HMAC-SHA256 inter-process bridge security.
+     - Customizes port bindings with safe in-place synchronization into `.env` and `ai-router/.env`.
+  2. **Developer Connectors Studio in HELIOS Web UI (`ai-router/static/app.html`)**:
+     - Added `🔌 Dev Connectors` button to `<details class="system-menu">` in the sidebar.
+     - **Tab 1 (Installed Connectors)**: Live list of registered tools with scope pills, timeout indicators, and instant toggle switches.
+     - **Tab 2 (Add / Scaffold)**: Complete developer form with ID, friendly name, entrypoint class, description, scopes, timeout, and a **"✨ Generate Boilerplate"** button that produces complete Python `BaseConnector` starter code.
+     - **Tab 3 (⚡ Playground)**: Live interactive runner allowing developers to select a connector, input JSON payload parameters, execute in real time via `/api/connectors/execute`, and view telemetry (status, response JSON, and latency in milliseconds).
+  3. **Verification**:
+     - Pytest `tests/test_connectors.py`: 4/4 passed (100%).
+     - Full Pytest suite (`tests/`): 10/10 passed (100%).
+     - `setup.bat -c --dry-run` and `setup.bat --dry-run`: 0 errors (100%).
+     - `helios /custom --dry-run`: 0 errors (100%).

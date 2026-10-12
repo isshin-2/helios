@@ -4,8 +4,9 @@
   <img src="https://img.shields.io/badge/Ollama-Local_AI-orange?style=for-the-badge" alt="Ollama">
   <img src="https://img.shields.io/badge/Three.js-3D_VRM_Avatar-black?style=for-the-badge&logo=threedotjs" alt="3D VRM">
   <img src="https://img.shields.io/badge/Expo-React_Native-4630EB?style=for-the-badge&logo=expo" alt="Expo Mobile">
+  <img src="https://img.shields.io/badge/Vite-Portfolio-646CFF?style=for-the-badge&logo=vite" alt="Vite Portfolio">
   <br><br>
-  <strong>A locally-hosted, multi-modal AI ecosystem with task-based model routing, zero-trust tool execution, an autonomous 3D VRM avatar companion, and a hybrid online/offline mobile app.</strong>
+  <strong>A high-performance, locally-hosted autonomous AI ecosystem uniting an intelligent multi-model router, an 8-agent coding swarm (Hikari), closed-loop computer control, an expressive neural TTS engine, an interactive 3D VRM cybernetic companion (Airi), an offline-capable mobile app, and a hardware-integrated engineering portfolio.</strong>
 </div>
 
 <br>
@@ -14,117 +15,194 @@
 
 ## 📂 Repository Structure
 
-This monorepo unites the three core pillars of the **HELIOS** platform:
-
 ```text
 HELIOS/
-├── ai-router/         # Core AI Router, Sandbox, Desktop UI & Swarm Engine (Port 8000)
-├── helios-character/  # Airi — 3D VRM / Live2D Avatar Presentation Addon (Port 8080)
-├── mobile_v2/         # Expo / React Native Mobile Companion with Offline GGUF Fallback
-├── hikari.bat         # Launcher for Hikari Autonomous Coding CLI (Claude Code style)
-└── start_helios.bat   # Quick-start launcher for Windows
+├── ai-router/               # Core AI Router, Hikari Swarm, Desktop UI & Computer Control (:8000)
+│   ├── agents/              # 8-Agent Swarm (Planner, Architect, Coder, Tester, etc.) & ComputerAgent
+│   ├── computer/            # Desktop automation primitives (actions, controller, safety, UI grounding)
+│   ├── config/              # Voice profiles, pronunciation dictionaries, agent profiles
+│   ├── core/                # Swarm state machine, model router, audio TTS engine, task contracts
+│   ├── router/              # Fast prompt classification, SQLite vector memory (RAG)
+│   ├── security/            # Zero-trust sandbox, permission governor, path firewall
+│   ├── tests/               # Formal automated test suites (290+ tests)
+│   │   └── manual/          # Ad-hoc integration & live scratch reproduction scripts
+│   └── tools/               # Computer control, screen vision, shell, git, MCP client
+├── helios-character/        # Airi — 3D VRM Cybernetic Avatar Presentation Companion (:8080)
+│   ├── viewer/              # Three.js canvas, VRM expressions, animations, viseme lip-sync
+│   └── ai_server.py         # WebSocket bridge & standalone character engine
+├── helios-client/           # Client-Sided HELIOS: Desktop GUI, Hikari CLI & Device Sidecar
+│   ├── cli.py               # Claude Code / Codex terminal console for remote server
+│   ├── desktop.py           # Native PyQt5 WebEngine HUD with dynamic endpoint switcher
+│   ├── sidecar.py           # Background agent bridging client shell, screen, & OS to server
+│   └── api_client.py        # REST and WebSocket client library
+├── mobile_v2/               # Expo / React Native Mobile Companion with Offline GGUF Fallback
+├── portfolio/               # Cyberpunk Interactive Engineering Portfolio (Vite + React 19)
+├── scripts/                 # Dedicated AI PC Workstation automation (WoL, server startup)
+├── voices/                  # Neural voice reference audio & metadata (Airi, Helios)
+├── .gitignore               # Unified repository ignore rules
+├── hikari.bat               # 1-Click Launcher: Hikari Autonomous Coding Swarm CLI
+├── setup.bat                # 1-Click Launcher: Unified Environment Setup
+├── start_ai_pc.bat          # 1-Click Launcher: Dedicated AI PC Server (0.0.0.0:8000)
+├── start_airi.bat           # 1-Click Launcher: Airi 3D Companion (connects to AI PC/localhost)
+├── start_character_only.bat # 1-Click Launcher: Standalone 3D Character (No :8000 required)
+├── start_helios.bat         # Interactive Master Launcher (Menu for Core, Hikari, Airi, Client, Full Spec)
+├── start_helios_client.bat  # 1-Click Launcher: HELIOS Client (GUI, CLI, Sidecar for remote server)
+└── start_helios_full_spec.bat # 1-Click Launcher: Full Spec (Core :8000 + Airi :8080)
 ```
 
-| Module | Description | Tech Stack |
+| Module | Description | Primary Tech Stack |
 | :--- | :--- | :--- |
-| **[`ai-router/`](./ai-router)** | Core backend server, intelligent LLM router, vector memory (SQLite RAG), zero-trust sandbox, MCP client, and PyQt5 desktop overlays. | Python, FastAPI, Uvicorn, Ollama, SQLite, PyQt5 |
-| **[`helios-character/`](./helios-character)** | **Airi** — 3D VRM & Live2D avatar presentation companion driven by HELIOS Core's Character Protocol (`/ws/character`) with procedural humanization, FBX animations, spatial navigation, and VoiceManager lip-sync. | FastAPI, WebSockets, Three.js / VRM, Live2D |
-| **[`mobile_v2/`](./mobile_v2)** | Cross-platform mobile app featuring the interactive AI Core WebView HUD, real-time WebSocket streaming to HELIOS Core, and offline on-device GGUF model execution. | React Native 0.86, Expo 57, TypeScript, `llama.rn` |
-| **Hikari** | **Hikari (`hikari.bat`)** — Autonomous multi-agent coding CLI (Claude Code & Codex style) featuring the HELIOS Black Hole visual representation, git worktree isolation, automated test verification, and rollback safety. | Python, Rich, Git Worktrees, Pytest, Multi-Agent Swarm |
+| **[`ai-router/`](./ai-router)** | Core backend server, intelligent LLM router, vector memory (SQLite RAG), zero-trust sandbox, closed-loop computer control, neural TTS pipeline, and PyQt5 desktop overlays. | Python 3.11+, FastAPI, Uvicorn, Ollama, SQLite, PyQt5, Kokoro, GPT-SoVITS |
+| **[`helios-client/`](./helios-client)** | Lightweight client subsystem running on user's laptop/workstation while HELIOS Core is hosted remotely. Includes Desktop GUI, Hikari CLI, and Sidecar device daemon. | Python 3.11+, PyQt5, WebSockets, HTTPX, Rich, PyAutoGUI, MSS |
+| **[`helios-character/`](./helios-character)** | **Airi** — 3D VRM avatar presentation companion (`Helios_Airi.vrm`) driven by the Character Protocol (`/ws/character`) with procedural humanization, 30-FPS viseme lip-sync, and RL pose engine. | FastAPI, WebSockets, Three.js, VRM, Live2D |
+| **[`mobile_v2/`](./mobile_v2)** | Cross-platform mobile app featuring the interactive AI Core HUD, real-time WebSocket streaming to HELIOS Core, and offline on-device GGUF execution. | React Native 0.86, Expo 57, TypeScript, `llama.rn` |
+| **[`portfolio/`](./portfolio)** | Production-grade cyberpunk engineering portfolio showcasing hardware schematics, firmware architectures, and interactive digital twins. | React 19, Vite, Lucide Icons |
+| **[`voices/`](./voices)** | Studio reference audio, phoneme mappings, and metadata for Airi and Helios neural voice synthesis. | YAML, WAV, OGG |
+| **[`scripts/`](./scripts)** | Workstation scripts for headless UDP Wake-on-LAN (WoL), model verification, and high-throughput server hosting. | Windows Batch, PowerShell |
+| **Hikari** | **Hikari (`hikari.bat`)** — Autonomous multi-agent coding CLI (Claude Code & Codex style) featuring the HELIOS Black Hole ASCII HUD, git worktree isolation, automated pytest verification, and rollback safety. | Python, Rich, Git Worktrees, Pytest |
 
 ---
 
-## ✨ Key Features
+## 🚀 Quick Launch (Universal Cross-Platform)
 
-### 💻 1. Hikari Autonomous Coding CLI (`hikari.bat`)
-* **Event Horizon Visual HUD**: Styled after the HELIOS AI Core with a signature relativistic Black Hole ASCII representation and accretion disk telemetry badges.
-* **Autonomous Coding Swarm**: Multi-agent software engineering terminal interface (Claude Code & Codex CLI style) driven by 8 specialized agents (`Planner`, `Architect`, `Repo Mapper`, `Coder`, `Tester`, `Repair`, `Reviewer`, `Security Reviewer`).
-* **Git Worktree Isolation**: Safely develops code inside isolated `.helios_worktrees` so your working branch is never modified unless all verification tests pass.
-* **Deterministic Automated Verification**: Executes real unit tests (`pytest`), detects failure root causes, and executes automated self-repair loops.
-* **Interactive CLI Commands**: Inspect terminal diffs (`/diff`), run code review (`/review`), run tests (`/test`), check active VRAM model allocations (`/models`), or rollback changes (`/rollback`).
+HELIOS runs seamlessly on **Windows, macOS, and Linux** across any hardware configuration (from 8 GB laptops to 64 GB RTX workstations and Apple Silicon Macs):
 
-### 🧠 2. Core AI Router (`ai-router`)
-* **Task-Based Model Routing**: Automatically classifies prompts (`coding`, `reasoning`, `vision`, `general`) and routes them to the optimal local or cloud model.
-* **Hardware-Aware Auto-Provisioner & `llmfit`**: Scans CPU, RAM, VRAM, and Disk on startup to right-size and provision compatible local models automatically.
-* **Zero-Trust Sandbox**: Restricts filesystem access to allowed directories, blocks system paths, and requires explicit human approval for high-risk shell or file modifications.
-* **Vector Memory (RAG)**: Persists long-term facts, user preferences, and session context in local SQLite embeddings.
-* **Desktop App & AI Core Overlay**: Includes both a full PyQt5 desktop client (`desktop_app.py`) and a frameless, click-through floating HUD overlay (`helios_desktop.py`, toggled via `Ctrl+Shift+Space`).
-* **Rich Tool Ecosystem & MCP**: Built-in tools for Computer Vision (Set-of-Mark screen analysis), Stateful Shell, GitHub, Google Drive, CAD, 3D Printing (OctoPrint / BambuLabs), Self-Modification, and Model Context Protocol (MCP) servers.
+### 🌟 Universal Python CLI (Runs Everywhere)
+```bash
+python helios.py          # Interactive master launcher menu (Windows, macOS, Linux)
+python helios.py core     # Start HELIOS Core AI Router (:8000)
+python helios.py hikari   # Launch Hikari Autonomous Coding Swarm CLI
+python helios.py full     # Launch Full Spec: Core (:8000) + Airi 3D Avatar (:8080)
+python helios.py airi     # Launch Airi 3D Companion (:8080) standalone
+python helios.py client   # Launch HELIOS Remote Client (GUI / CLI / Sidecar)
+python helios.py status   # System diagnostics & hardware tier telemetry
+python helios.py test     # Run verified core test suite
+```
 
-### 🎭 2. Airi Avatar Companion (`helios-character`)
-* **3D VRM Avatar Companion (Airi)**: Real-time 3D techwear VRM character body with full spatial movement, facial expressions, and body gesture controls.
-* **Optional Presentation Layer**: Strictly separated from HELIOS Core intelligence (`CHARACTER_ENABLED=true/false`, `CHARACTER_RENDERER=vrm/live2d`, `CHARACTER_MODEL=helios-v1`). HELIOS continues functioning normally if the character is disabled, crashes, or disconnects.
-* **Deterministic Emotion Engine & Safety Lock**: Translates EventBus lifecycle events (`tool_called`, `tool_completed`, `tool_failed`, `approval_required`) into renderer-independent `CharacterState` updates without extra LLM latency, and enforces `serious` mode during critical/destructive actions.
-* **VoiceManager Lip-Sync**: Driven by `VoiceManager` (`speech_started`, `audio_chunk`, `speech_finished`, `speech_interrupted`) with 30-FPS RMS envelopes and viseme timelines.
+### ⚡ 1-Click Platform Launchers
 
-### 📱 3. Mobile Companion (`mobile_v2`)
-* **Hybrid Online / Offline Architecture**: Connects over WebSockets (`ws://<host>:8000/ws`) to the HELIOS desktop backend when on the same network, and seamlessly falls back to on-device inference via `llama.rn` (`.gguf` models) when offline.
-* **AI Core HUD**: Embeds the interactive AI Core visualizer (`AICoreWebView.tsx`) alongside a native chat & model management view.
-
----
-
-## 🚀 Quick Start (Two Versions Available)
-
-HELIOS can be launched in **two distinct versions** depending on your needs (or via the interactive `start_helios.bat` menu):
-
-| Version | Launcher Script | What It Runs |
-| :--- | :--- | :--- |
-| **⚡ Version 1: Full Spec** | **`start_helios_full_spec.bat`** *(or `start_helios.bat 1`)* | Full HELIOS stack: **`ai-router` (`:8000`)** (multi-model router, zero-trust sandbox, vector RAG memory, tools, MCP, desktop overlay) **+** **`helios-character` (`:8080`)** bridged via `/ws/character`. |
-| **🎭 Version 2: Just the Character** | **`start_character_only.bat`** *(or `start_helios.bat 2`)* | Standalone 3D VRM Character (`:8080`) with its own lightweight local Ollama chat, neural TTS + 30-FPS lip-sync, 24 human reference poses, 6 posture styles, and RL pose trainer — **no `ai-router` (`:8000`) stack required**. |
-
-### Prerequisites
-1. **[Python 3.11+](https://www.python.org/downloads/)** (ensure **"Add python.exe to PATH"** is checked on Windows).
-2. **[Ollama](https://ollama.com/download)** installed and running locally.
-3. **[Node.js 18+](https://nodejs.org/)** *(optional, required only for `mobile_v2`)*.
+| Command (Windows) | Command (macOS / Linux) | Mode | Description |
+| :--- | :--- | :--- | :--- |
+| **`start_helios.bat`** | **`./start_helios.sh`** | **Interactive Master Menu** | Choose between Core Server, Client Suite, Hikari CLI, Full Spec, or Airi Standalone. |
+| **`start_helios_client.bat`** | **`./start_helios_client.sh`** | **Client Mode Suite** | Connects to remote HELIOS server: Desktop GUI, Hikari CLI, and Sidecar Daemon. |
+| **`hikari.bat`** | **`./hikari.sh`** | **Hikari Coding CLI** | Multi-agent autonomous coding terminal (Claude Code style) with Black Hole HUD. |
+| **`start_helios_full_spec.bat`** | **`./start_helios_full_spec.sh`** | **Full Spec Ecosystem** | Launches Core AI Router (`:8000`) and Airi 3D Companion (`:8080`) simultaneously. |
+| **`start_airi.bat`** | **`./start_airi.sh`** | **Airi 3D Companion** | Launches the 3D VRM companion; automatically connects to AI PC or localhost. |
+| **`start_character_only.bat`** | **`./start_airi.sh`** | **Standalone Character** | Lightweight 3D VRM companion with standalone local chat — no `:8000` stack needed. |
+| **`setup.bat`** | **`./setup.sh`** | **Unified Setup** | Creates Python virtual environment and installs all backend dependencies. |
+| **`portfolio/start_portfolio.bat`** | **`portfolio/start_portfolio.sh`** | **Engineering Portfolio** | Launches Vite dev server at `http://localhost:5174` and opens browser. |
 
 ---
 
-### ⚡ Option A: Launch the Full Spec Version (`ai-router` + `helios-character`)
-From the repository root on Windows, double-click **`start_helios_full_spec.bat`** (or run `start_helios.bat` and choose `[1]`):
+## ✨ Core Architecture & Features
+
+### 💻 1. Hikari Autonomous Coding Swarm (`hikari.bat`)
+* **Event Horizon Visual HUD**: Relativistic Black Hole ASCII display with real-time accretion disk telemetry badges and token throughput indicators.
+* **8-Agent Software Engineering Swarm**:
+  1. `Planner`: Task decomposition, dependency mapping, and milestone generation.
+  2. `Architect`: System design, module boundaries, and interface contracts.
+  3. `Repo Mapper`: AST code indexing, symbol references, and topological graph analysis.
+  4. `Coder`: TDD code implementation with deterministic tool call constraints.
+  5. `Tester`: Test suite execution (`pytest`), failure extraction, and regression checking.
+  6. `Repair Agent`: Targeted patch generation with root-cause analysis loops.
+  7. `Reviewer`: Clean-code quality audit and architectural compliance verification.
+  8. `Security Reviewer`: Vulnerability scanning, AST sanitization, and path traversal auditing.
+* **Git Worktree Isolation**: Safely develops code inside isolated `.helios_worktrees`—the main working branch remains pristine until tests pass 100%.
+* **Interactive CLI Commands**: View diffs (`/diff`), trigger reviews (`/review`), run tests (`/test`), inspect VRAM allocations (`/models`), or rollback changes (`/rollback`).
+
+### 🧠 2. AI Router & Dedicated AI PC Workstation (`ai-router`)
+* **Dual Workstation Capability**:
+  - **Localhost Mode**: Self-contained inference on laptop hardware.
+  - **Dedicated AI PC Workstation**: Offloads inference to a dedicated node (**RTX 5060 Ti 16 GB VRAM + 64 GB DDR5 RAM**) on LAN (`192.168.100.254:8000`).
+  - **Auto Wake-on-LAN**: Headless UDP magic packets automatically wake the AI PC when tasks arrive.
+* **Concurrent Multi-Model Pool**: Concurrent execution across `qwen2.5-coder:32b`, `qwen2.5-coder:14b`, `qwen3.5:9b`, and `phi4:mini` without OOM faults.
+* **Hardware Arbitrator & `llmfit`**: Dynamically profiles RAM/VRAM to right-size quantization levels and context windows.
+* **Zero-Trust Security Sandbox**: File access confined to explicit workspaces; destructive shell commands require interactive human approval.
+* **SQLite Vector Memory (RAG)**: Persistent semantic memory across sessions stored in `ai-router/helios.db`.
+
+### 🖥️ 3. Closed-Loop Computer Control (`ai-router/computer`)
+* **Desktop Automation**: Full keyboard, mouse, window, and process control through `ComputerAgent` and `ComputerControlTool`.
+* **Multi-Layer UI Grounding**: Screen capture via MSS/ImageGrab, coordinate bounding, and UI Automation (UIA) tree inspection.
+* **Safety & Emergency Controls**: Fail-safe mouse movements, bounding box enforcement, protected process isolation, and instant emergency stop triggers.
+
+### 🎙️ 4. Expressive Neural TTS Engine (`ai-router/core/audio/tts`)
+* **Dual-Backend Synthesis**: High-speed **Kokoro ONNX** for conversational responses + **GPT-SoVITS** for zero-shot voice cloning.
+* **Text Normalizer**: Strips markdown, emojis, JSON artifacts, and converts technical units (e.g. `3.3V` → "three point three volts", `400kHz` → "four hundred kilohertz").
+* **Engineering Pronunciation Dictionary**: Resolves technical acronyms and domain terms defined in `config/pronunciation.yaml`.
+* **Prosody Engine & Speech Planner**: Dynamic speech pacing, emotion matching (`happy`, `serious`, `curious`, `neutral`), sentence-level streaming segmentation, and safety overrides.
+* **Audio Processor**: DC offset removal, 70Hz high-pass filter, soft limiting, and real-time 30-FPS viseme envelope generation for lip-sync.
+
+### 🎭 5. Airi 3D Cybernetic Companion (`helios-character`)
+* **3D Techwear VRM Model (`Helios_Airi.vrm`)**: Real-time rendering via Three.js with full body kinematics, facial expressions, and spatial movement.
+* **Decoupled Architecture**: Connects to HELIOS Core over `/ws/character` via the Character Protocol; HELIOS operates uninhibited even if the character UI is closed.
+* **Procedural Humanization**: Micro-movements, eye blinks, breathing cycles, and emotion transitions driven directly by event stream telemetry.
+* **Pose & Movement Engine**: 24 reference human poses, 6 posture styles, and reinforcement learning pose policy (`models/helios_rl_pose_policy.pkl`).
+
+### 📱 6. Mobile Companion (`mobile_v2`)
+* **Tensura Cyberpunk HUD**: Redesigned dark-mode interface (`#090a10` abyss, `#00e5ff` cyan, `#ffb700` amber) with live connection badge and real-time latency ping indicator.
+* **Interactive AI Core Black Hole HUD**: Visualizes system states (`idle`, `listening`, `thinking`, `speaking`, `amber`) synchronized live with the core server via bidirectional JS bridge.
+* **4-Tab Command Deck**:
+  1. `AI Core HUD`: Real-time state visualizer and operational telemetry pills.
+  2. `Terminal`: Streaming chat with LLM metadata tags, quick command chips (`/status`, `/models`, `/test`), and execution cancellation.
+  3. `Swarm & Nodes`: Live cards for the 8-agent swarm, dedicated AI PC Workstation stats, and Airi 3D companion audio telemetry.
+  4. `Nodes & Settings`: Dynamic endpoint configuration, live Ping tester, autonomous mode switch, and on-device GGUF model selector.
+* **Human-in-the-Loop Security Approvals**: Interactive modal intercepts high-impact tool execution requests with immediate Approve/Deny buttons over WebSockets.
+* **Offline Fallback**: Runs on-device local `.gguf` models with `llama.rn` when offline or out of LAN range.
+
+### ⚡ 7. Cyberpunk Engineering Portfolio (`portfolio`)
+* **Interactive Project Deck**: Showcases all embedded systems, robotics, and AI projects by Krithik Mahesh (@isshin-2).
+* **Live Simulators**: AgriTech Rover telemetry deck, AquaPulse tank twin, and TEMPSENSE pharmaceutical monitor.
+
+---
+
+## 🧪 Testing & Validation
+
+HELIOS includes a comprehensive automated test suite with over **290 unit and integration tests**:
 
 ```powershell
-.\start_helios_full_spec.bat
+cd ai-router
+
+# 1. Run the core architectural verification suite (Hardware, Sandbox, RAG, Swarm)
+.\venv\Scripts\python.exe -m pytest tests/test_helios_core_suite.py
+
+# 2. Run the neural TTS and audio processing test suite (17 tests)
+.\venv\Scripts\python.exe -m pytest tests/test_tts_pipeline.py
+
+# 3. Run the closed-loop computer control system tests
+.\venv\Scripts\python.exe -m pytest tests/test_computer_system.py
+
+# 4. Verify test discovery across the entire repository
+.\venv\Scripts\python.exe -m pytest --collect-only
 ```
 
-* Launches **HELIOS Core (`ai-router`)** at **[http://localhost:8000](http://localhost:8000)** (plus the desktop AI Core overlay) AND **HELIOS Character (`helios-character`)** at **[http://localhost:8080?edition=full_spec](http://localhost:8080?edition=full_spec)**.
-* To launch the full Desktop Window or floating AI Core overlay manually:
-  ```powershell
-  cd ai-router
-  .\venv\Scripts\python.exe desktop_app.py      # Full Desktop UI
-  .\venv\Scripts\python.exe helios_desktop.py   # Floating AI Core Overlay (Ctrl+Shift+Space)
+*All ad-hoc scratch scripts and live test fixtures are safely isolated in `ai-router/tests/manual/` to ensure zero noise during CI/CD execution.*
+
+---
+
+## 🛠️ Prerequisites & Installation
+
+1. **[Python 3.11+](https://www.python.org/downloads/)** (Ensure **"Add python.exe to PATH"** is checked on Windows).
+2. **[Ollama](https://ollama.com/download)** installed and running locally or on the AI PC.
+3. **[Node.js 18+](https://nodejs.org/)** *(required for `mobile_v2` and `portfolio`)*.
+
+### Setup in 1 Step:
+
+- **Any OS (Universal):**
+  ```bash
+  python helios.py setup          # Interactive configuration wizard
+  python helios.py setup --quick  # 1-second auto-detected setup
   ```
+- **Windows:** Double-click **`setup.bat`**, or run `.\setup.bat`
+- **macOS / Linux:** Run `chmod +x *.sh && ./setup.sh`
+
+HELIOS automatically detects your hardware (RAM, VRAM, Apple Silicon, CPU), probes local and cluster nodes, configures sensible defaults into `.env`, creates the virtual environment, and installs dependencies.
 
 ---
 
-### 🎭 Option B: Launch Just the Character (`helios-character` Standalone)
-To run **only the 3D VRM character** with lightweight local chat, neural TTS lip-sync, 24 human poses, 6 posture styles, and the RL pose trainer—without starting `ai-router` (`:8000`):
+## 📖 Deep-Dive Documentation
 
-```powershell
-.\start_character_only.bat
-# or inside helios-character/:
-cd helios-character
-.\start_character_only.bat
-```
-
-* Opens the standalone Character Viewer at **[http://localhost:8080?edition=character_only](http://localhost:8080?edition=character_only)**.
-* You can also toggle between **⚡ Full Spec** and **🎭 Just the Character** live at any time using the Edition Switcher in the top-right corner of the viewer.
-
----
-
-### 3️⃣ Run the Mobile App (`mobile_v2`)
-```powershell
-cd mobile_v2
-npm install
-npx expo start
-```
-
-* Use `npx expo run:android` or `npx expo run:ios` for native builds with `llama.rn` on-device GGUF model support.
-
----
-
-## 📖 Documentation
-
-* **[AI Router Guide](./ai-router/README.md)** — Setup, hardware tiers, and desktop overlay controls.
-* **[Architecture Deep-Dive](./ai-router/ARCHITECTURE.md)** — Request lifecycle, zero-trust sandbox, VRAM offloading, and self-modification pipeline.
-* **[Character Addon Guide](./helios-character/README.md)** — Character Protocol, modular VRM/Live2D renderers, and model manifest format.
-* **[Mobile v2 Guide](./mobile_v2/README.md)** — Mobile app configuration, WebSocket bridge, and offline GGUF usage.
+* **[AI Router Architecture](./ai-router/ARCHITECTURE.md)** — Hardware tiers, zero-trust sandbox, and self-modification pipeline.
+* **[AI Router Guide](./ai-router/README.md)** — Backend configuration, API routes, and PyQt5 overlay controls.
+* **[Character Addon Guide](./helios-character/README.md)** — Airi 3D VRM model setup, manifest format, and WebSocket protocol.
+* **[Mobile v2 Guide](./mobile_v2/README.md)** — React Native mobile setup, Expo configuration, and offline GGUF inference.
+* **[Portfolio Guide](./portfolio/README.md)** — Engineering portfolio architecture, hardware pinouts, and simulators.
