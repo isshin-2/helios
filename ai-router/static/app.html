@@ -1085,6 +1085,131 @@
                 <button class="btn btn-primary" style="width: auto;" onclick="closePrivacyModal()">Done</button>
             </div>
         </div>
+    <!-- Developer Connectors Studio Modal -->
+    <div id="connectors-modal" class="modal-overlay" style="display: none; z-index: 2000;">
+        <div class="modal modal-lg" style="max-width: 820px; width: 92vw; max-height: 88vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">🔌 Developer Connectors Studio</h2>
+                    <p style="margin: 4px 0 0 0; color: var(--text-muted); font-size: 13px;">Manage, scaffold, and test extensible tool connectors</p>
+                </div>
+                <button class="btn-close" onclick="closeConnectorsModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; line-height: 1;">×</button>
+            </div>
+
+            <!-- Tab Headers -->
+            <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px; margin-bottom: 16px;">
+                <button id="tab-btn-installed" class="btn btn-secondary" style="width: auto; padding: 6px 14px; font-size: 13px; background: rgba(20, 184, 166, 0.15); border-color: var(--accent-cyan); color: var(--accent-cyan);" onclick="switchConnectorTab('installed')">Installed Connectors</button>
+                <button id="tab-btn-scaffold" class="btn btn-secondary" style="width: auto; padding: 6px 14px; font-size: 13px;" onclick="switchConnectorTab('scaffold')">+ Add / Scaffold</button>
+                <button id="tab-btn-playground" class="btn btn-secondary" style="width: auto; padding: 6px 14px; font-size: 13px;" onclick="switchConnectorTab('playground')">⚡ Playground</button>
+            </div>
+
+            <div class="modal-body" style="overflow-y: auto; flex: 1; padding-right: 4px;">
+                <!-- Tab 1: Installed Connectors -->
+                <div id="connector-tab-installed">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Registered Ecosystem Connectors</span>
+                        <button class="btn btn-secondary" style="width: auto; font-size: 12px; padding: 4px 10px;" onclick="loadConnectorsList()">🔄 Refresh</button>
+                    </div>
+                    <div id="connectors-card-list" style="display: flex; flex-direction: column; gap: 12px;">
+                        <div style="text-align: center; color: var(--text-muted); padding: 24px;">Loading connectors...</div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Add / Scaffold Connector -->
+                <div id="connector-tab-scaffold" style="display: none;">
+                    <div style="display: flex; flex-direction: column; gap: 14px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Connector ID (snake_case)</label>
+                                <input type="text" id="conn-id" class="form-input" style="margin-bottom: 0;" placeholder="e.g. redis_cache">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Friendly Name</label>
+                                <input type="text" id="conn-name" class="form-input" style="margin-bottom: 0;" placeholder="e.g. Redis Cache Connector">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Entrypoint Class (module:ClassName)</label>
+                            <input type="text" id="conn-entrypoint" class="form-input" style="margin-bottom: 0;" placeholder="e.g. connectors.redis_cache:RedisCacheConnector">
+                        </div>
+
+                        <div>
+                            <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Description</label>
+                            <textarea id="conn-desc" class="form-input" style="height: 60px; resize: vertical; margin-bottom: 0;" placeholder="Explain connector purpose and capabilities..."></textarea>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center;">
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Timeout (seconds)</label>
+                                <input type="number" id="conn-timeout" class="form-input" style="margin-bottom: 0;" value="15" min="1" max="120">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Required Scopes</label>
+                                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                    <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                        <input type="checkbox" name="conn-scope" value="read_only" checked> read_only
+                                    </label>
+                                    <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                        <input type="checkbox" name="conn-scope" value="system:read"> system:read
+                                    </label>
+                                    <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                        <input type="checkbox" name="conn-scope" value="system:write"> system:write
+                                    </label>
+                                    <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                        <input type="checkbox" name="conn-scope" value="hardware:metrics"> hardware:metrics
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scaffold Code Section -->
+                        <div style="margin-top: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <label style="font-size: 12px; color: var(--text-secondary);">Python Implementation Code</label>
+                                <button class="btn btn-secondary" style="width: auto; font-size: 11px; padding: 4px 10px;" onclick="generateConnectorScaffoldCode()">✨ Generate Boilerplate</button>
+                            </div>
+                            <textarea id="conn-code" class="form-input" style="font-family: 'Fira Code', monospace; font-size: 12px; height: 160px; resize: vertical; margin-bottom: 0;" placeholder="# Click 'Generate Boilerplate' or paste custom BaseConnector subclass code here..."></textarea>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px;">
+                            <button class="btn btn-secondary" style="width: auto;" onclick="switchConnectorTab('installed')">Cancel</button>
+                            <button class="btn btn-primary" style="width: auto;" onclick="submitRegisterConnector()">💾 Register Connector</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Playground -->
+                <div id="connector-tab-playground" style="display: none;">
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div>
+                            <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Select Connector</label>
+                            <select id="play-connector-select" class="form-input" style="margin-bottom: 0;" onchange="updatePlaygroundPlaceholder()">
+                                <option value="">Select a registered connector...</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Payload Parameters (JSON)</label>
+                            <textarea id="play-params" class="form-input" style="font-family: 'Fira Code', monospace; font-size: 12px; height: 100px; resize: vertical; margin-bottom: 0;">{}</textarea>
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end;">
+                            <button id="btn-run-connector" class="btn btn-primary" style="width: auto; font-size: 13px;" onclick="executeConnectorPlayground()">🚀 Execute Connector</button>
+                        </div>
+
+                        <div>
+                            <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Execution Output & Telemetry</label>
+                            <pre id="play-output" style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px; font-family: 'Fira Code', monospace; font-size: 12px; color: var(--text-primary); max-height: 220px; overflow: auto; white-space: pre-wrap; margin: 0;">Awaiting execution...</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 16px; border-top: 1px solid var(--border-subtle); padding-top: 12px;">
+                <button class="btn btn-secondary" style="width: auto;" onclick="closeConnectorsModal()">Close</button>
+            </div>
+        </div>
     </div>
 
     <!-- Self-Modification Drawer -->
@@ -1123,6 +1248,7 @@
                 </summary>
                 <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding-left: 12px; border-left: 2px solid var(--border-subtle); margin-left: 6px;">
                     <button class="btn btn-secondary" onclick="openSkillsModal()" style="font-size: 0.9em; padding: 6px 12px; justify-content: flex-start;">🧠 Manage Skills</button>
+                    <button class="btn btn-secondary" onclick="openConnectorsModal()" style="font-size: 0.9em; padding: 6px 12px; justify-content: flex-start;">🔌 Dev Connectors</button>
                     <button class="btn btn-secondary" onclick="openSystemAccessModal()" style="font-size: 0.9em; padding: 6px 12px; justify-content: flex-start;">🛡️ System Access</button>
                     <button class="btn btn-secondary" onclick="toggleSelfModDrawer()" style="font-size: 0.9em; padding: 6px 12px; justify-content: flex-start;">🧬 Self-Modification</button>
                     <button class="btn btn-secondary" onclick="openPrivacyModal()" style="font-size: 0.9em; padding: 6px 12px; justify-content: flex-start;">🔒 Privacy & Data</button>
@@ -1853,9 +1979,299 @@
             }
         }
 
+        // ==========================================
+        // Developer Connectors Studio Logic
+        // ==========================================
+        const connectorsModal = document.getElementById('connectors-modal');
+        let currentConnectors = [];
+
+        function openConnectorsModal() {
+            if (connectorsModal) {
+                connectorsModal.style.display = 'flex';
+                switchConnectorTab('installed');
+                loadConnectorsList();
+            }
+        }
+
+        function closeConnectorsModal() {
+            if (connectorsModal) {
+                connectorsModal.style.display = 'none';
+            }
+        }
+
+        function switchConnectorTab(tabName) {
+            const tabs = ['installed', 'scaffold', 'playground'];
+            tabs.forEach(t => {
+                const pane = document.getElementById(`connector-tab-${t}`);
+                const btn = document.getElementById(`tab-btn-${t}`);
+                if (pane) pane.style.display = (t === tabName) ? 'block' : 'none';
+                if (btn) {
+                    if (t === tabName) {
+                        btn.style.background = 'rgba(20, 184, 166, 0.15)';
+                        btn.style.borderColor = 'var(--accent-cyan)';
+                        btn.style.color = 'var(--accent-cyan)';
+                    } else {
+                        btn.style.background = 'var(--bg-card)';
+                        btn.style.borderColor = 'var(--border-subtle)';
+                        btn.style.color = 'var(--text-secondary)';
+                    }
+                }
+            });
+            if (tabName === 'playground') {
+                populatePlaygroundDropdown();
+            }
+        }
+
+        async function loadConnectorsList() {
+            const listEl = document.getElementById('connectors-card-list');
+            if (!listEl) return;
+            listEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 18px;">Loading registered connectors...</div>';
+
+            try {
+                const res = await fetch('/api/connectors');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                currentConnectors = data.connectors || [];
+
+                if (!currentConnectors.length) {
+                    listEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 24px;">No developer connectors registered. Switch to "+ Add / Scaffold" to register one.</div>';
+                    return;
+                }
+
+                listEl.innerHTML = currentConnectors.map(c => {
+                    const isEnabled = !!c.enabled;
+                    const scopesPills = (c.scopes || []).map(s => 
+                        `<span style="background: rgba(20, 184, 166, 0.1); border: 1px solid rgba(20, 184, 166, 0.3); color: var(--accent-cyan); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-family: 'Fira Code', monospace;">${s}</span>`
+                    ).join(' ');
+
+                    return `
+                        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+                                        ${c.name}
+                                        <span style="font-size: 11px; font-weight: normal; color: var(--text-muted); font-family: 'Fira Code', monospace;">[${c.id}] v${c.version || '1.0.0'}</span>
+                                    </div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">${c.description || 'No description provided.'}</div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label class="toggle-wrapper" style="margin: 0; font-size: 12px; color: var(--text-muted);">
+                                        ${isEnabled ? '<span style="color:var(--accent-green)">Active</span>' : 'Disabled'}
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleConnectorState('${c.id}', this.checked)">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 11px;">
+                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                                    <span style="color: var(--text-muted);">Scopes:</span>
+                                    ${scopesPills || '<span style="color: var(--text-muted)">None</span>'}
+                                    <span style="color: var(--text-muted); margin-left: 8px;">⏱️ ${c.timeout || 15}s</span>
+                                </div>
+                                <div style="display: flex; gap: 6px;">
+                                    <button class="btn btn-secondary" style="width: auto; font-size: 11px; padding: 4px 8px;" onclick="quickTestConnector('${c.id}')">⚡ Test in Playground</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                populatePlaygroundDropdown();
+            } catch (err) {
+                listEl.innerHTML = `<div style="text-align: center; color: var(--accent-red); padding: 18px;">Failed to load connectors: ${err.message}</div>`;
+            }
+        }
+
+        async function toggleConnectorState(id, enabled) {
+            try {
+                const res = await fetch('/api/connectors/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, enabled })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Toggle failed');
+                await loadConnectorsList();
+            } catch (err) {
+                alert(`Error toggling connector: ${err.message}`);
+                await loadConnectorsList();
+            }
+        }
+
+        function populatePlaygroundDropdown() {
+            const selectEl = document.getElementById('play-connector-select');
+            if (!selectEl) return;
+            const prevVal = selectEl.value;
+            selectEl.innerHTML = '<option value="">Select a registered connector...</option>';
+            currentConnectors.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = `${c.name} (${c.id})${!c.enabled ? ' [Disabled]' : ''}`;
+                selectEl.appendChild(opt);
+            });
+            if (prevVal && currentConnectors.some(c => c.id === prevVal)) {
+                selectEl.value = prevVal;
+            }
+        }
+
+        function quickTestConnector(id) {
+            switchConnectorTab('playground');
+            const selectEl = document.getElementById('play-connector-select');
+            if (selectEl) {
+                selectEl.value = id;
+                updatePlaygroundPlaceholder();
+            }
+        }
+
+        function updatePlaygroundPlaceholder() {
+            const selectEl = document.getElementById('play-connector-select');
+            const cid = selectEl ? selectEl.value : '';
+            const conn = currentConnectors.find(c => c.id === cid);
+            const paramsEl = document.getElementById('play-params');
+            if (conn && conn.schema && Object.keys(conn.schema).length > 0) {
+                paramsEl.value = JSON.stringify(conn.schema, null, 2);
+            } else {
+                paramsEl.value = "{}";
+            }
+        }
+
+        async function generateConnectorScaffoldCode() {
+            const id = document.getElementById('conn-id').value.trim();
+            const name = document.getElementById('conn-name').value.trim() || id;
+            const desc = document.getElementById('conn-desc').value.trim();
+            const scopes = Array.from(document.querySelectorAll('input[name="conn-scope"]:checked')).map(el => el.value);
+
+            if (!id) {
+                alert('Please enter a Connector ID first.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/connectors/scaffold', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, name, description: desc, scopes })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Scaffold generation failed');
+
+                document.getElementById('conn-code').value = data.code;
+                if (!document.getElementById('conn-entrypoint').value) {
+                    document.getElementById('conn-entrypoint').value = data.suggested_entrypoint;
+                }
+            } catch (err) {
+                alert(`Error generating scaffold: ${err.message}`);
+            }
+        }
+
+        async function submitRegisterConnector() {
+            const id = document.getElementById('conn-id').value.trim();
+            const name = document.getElementById('conn-name').value.trim();
+            const entrypoint = document.getElementById('conn-entrypoint').value.trim();
+            const desc = document.getElementById('conn-desc').value.trim();
+            const timeout = parseInt(document.getElementById('conn-timeout').value) || 15;
+            const scopes = Array.from(document.querySelectorAll('input[name="conn-scope"]:checked')).map(el => el.value);
+            const code = document.getElementById('conn-code').value.trim();
+
+            if (!id || !name || !entrypoint) {
+                alert('ID, Friendly Name, and Entrypoint Class are required!');
+                return;
+            }
+
+            const payload = {
+                id,
+                name,
+                entrypoint,
+                description: desc,
+                timeout_seconds: timeout,
+                scopes: scopes.length ? scopes : ['read_only'],
+                enabled: true,
+                python_code: code || null
+            };
+
+            try {
+                const res = await fetch('/api/connectors/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Registration failed');
+
+                alert(data.message || 'Connector registered successfully!');
+                switchConnectorTab('installed');
+                await loadConnectorsList();
+            } catch (err) {
+                alert(`Registration failed: ${err.message}`);
+            }
+        }
+
+        async function executeConnectorPlayground() {
+            const selectEl = document.getElementById('play-connector-select');
+            const outputEl = document.getElementById('play-output');
+            const runBtn = document.getElementById('btn-run-connector');
+            const id = selectEl ? selectEl.value : '';
+
+            if (!id) {
+                alert('Please select a connector to execute.');
+                return;
+            }
+
+            let params = {};
+            try {
+                const rawParams = document.getElementById('play-params').value.trim();
+                if (rawParams) params = JSON.parse(rawParams);
+            } catch (jsonErr) {
+                alert('Invalid JSON in Payload Parameters!');
+                return;
+            }
+
+            outputEl.innerText = `[${new Date().toLocaleTimeString()}] Executing '${id}' via Zero-Trust Connector Sandbox...\n`;
+            if (runBtn) runBtn.disabled = true;
+
+            const startTime = performance.now();
+            try {
+                const res = await fetch('/api/connectors/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, params })
+                });
+                const data = await res.json();
+                const latency = Math.round(performance.now() - startTime);
+
+                if (!res.ok) {
+                    outputEl.innerText = `[FAILED] HTTP ${res.status} (${latency}ms):\n` + JSON.stringify(data, null, 2);
+                    outputEl.style.color = 'var(--accent-red)';
+                } else {
+                    outputEl.innerText = `[SUCCESS] Status: OK | Latency: ${latency}ms\n` + JSON.stringify(data.result, null, 2);
+                    outputEl.style.color = 'var(--accent-green)';
+                }
+            } catch (err) {
+                outputEl.innerText = `[NETWORK ERROR]: ${err.message}`;
+                outputEl.style.color = 'var(--accent-red)';
+            } finally {
+                if (runBtn) runBtn.disabled = false;
+            }
+        }
+
         // Initialize App automatically
         async function initApp() {
-            const username = "krithik";
+            let username = localStorage.getItem('helios_username');
+            if (!username) {
+                try {
+                    const hRes = await fetch('/health');
+                    if (hRes.ok) {
+                        const hData = await hRes.json();
+                        username = hData.user_name || "User";
+                    }
+                } catch (e) {
+                    username = "User";
+                }
+            }
+            if (!username) username = "User";
             
             const res = await fetch('/api/users', {
                 method: 'POST',

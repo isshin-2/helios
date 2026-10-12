@@ -1,0 +1,19 @@
+{
+  "updated_at": "2026-10-12 07:51:48",
+  "edition": "dev",
+  "tier": "Tier 3: Budget / Integrated Graphics (iGPU or <= 16GB RAM)",
+  "persona": "ren",
+  "bridge_strict": true,
+  "ports": {
+    "core": 8000,
+    "hikari": 8001,
+    "solstice": 8082,
+    "webgl": 8080
+  },
+  "models": {
+    "general": "qwen2.5:1.5b",
+    "coder": "qwen2.5-coder:1.5b",
+    "vision": "moondream:latest",
+    "embed": "nomic-embed-text:latest"
+  }
+}
