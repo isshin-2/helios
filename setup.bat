@@ -117,16 +117,17 @@ if "%~1"=="-q" goto END_SETUP
 if "%~1"=="--quiet" goto END_SETUP
 
 echo %CYAN%Select an immediate action or customize ecosystem:%RESET%
+echo   %YELLOW%[C]%RESET% Interactive Customization Wizard (User, Voice, LLMs, AI PC, Ports)
 echo   %YELLOW%[M]%RESET% Launch HELIOS Main Server (:8000)
 echo   %YELLOW%[A]%RESET% Launch Airi 3D Companion (:8080)
-echo   %YELLOW%[V]%RESET% Voice Configuration & Voice Cloning Setup
-echo   %YELLOW%[C]%RESET% Customize Profile, Models, Persona, Ports, or Biometrics
+echo   %YELLOW%[V]%RESET% Quick Voice & Reference Audio Setup
 echo   %YELLOW%[T]%RESET% Run Isolation, TTS, and Biometric Test Suite
 echo   %YELLOW%[Enter]%RESET% Exit Setup
 echo.
 set "USER_ACTION="
-set /p USER_ACTION="Enter selection [M, A, V, C, T, or Enter to exit]: "
+set /p USER_ACTION="Enter selection [C, M, A, V, T, or Enter to exit]: "
 
+if /i "%USER_ACTION%"=="C" goto DO_CUSTOM
 if /i "%USER_ACTION%"=="M" (
     echo [*] Starting HELIOS Main Server...
     call "%~dp0start_helios.bat"
@@ -134,7 +135,6 @@ if /i "%USER_ACTION%"=="M" (
 )
 if /i "%USER_ACTION%"=="A" goto DO_AIRI
 if /i "%USER_ACTION%"=="V" goto DO_VOICE
-if /i "%USER_ACTION%"=="C" goto DO_CUSTOM
 if /i "%USER_ACTION%"=="T" (
     echo [*] Executing Isolation, TTS, and Biometric Tests...
     "%PY_EXE%" -m pytest tests\test_isolation.py -q

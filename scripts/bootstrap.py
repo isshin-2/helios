@@ -1,5 +1,10 @@
 """HELIOS Zero-Friction Bootstrap & Adaptive Ingestion Engine.
 Probes hardware, auto-installs Ollama if missing, pulls tier-matched models, and safeguards existing configs.
+Features an interactive CLI customization wizard with 1-key default acceptance for:
+1. User Preferences (Call-sign, Persona tone, Wake-word, Hot-mic, Workspace root)
+2. Voice Settings (GPT-SoVITS, Kokoro presets, Reference audio, Prosody, Audible test)
+3. LLM Integration (Ollama, Remote AI PC / NVIDIA PAIR, Cloud APIs, Tier auto-detection)
+4. Ecosystem & Infrastructure (Ports, Biometrics, Swarm concurrency, Security Bridge)
 """
 
 import os
@@ -16,6 +21,7 @@ import subprocess
 import time
 import json
 import urllib.request
+import socket
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 AI_ROUTER_DIR = os.path.join(BASE_DIR, "ai-router")
@@ -24,16 +30,19 @@ if AI_ROUTER_DIR not in sys.path:
 
 from core.hardware_governor import HardwareGovernor
 
+
 def check_command_exists(cmd: str) -> bool:
     return shutil.which(cmd) is not None
 
-def is_ollama_service_online() -> bool:
+
+def is_ollama_service_online(host: str = "http://localhost:11434") -> bool:
     try:
-        req = urllib.request.Request("http://localhost:11434/api/tags", headers={"User-Agent": "HELIOS-Bootstrap"})
+        req = urllib.request.Request(f"{host.rstrip('/')}/api/tags", headers={"User-Agent": "HELIOS-Bootstrap"})
         with urllib.request.urlopen(req, timeout=3) as resp:
             return resp.status == 200
     except Exception:
         return False
+
 
 def ensure_ollama_installed():
     """Auto-installs Ollama via winget or direct download if not present."""
@@ -43,7 +52,6 @@ def ensure_ollama_installed():
         return True
 
     print("[!] Ollama not detected in PATH. Commencing automated installation...")
-    # Attempt winget installation first
     if check_command_exists("winget"):
         try:
             print("[*] Installing Ollama via Windows Package Manager (winget)...")
@@ -54,48 +62,50 @@ def ensure_ollama_installed():
         except Exception as e:
             print(f"[!] winget installation encountered issue: {e}")
 
-    # Fallback to direct official installer download
     print("[*] Downloading official Ollama installer for Windows...")
     installer_url = "https://ollama.com/download/OllamaSetup.exe"
     local_installer = os.path.join(BASE_DIR, "temp_OllamaSetup.exe")
     try:
         urllib.request.urlretrieve(installer_url, local_installer)
-        print("[*] Launching silent Ollama installation...")
-        subprocess.run([local_installer, "/silent"], check=True, timeout=120)
-        print("[OK] Ollama installer executed successfully.")
+        print("[*] Running Ollama installer silently...")
+        subprocess.run([local_installer, "/silent"], check=True)
+        print("[OK] Ollama successfully installed.")
         if os.path.exists(local_installer):
             os.remove(local_installer)
         return True
     except Exception as e:
-        print(f"[!] Failed to auto-install Ollama: {e}")
-        print("[!] Please install Ollama manually from https://ollama.com")
+        print(f"[!] Manual installation required. Download at https://ollama.com ({e})")
         return False
 
+
 def ensure_ollama_running():
-    """Ensures Ollama daemon is running."""
+    """Ensures Ollama background server daemon is active."""
     if is_ollama_service_online():
+        print("[OK] Ollama service is active and responsive.")
         return True
-    
+
     print("[*] Starting Ollama daemon in background...")
     try:
-        subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         for _ in range(10):
             time.sleep(1)
             if is_ollama_service_online():
-                print("[OK] Ollama service connected at http://localhost:11434")
+                print("[OK] Ollama daemon initialized.")
                 return True
     except Exception as e:
-        print(f"[!] Failed to spawn Ollama daemon: {e}")
+        print(f"[!] Failed to start Ollama daemon: {e}")
     return False
 
-def get_installed_ollama_models() -> set:
+
+def get_installed_ollama_models(host: str = "http://localhost:11434") -> list:
     try:
-        req = urllib.request.Request("http://localhost:11434/api/tags", headers={"User-Agent": "HELIOS-Bootstrap"})
+        req = urllib.request.Request(f"{host.rstrip('/')}/api/tags", headers={"User-Agent": "HELIOS-Bootstrap"})
         with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return {m.get("name") for m in data.get("models", [])}
+            data = json.loads(resp.read().decode())
+            return [m["name"] for m in data.get("models", [])]
     except Exception:
-        return set()
+        return []
+
 
 def pull_tier_models(governor: HardwareGovernor, dry_run: bool = False):
     """Pulls recommended models suited for the detected hardware tier, skipping existing ones."""
@@ -108,7 +118,6 @@ def pull_tier_models(governor: HardwareGovernor, dry_run: bool = False):
     print(f"[*] Checking models for {governor.decision.tier_name}:")
 
     for role, model_tag in rec_models.items():
-        # Check if already present (with or without :latest)
         base_tag = model_tag.split(":")[0]
         is_installed = any(m.startswith(base_tag) for m in installed)
         if is_installed:
@@ -124,9 +133,23 @@ def pull_tier_models(governor: HardwareGovernor, dry_run: bool = False):
                 except Exception as e:
                     print(f"  [!] Pull error for {model_tag}: {e}")
 
+
+def read_env_file(env_path: str) -> dict:
+    env = {}
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#") and "=" in stripped:
+                    k, v = stripped.split("=", 1)
+                    env[k.strip()] = v.strip()
+    return env
+
+
 def update_env_file(env_path: str, updates: dict):
     """Safely updates or appends key-value pairs in an .env file without destroying other entries or comments."""
     if not os.path.exists(env_path):
+        os.makedirs(os.path.dirname(os.path.abspath(env_path)), exist_ok=True)
         with open(env_path, "w", encoding="utf-8") as f:
             for k, v in updates.items():
                 f.write(f"{k}={v}\n")
@@ -155,6 +178,7 @@ def update_env_file(env_path: str, updates: dict):
     with open(env_path, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
 
+
 def ensure_safe_env():
     """Creates default .env from .env.example if missing, preserving any existing .env."""
     env_file = os.path.join(BASE_DIR, ".env")
@@ -166,225 +190,269 @@ def ensure_safe_env():
     else:
         print("[OK] Existing .env detected — preserving user configurations (Idempotent).")
 
+
+def prompt_val(prompt_text: str, default_val: str, interactive: bool = True) -> str:
+    """Helper to prompt for a value with [Enter] to keep default."""
+    if not interactive or not sys.stdin.isatty():
+        return default_val
+    try:
+        val = input(f"{prompt_text} [{default_val}]: ").strip()
+        return val if val else default_val
+    except (EOFError, KeyboardInterrupt):
+        return default_val
+
+
 def run_customization_wizard(interactive: bool = True):
-    """Interactive / automated CLI customization wizard for HELIOS & Twin Ecosystem."""
+    """
+    Comprehensive interactive CLI wizard covering:
+    1. User Preferences
+    2. Voice Settings & Cloning
+    3. LLM Integration & AI PC Workstation
+    4. Swarm, Security & System Infrastructure
+    """
     print("=" * 78)
-    print("  HELIOS & TWIN ECOSYSTEM — INTERACTIVE CUSTOMIZATION WIZARD")
+    print("   HELIOS & TWIN ECOSYSTEM — UNIFIED INTERACTIVE CONFIGURATION WIZARD")
+    print("   Press [Enter] at any prompt to accept the current/recommended default.")
     print("=" * 78)
 
     governor = HardwareGovernor()
     detected_tier = governor.decision.tier_name
-    print(f"Detected Hardware Profile: {detected_tier}")
+    print(f"Hardware Profile Detected: {detected_tier}")
     print("-" * 78)
 
-    # 1. Default Launch Edition
-    print("\n[1/5] Select Default Ecosystem Launch Edition:")
-    print("  [1] Developer Edition  (AI-Router :8000, Web UI, Hikari Swarm :8001)")
-    print("  [2] Solstice User Ed.  (Solstice 3D Companion :8082, WebGL :8080)")
-    print("  [3] Co-existence Mode  (Launch Core Router, Coding Swarm, and Solstice)")
-    ed_choice = "1"
-    if interactive and sys.stdin.isatty():
-        try:
-            val = input("  Select edition [1-3, default=1]: ").strip()
-            if val in ("1", "2", "3"):
-                ed_choice = val
-        except (EOFError, KeyboardInterrupt):
-            pass
+    # Load existing configuration defaults
+    existing_env = read_env_file(os.path.join(BASE_DIR, ".env"))
+    if not existing_env:
+        existing_env = read_env_file(os.path.join(BASE_DIR, "ai-router", ".env"))
 
-    edition_map = {"1": "dev", "2": "solstice", "3": "all"}
-    chosen_edition = edition_map.get(ed_choice, "dev")
-    print(f"  -> Selected Edition: {chosen_edition.upper()}")
+    # =========================================================================
+    # SECTION 1: USER PREFERENCES
+    # =========================================================================
+    print("\n" + "=" * 78)
+    print(" [1/4] USER PREFERENCES & CALL-SIGN")
+    print("=" * 78)
 
-    # 2. Model Tier Profile
-    print("\n[2/5] Select Compute & Model Tier Profile:")
-    print("  [1] Tier 3: Budget / iGPU     (Qwen 2.5 1.5B, Coder 1.5B, Moondream 1B)")
-    print("  [2] Tier 2: Balanced / <=8GB  (Llama 3.2 3B, Coder 3B, Qwen2.5-VL 3B)")
-    print("  [3] Tier 1: Heavy / >=12GB    (Qwen 2.5 7B, Coder 7B, LLaVA 7B)")
-    print("  [4] Auto-Detect Hardware      (Keep hardware governor recommendation)")
-
-    tier_choice = "4"
-    if interactive and sys.stdin.isatty():
-        try:
-            val = input("  Select tier [1-4, default=4]: ").strip()
-            if val in ("1", "2", "3", "4"):
-                tier_choice = val
-        except (EOFError, KeyboardInterrupt):
-            pass
-
-    model_configs = {
-        "1": {
-            "tier": "Tier 3: Budget",
-            "models": {
-                "general": "qwen2.5:1.5b",
-                "coder": "qwen2.5-coder:1.5b",
-                "vision": "moondream:latest",
-                "embed": "nomic-embed-text:latest"
-            }
-        },
-        "2": {
-            "tier": "Tier 2: Balanced",
-            "models": {
-                "general": "llama3.2:3b",
-                "coder": "qwen2.5-coder:3b",
-                "vision": "qwen2.5vl:3b",
-                "embed": "nomic-embed-text:latest"
-            }
-        },
-        "3": {
-            "tier": "Tier 1: Heavy",
-            "models": {
-                "general": "qwen2.5:7b",
-                "coder": "qwen2.5-coder:7b",
-                "vision": "llava:7b",
-                "embed": "nomic-embed-text:latest"
-            }
-        },
-        "4": {
-            "tier": governor.decision.tier_name,
-            "models": governor.decision.recommended_models
-        }
+    user_name = prompt_val("  * User Call-sign / Nickname", existing_env.get("USER_NAME", "User"), interactive)
+    bot_name = prompt_val("  * Assistant Name", existing_env.get("BOT_NAME", "HELIOS"), interactive)
+    
+    print("\n  Persona Style Presets:")
+    print("    [1] Helpful, professional, and concise (Technical Engineer)")
+    print("    [2] Playful, cybernetic, and expressive anime twin companion")
+    print("    [3] Tactical operative, zero-fluff mission advisor")
+    style_choice = prompt_val("  Select Persona Style [1-3]", "1", interactive)
+    personality_map = {
+        "1": "helpful, professional, and concise",
+        "2": "playful, cybernetic, and expressive anime twin companion",
+        "3": "tactical operative, zero-fluff mission advisor"
     }
-    selected_tier_info = model_configs.get(tier_choice, model_configs["4"])
-    print(f"  -> Applied Profile: {selected_tier_info['tier']}")
+    personality = personality_map.get(style_choice, "helpful, professional, and concise")
+    print(f"    -> Applied Persona: \"{personality}\"")
 
-    # 3. Solstice Companion Character Persona
-    print("\n[3/5] Select Solstice 3D Companion Avatar Persona:")
-    print("  [1] Ren  (HELIOS Male Twin — Tactical Engineer / Deep Coder)")
-    print("  [2] Airi (HELIOS Female Twin — Expressive Companion / Visual Host)")
-    print("  [3] Dual (Switchable between Ren & Airi)")
-    char_choice = "1"
-    if interactive and sys.stdin.isatty():
+    wake_word = prompt_val("  * Wake-Word for Audio Activation", existing_env.get("WAKE_WORD", "helios"), interactive)
+    hot_mic_default = existing_env.get("ENABLE_HOT_MIC", "false")
+    hot_mic_ans = prompt_val("  * Enable Continuous Hot-Mic Listening [true/false]", hot_mic_default, interactive).lower()
+    enable_hot_mic = "true" if hot_mic_ans in ("true", "1", "yes", "y") else "false"
+
+    default_workspace = prompt_val("  * Default Codebase Workspace Path", existing_env.get("DEFAULT_WORKSPACE", "C:\\projects"), interactive)
+
+    # =========================================================================
+    # SECTION 2: VOICE SETTINGS & CLONING
+    # =========================================================================
+    print("\n" + "=" * 78)
+    print(" [2/4] VOICE ENGINE, PROSODY & CLONING")
+    print("=" * 78)
+
+    voice_enabled_ans = prompt_val("  * Enable Neural Speech Synthesis (TTS) [true/false]", existing_env.get("VOICE_ENABLED", "true"), interactive).lower()
+    voice_enabled = "true" if voice_enabled_ans in ("true", "1", "yes", "y") else "false"
+
+    print("\n  Voice Backend Options:")
+    print("    [1] gpt_sovits  (High-fidelity zero-shot cloned voice — Airi identity)")
+    print("    [2] kokoro      (Low-latency 100% local ONNX engine with 54 voices)")
+    print("    [3] edge_tts    (Cloud fallback streaming TTS)")
+    v_backend_choice = prompt_val("  Select Voice Backend [1-3]", "1" if existing_env.get("VOICE_BACKEND") == "gpt_sovits" else "2", interactive)
+    v_backend_map = {"1": "gpt_sovits", "2": "kokoro", "3": "edge_tts"}
+    voice_backend = v_backend_map.get(v_backend_choice, "kokoro")
+    print(f"    -> Selected Voice Backend: {voice_backend}")
+
+    print("\n  Active Voice Preset:")
+    print("    [1] airi        (Japanese-accented English cybernetic twin)")
+    print("    [2] af_heart    (Warm, natural female American English)")
+    print("    [3] af_bella    (Clear, articulate female American English)")
+    print("    [4] am_michael  (Professional male American English)")
+    print("    [5] am_adam     (Authoritative male American English)")
+    voice_preset_choice = prompt_val("  Select Voice Preset [1-5]", "1" if existing_env.get("VOICE_NAME") == "airi" else "2", interactive)
+    voice_name_map = {"1": "airi", "2": "af_heart", "3": "af_bella", "4": "am_michael", "5": "am_adam"}
+    voice_name = voice_name_map.get(voice_preset_choice, "af_heart")
+    print(f"    -> Selected Voice Name: {voice_name}")
+
+    voice_speed = prompt_val("  * Speaking Speed Multiplier (0.8 - 1.5)", str(existing_env.get("VOICE_SPEED", "1.0")), interactive)
+
+    # GPT-SoVITS specific inputs
+    gpt_sovits_url = existing_env.get("GPT_SOVITS_API_URL", "http://127.0.0.1:9880")
+    ref_audio = existing_env.get("GPT_SOVITS_REF_AUDIO", "voices/airi/reference.wav")
+    ref_text = existing_env.get("GPT_SOVITS_REF_TEXT", "It's nice to meet you. Well, technically, we've already met, haven't we?")
+    if voice_backend == "gpt_sovits" or voice_name == "airi":
+        gpt_sovits_url = prompt_val("  * GPT-SoVITS API Endpoint URL", gpt_sovits_url, interactive)
+        ref_audio = prompt_val("  * Reference Audio File (.wav/.mp3)", ref_audio, interactive)
+        ref_text = prompt_val("  * Reference Transcript Text", ref_text, interactive)
+
+    # Audio Audible confirmation test option
+    test_audio_now = prompt_val("  * Play Spoken Audio Confirmation through speakers now? [y/N]", "N", interactive).lower() == "y"
+    if test_audio_now:
         try:
-            val = input("  Select persona [1-3, default=1]: ").strip()
-            if val in ("1", "2", "3"):
-                char_choice = val
-        except (EOFError, KeyboardInterrupt):
-            pass
-    char_map = {"1": "ren", "2": "airi", "3": "dual"}
-    chosen_persona = char_map.get(char_choice, "ren")
-    print(f"  -> Selected Persona: {chosen_persona.upper()}")
+            print("    [*] Synthesizing and playing confirmation phrase...")
+            import sounddevice as sd
+            from core.audio.tts.manager import TTSBackendManager
+            t_mgr = TTSBackendManager()
+            t_mgr.initialize()
+            test_phrase = f"Hello {user_name}! Voice synthesis calibration is operational."
+            
+            import asyncio
+            async def _play():
+                chunks = []
+                sr_out = 24000
+                async for ch, s_rate in t_mgr.synthesize(test_phrase, voice=t_mgr.resolve_voice(voice_name)):
+                    chunks.append(ch)
+                    sr_out = s_rate
+                if chunks:
+                    import numpy as np
+                    sd.play(np.concatenate(chunks), samplerate=sr_out)
+                    sd.wait()
+            asyncio.run(_play())
+            print("    [OK] Spoken confirmation playback complete.")
+        except Exception as e:
+            print(f"    [!] Audible test notice: {e}")
 
-    # 4. Zero-Trust IPC Bridge Security
-    print("\n[4/5] Zero-Trust IPC HMAC-SHA256 Token Bridge:")
-    print("  [1] Enforce Strict Token Isolation (Recommended for Multi-Engine Sovereignty)")
-    print("  [2] Permissive Local Development Mode")
-    bridge_choice = "1"
-    if interactive and sys.stdin.isatty():
-        try:
-            val = input("  Bridge mode [1-2, default=1]: ").strip()
-            if val in ("1", "2"):
-                bridge_choice = val
-        except (EOFError, KeyboardInterrupt):
-            pass
-    bridge_enabled = "true" if bridge_choice == "1" else "false"
-    print(f"  -> Bridge Strict Security: {bridge_enabled.upper()}")
+    # =========================================================================
+    # SECTION 3: LLM INTEGRATION & AI PC WORKSTATION
+    # =========================================================================
+    print("\n" + "=" * 78)
+    print(" [3/4] LLM INTEGRATION, PROVIDERS & AI PC WORKSTATION")
+    print("=" * 78)
 
-    # 5. Service Ports Configuration
-    print("\n[5/5] Port Configuration (HELIOS Core: 8000 | Hikari: 8001 | Solstice: 8082 | WebGL: 8080):")
-    core_port = "8000"
-    hikari_port = "8001"
-    sol_port = "8082"
-    webgl_port = "8080"
-    if interactive and sys.stdin.isatty():
-        try:
-            custom_p = input("  Customize port bindings? [y/N]: ").strip().lower()
-            if custom_p == "y":
-                cp = input(f"    HELIOS Core Port [{core_port}]: ").strip()
-                if cp: core_port = cp
-                hp = input(f"    Hikari Swarm Port [{hikari_port}]: ").strip()
-                if hp: hikari_port = hp
-                sp = input(f"    Solstice Engine Port [{sol_port}]: ").strip()
-                if sp: sol_port = sp
-                wp = input(f"    Solstice WebGL Port [{webgl_port}]: ").strip()
-                if wp: webgl_port = wp
-        except (EOFError, KeyboardInterrupt):
-            pass
-    print(f"  -> Ports Configured: Core={core_port}, Hikari={hikari_port}, Solstice={sol_port}, WebGL={webgl_port}")
+    print("  Inference Provider Architecture:")
+    print("    [1] pair    (NVIDIA PAIR GPU Workstation over LAN / High VRAM offload)")
+    print("    [2] ollama  (100% Local Inference on this machine via Ollama)")
+    print("    [3] gemini  (Google Gemini API Cloud Inference)")
+    print("    [4] groq    (Ultra Low Latency Groq Cloud Inference)")
+    prov_choice = prompt_val("  Select Primary LLM Provider [1-4]", "1" if existing_env.get("LLM_PROVIDER") == "pair" else "2", interactive)
+    prov_map = {"1": "pair", "2": "ollama", "3": "gemini", "4": "groq"}
+    llm_provider = prov_map.get(prov_choice, "ollama")
+    print(f"    -> Selected Provider: {llm_provider.upper()}")
 
-    # Build updates for .env
+    ai_pc_ip = existing_env.get("AI_PC_IP", "192.168.100.254")
+    ai_pc_mac = existing_env.get("AI_PC_MAC", "30:56:0F:A8:76:05")
+    ai_pc_broadcast = existing_env.get("AI_PC_BROADCAST", "192.168.100.255")
+    auto_wake_aipc = existing_env.get("AUTO_WAKE_AI_PC", "true")
+
+    if llm_provider == "pair":
+        ai_pc_ip = prompt_val("  * AI PC Workstation IP Address", ai_pc_ip, interactive)
+        ai_pc_mac = prompt_val("  * AI PC MAC Address (for Wake-on-LAN)", ai_pc_mac, interactive)
+        ai_pc_broadcast = prompt_val("  * AI PC Broadcast Subnet", ai_pc_broadcast, interactive)
+        auto_wake_aipc = prompt_val("  * Auto Wake-on-LAN if node is sleeping [true/false]", auto_wake_aipc, interactive)
+
+    gemini_key = existing_env.get("GEMINI_API_KEY", "")
+    groq_key = existing_env.get("GROQ_API_KEY", "")
+    if llm_provider in ("gemini", "groq") or prompt_val("  Configure Cloud API keys for fallback? [y/N]", "N", interactive).lower() == "y":
+        gemini_key = prompt_val("  * Gemini API Key", gemini_key, interactive)
+        groq_key = prompt_val("  * Groq API Key", groq_key, interactive)
+
+    # Model Configuration
+    print("\n  Subsystem Models Selection:")
+    primary_model = prompt_val("  * General Reasoning / Orchestrator Model", existing_env.get("PRIMARY_MODEL", "qwen2.5:1.5b"), interactive)
+    coder_model = prompt_val("  * Hikari Autonomous Coding Swarm Model", existing_env.get("CODER_MODEL", "qwen2.5-coder:1.5b"), interactive)
+    vision_model = prompt_val("  * Visual Screen & Camera Analysis Model", existing_env.get("VISION_MODEL", "moondream:latest"), interactive)
+    embed_model = prompt_val("  * Vector RAG Embedding Model", existing_env.get("EMBED_MODEL", "nomic-embed-text:latest"), interactive)
+
+    # =========================================================================
+    # SECTION 4: SWARM CONCURRENCY, PORTS & SECURITY
+    # =========================================================================
+    print("\n" + "=" * 78)
+    print(" [4/4] SWARM CONCURRENCY, PORTS & SECURITY GATE")
+    print("=" * 78)
+
+    print("  Coding Swarm Concurrency:")
+    print("    [1] Sequential single-agent execution (Recommended for <= 16GB RAM / iGPU)")
+    print("    [2] Full 8-agent parallel swarm (Recommended for AI PC / 32GB+ RAM)")
+    swarm_choice = prompt_val("  Select Swarm Mode [1-2]", "1" if "Budget" in detected_tier else "2", interactive)
+    swarm_parallel = "true" if swarm_choice == "2" else "false"
+
+    print("\n  Service Port Bindings:")
+    core_port = prompt_val("  * HELIOS Core Server Port", str(existing_env.get("SERVER_PORT", "8000")), interactive)
+    hikari_port = prompt_val("  * Hikari Swarm Port", str(existing_env.get("HIKARI_PORT", "8001")), interactive)
+    char_port = prompt_val("  * Airi/Ren 3D Companion WebGL Port", str(existing_env.get("CHARACTER_PORT", "8080")), interactive)
+
+    bridge_strict = prompt_val("  * Zero-Trust HMAC-SHA256 Token Bridge [true/false]", existing_env.get("BRIDGE_ENABLED", "true"), interactive)
+
+    # Voice Biometrics enrollment prompt
+    enroll_voice = prompt_val("\n  * Enroll or Calibrate Voice Biometrics Security PIN now? [y/N]", "N", interactive).lower() == "y"
+    if enroll_voice:
+        voice_script = os.path.join(BASE_DIR, "scripts", "verify_voice.py")
+        if os.path.exists(voice_script):
+            subprocess.run([sys.executable, voice_script])
+
+    # =========================================================================
+    # SAVE & SYNCHRONIZE CONFIGURATIONS
+    # =========================================================================
     env_updates = {
-        "DEFAULT_EDITION": chosen_edition,
-        "TIER_OVERRIDE": selected_tier_info["tier"],
+        "USER_NAME": user_name,
+        "BOT_NAME": bot_name,
+        "PERSONALITY": personality,
+        "WAKE_WORD": wake_word,
+        "ENABLE_HOT_MIC": enable_hot_mic,
+        "DEFAULT_WORKSPACE": default_workspace,
+        
+        "VOICE_ENABLED": voice_enabled,
+        "VOICE_BACKEND": voice_backend,
+        "VOICE_NAME": voice_name,
+        "VOICE_SPEED": voice_speed,
+        "GPT_SOVITS_ENABLED": "true" if voice_backend == "gpt_sovits" else "false",
+        "GPT_SOVITS_API_URL": gpt_sovits_url,
+        "GPT_SOVITS_REF_AUDIO": ref_audio,
+        "GPT_SOVITS_REF_TEXT": ref_text,
+        
+        "LLM_PROVIDER": llm_provider,
+        "AI_PC_IP": ai_pc_ip,
+        "AI_PC_MAC": ai_pc_mac,
+        "AI_PC_BROADCAST": ai_pc_broadcast,
+        "AUTO_WAKE_AI_PC": auto_wake_aipc,
+        "PAIR_HOST": f"http://{ai_pc_ip}:11434" if llm_provider == "pair" else "http://127.0.0.1:11434",
+        "OLLAMA_HOST": f"http://{ai_pc_ip}:11434" if llm_provider == "pair" else "http://127.0.0.1:11434",
+        "GEMINI_API_KEY": gemini_key,
+        "GROQ_API_KEY": groq_key,
+        
+        "PRIMARY_MODEL": primary_model,
+        "CODER_MODEL": coder_model,
+        "VISION_MODEL": vision_model,
+        "EMBED_MODEL": embed_model,
+        
+        "SWARM_PARALLEL_ENABLED": swarm_parallel,
         "SERVER_PORT": core_port,
         "HIKARI_PORT": hikari_port,
-        "SOLSTICE_PORT": sol_port,
-        "CHARACTER_PORT": webgl_port,
-        "SOLSTICE_PERSONA": chosen_persona,
-        "BRIDGE_ENABLED": bridge_enabled,
-        "PRIMARY_MODEL": selected_tier_info["models"].get("general", "qwen2.5:1.5b"),
-        "CODER_MODEL": selected_tier_info["models"].get("coder", "qwen2.5-coder:1.5b"),
-        "VISION_MODEL": selected_tier_info["models"].get("vision", "moondream:latest"),
-        "EMBED_MODEL": selected_tier_info["models"].get("embed", "nomic-embed-text:latest"),
+        "CHARACTER_PORT": char_port,
+        "BRIDGE_ENABLED": bridge_strict,
     }
 
-    # Save to root .env and ai-router/.env
+    # Save to both root .env and ai-router/.env
     root_env = os.path.join(BASE_DIR, ".env")
     ai_env = os.path.join(BASE_DIR, "ai-router", ".env")
     update_env_file(root_env, env_updates)
     update_env_file(ai_env, env_updates)
-    print("\n[OK] Synchronized configurations to .env and ai-router/.env")
+    print("\n[OK] Configuration persisted to root .env and ai-router/.env.")
 
-    # Save structured custom_profile.json
+    # Save structured JSON profile
     profile_data = {
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "edition": chosen_edition,
-        "tier": selected_tier_info["tier"],
-        "persona": chosen_persona,
-        "bridge_strict": bridge_enabled == "true",
-        "ports": {
-            "core": int(core_port),
-            "hikari": int(hikari_port),
-            "solstice": int(sol_port),
-            "webgl": int(webgl_port)
-        },
-        "models": selected_tier_info["models"]
+        "user": {"name": user_name, "assistant_name": bot_name, "personality": personality, "wake_word": wake_word, "workspace": default_workspace},
+        "voice": {"backend": voice_backend, "name": voice_name, "speed": float(voice_speed), "gpt_sovits_url": gpt_sovits_url, "ref_audio": ref_audio},
+        "llm": {"provider": llm_provider, "ai_pc_ip": ai_pc_ip, "models": {"primary": primary_model, "coder": coder_model, "vision": vision_model, "embed": embed_model}},
+        "infrastructure": {"ports": {"core": int(core_port), "hikari": int(hikari_port), "character": int(char_port)}, "swarm_parallel": swarm_parallel == "true", "bridge_strict": bridge_strict == "true"}
     }
     config_dir = os.path.join(BASE_DIR, "config")
     os.makedirs(config_dir, exist_ok=True)
-    profile_path = os.path.join(config_dir, "custom_profile.json")
-    with open(profile_path, "w", encoding="utf-8") as f:
+    with open(os.path.join(config_dir, "custom_profile.json"), "w", encoding="utf-8") as f:
         json.dump(profile_data, f, indent=2)
-    print(f"[OK] Saved custom profile to {profile_path}")
-
-    # Prompt for Voice Biometrics Calibration if desired
-    print("\n[*] Local Voice Biometrics Enrollment:")
-    enroll_voice = False
-    if interactive and sys.stdin.isatty():
-        try:
-            v_ans = input("  Run local voice biometrics enrollment/calibration now? [y/N]: ").strip().lower()
-            enroll_voice = (v_ans == "y")
-        except (EOFError, KeyboardInterrupt):
-            pass
-
-    if enroll_voice:
-        voice_script = os.path.join(BASE_DIR, "scripts", "verify_voice.py")
-        if os.path.exists(voice_script):
-            print("[*] Launching Voice Biometrics Verification & Calibration Runner...")
-            subprocess.run([sys.executable, voice_script])
-
-    # Ingest models if needed
-    if is_ollama_service_online():
-        installed = get_installed_ollama_models()
-        missing = [m for m in selected_tier_info["models"].values() if not any(m.startswith(im.split(":")[0]) for im in installed)]
-        if missing:
-            print(f"\n[*] The following recommended models for {selected_tier_info['tier']} are not yet installed:")
-            for m in missing:
-                print(f"    - {m}")
-            pull_now = True
-            if interactive and sys.stdin.isatty():
-                try:
-                    p_ans = input("  Pull these models from Ollama now? [Y/n]: ").strip().lower()
-                    pull_now = (p_ans != "n")
-                except (EOFError, KeyboardInterrupt):
-                    pass
-            if pull_now:
-                for m in missing:
-                    print(f"  [*] Pulling {m}...")
-                    try:
-                        subprocess.run(["ollama", "pull", m], timeout=600)
-                        print(f"  [OK] {m} pulled successfully.")
-                    except Exception as e:
-                        print(f"  [!] Failed to pull {m}: {e}")
+    print(f"[OK] Profile structured report saved to {os.path.join(config_dir, 'custom_profile.json')}")
 
     # Synchronize Living Audit
     audit_script = os.path.join(BASE_DIR, "scripts", "run_audit.py")
@@ -392,8 +460,9 @@ def run_customization_wizard(interactive: bool = True):
         subprocess.run([sys.executable, audit_script])
 
     print("\n" + "=" * 78)
-    print("  [SUCCESS] HELIOS CUSTOMIZATION COMPLETE!")
+    print("  [SUCCESS] HELIOS SETUP & CUSTOMIZATION COMPLETE!")
     print("=" * 78)
+
 
 def run_bootstrap(dry_run: bool = False):
     print("=" * 78)
@@ -404,18 +473,14 @@ def run_bootstrap(dry_run: bool = False):
     print(governor.get_advisory_banner())
     print()
 
-    # Safe config provisioning
     ensure_safe_env()
 
-    # Ollama Provisioning
     if not dry_run:
         ensure_ollama_installed()
         ensure_ollama_running()
 
-    # Model ingestion
     pull_tier_models(governor, dry_run=dry_run)
 
-    # Sync Living Audit
     audit_script = os.path.join(BASE_DIR, "scripts", "run_audit.py")
     if os.path.exists(audit_script):
         subprocess.run([sys.executable, audit_script])
@@ -440,9 +505,10 @@ def run_bootstrap(dry_run: bool = False):
 
     print("\n[OK] Bootstrap health check completed successfully.")
 
+
 if __name__ == "__main__":
     is_dry = "--dry-run" in sys.argv
-    is_custom = "--custom" in sys.argv or "-c" in sys.argv
+    is_custom = "--custom" in sys.argv or "-c" in sys.argv or "/c" in sys.argv
 
     if is_custom:
         run_customization_wizard(interactive=not is_dry)
