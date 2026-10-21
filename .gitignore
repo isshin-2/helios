@@ -132,6 +132,5 @@ ai-router/static/media/*.png
 
 # --- Decoupled Addons & Standalone Engines ---
 engines/
-mobile_v2/
 helios-character/
 *-addon/
