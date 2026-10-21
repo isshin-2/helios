@@ -1,19 +1,36 @@
 {
-  "updated_at": "2026-10-12 07:51:48",
-  "edition": "dev",
-  "tier": "Tier 3: Budget / Integrated Graphics (iGPU or <= 16GB RAM)",
-  "persona": "ren",
-  "bridge_strict": true,
-  "ports": {
-    "core": 8000,
-    "hikari": 8001,
-    "solstice": 8082,
-    "webgl": 8080
+  "updated_at": "2026-10-21 16:49:51",
+  "user": {
+    "name": "krithik",
+    "assistant_name": "HELIOS",
+    "personality": "helpful, professional, and concise",
+    "wake_word": "helios",
+    "workspace": "C:\\Users\\krithik\\Music\\New folder"
   },
-  "models": {
-    "general": "qwen2.5:1.5b",
-    "coder": "qwen2.5-coder:1.5b",
-    "vision": "moondream:latest",
-    "embed": "nomic-embed-text:latest"
+  "voice": {
+    "backend": "gpt_sovits",
+    "name": "airi",
+    "speed": 1.0,
+    "gpt_sovits_url": "http://127.0.0.1:9880",
+    "ref_audio": "voices/airi/reference.wav"
+  },
+  "llm": {
+    "provider": "pair",
+    "ai_pc_ip": "192.168.100.254",
+    "models": {
+      "primary": "qwen2.5:1.5b",
+      "coder": "qwen2.5-coder:1.5b",
+      "vision": "moondream:latest",
+      "embed": "nomic-embed-text:latest"
+    }
+  },
+  "infrastructure": {
+    "ports": {
+      "core": 8000,
+      "hikari": 8001,
+      "character": 8080
+    },
+    "swarm_parallel": true,
+    "bridge_strict": true
   }
 }

@@ -489,6 +489,10 @@ def run_customization_wizard(interactive: bool = True, target_menu: str = "all")
         ai_pc_mac = prompt_val("  * AI PC MAC Address (for Wake-on-LAN)", ai_pc_mac, interactive)
         ai_pc_broadcast = prompt_val("  * AI PC Broadcast Subnet", ai_pc_broadcast, interactive)
         auto_wake_aipc = prompt_val("  * Auto Wake-on-LAN if node is sleeping [true/false]", auto_wake_aipc, interactive)
+        # Automatically align default GPT-SoVITS endpoint with AI PC if running on paired host
+        if gpt_sovits_url in ("http://127.0.0.1:9880", "http://localhost:9880", f"http://{ai_pc_ip}:9880"):
+            gpt_sovits_url = f"http://{ai_pc_ip}:9880"
+            print(f"    [*] Aligned GPT-SoVITS endpoint with AI PC Workstation: {gpt_sovits_url}")
 
     gemini_key = existing_env.get("GEMINI_API_KEY", "")
     groq_key = existing_env.get("GROQ_API_KEY", "")

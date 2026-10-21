@@ -1,9 +1,9 @@
 # HELIOS & Twin Ecosystem Living System Audit
 > **Single Source of Truth (SSoT) for Component Topologies, Hardware Tiers, and Security Boundaries**  
-> **Last Synchronized:** `2026-10-21T16:16:45.202646+05:30`  
+> **Last Synchronized:** `2026-10-21T17:01:06.927665+05:30`  
 > **Audit Status:** `HARDENED & ISOLATED`  
 > **Governor Status:** `Tier 3: Budget / Integrated Graphics (iGPU or <= 16GB RAM)`  
-> **Git Working State:** `287 modified/untracked files`
+> **Git Working State:** `4 modified/untracked files`
 
 ---
 
@@ -24,7 +24,7 @@
 | Hardware Metric | Inspected Value | System Allocation | Classification |
 | :--- | :--- | :--- | :--- |
 | **Primary GPU** | `Intel(R) Iris(R) Xe Graphics` | 2.0 GB Dedicated/Shared | **Tier 3: Budget / Integrated Graphics (iGPU or <= 16GB RAM)** |
-| **Physical System RAM** | `15.68 GB Total` | Available: ~4.11 GB | Constraint |
+| **Physical System RAM** | `15.68 GB Total` | Available: ~4.36 GB | Constraint |
 | **CPU Architecture** | `Intel64 Family 6 Model 154 Stepping 4, GenuineIntel` | 10 Physical / 12 Logical Cores | Fast CPU Compute |
 | **Acceleration Engine** | `DirectML / CPU Quantized` | Dynamic Fallback | Active |
 

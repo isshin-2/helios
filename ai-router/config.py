@@ -215,7 +215,18 @@ VOICE_AUDIO_COMPRESSION_RATIO = float(os.environ.get("VOICE_AUDIO_COMPRESSION_RA
 
 # --- GPT-SoVITS Settings ---
 GPT_SOVITS_ENABLED = os.environ.get("GPT_SOVITS_ENABLED", "true").lower() == "true"
-GPT_SOVITS_API_URL = os.environ.get("GPT_SOVITS_API_URL", "http://127.0.0.1:9880")
+
+def _resolve_default_gpt_sovits_url() -> str:
+    explicit_url = os.environ.get("GPT_SOVITS_API_URL")
+    # If using remote NVIDIA PAIR or AI PC node, co-locate GPT-SoVITS on the same hosting node unless user explicitly set a non-default remote address
+    if LLM_PROVIDER == "pair" and AI_PC_IP and AI_PC_IP not in ("127.0.0.1", "localhost"):
+        if not explicit_url or explicit_url in ("http://127.0.0.1:9880", "http://localhost:9880"):
+            return f"http://{AI_PC_IP}:9880"
+    if explicit_url:
+        return explicit_url.rstrip("/")
+    return "http://127.0.0.1:9880"
+
+GPT_SOVITS_API_URL = _resolve_default_gpt_sovits_url()
 GPT_SOVITS_MODEL_PATH = os.environ.get("GPT_SOVITS_MODEL_PATH", "")
 GPT_SOVITS_SOVITS_PATH = os.environ.get("GPT_SOVITS_SOVITS_PATH", "")
 GPT_SOVITS_REF_AUDIO = os.environ.get("GPT_SOVITS_REF_AUDIO", "")
