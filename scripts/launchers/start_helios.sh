@@ -3,6 +3,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$SCRIPT_DIR"
 
 CHOICE="${1:-}"
@@ -19,13 +20,18 @@ if [ -z "$CHOICE" ]; then
     echo "  [3] HELIOS + Airi        (Core Server :8000 + Airi 3D Companion :8080)"
     echo "  [4] Airi Companion Only  (Standalone 3D VRM Character without :8000)"
     echo "  [5] Mobile Phone App     (start_phone.sh — Expo Go Android / iOS :8081)"
-    echo "  [6] HELIOS Client Mode   (start_helios_client.sh — Connect to Server / AI PC)"
+    echo "  [6] HELIOS Client Mode   (start_helios_client.sh — Connect to Server / NVIDIA PAIR)"
     echo "  [7] Environment Setup    (setup.sh — Dependencies, venv & configuration)"
     echo "============================================================================"
     read -r -p "Select launch mode [1-7, default=1]: " CHOICE
 fi
 
 case "$CHOICE" in
+    1|core|main|server|router)
+        echo "[*] Starting HELIOS Core AI Router (:8000)..."
+        cd "$ROOT_DIR/ai-router"
+        exec bash start.sh
+        ;;
     2|hikari)
         exec bash "$SCRIPT_DIR/hikari.sh"
         ;;
@@ -46,7 +52,7 @@ case "$CHOICE" in
         ;;
     *)
         echo "[*] Starting HELIOS Core AI Router (:8000)..."
-        cd "$SCRIPT_DIR/ai-router"
+        cd "$ROOT_DIR/ai-router"
         exec bash start.sh
         ;;
 esac

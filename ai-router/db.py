@@ -2,7 +2,7 @@ import sqlite3
 import json
 import os
 
-DB_PATH = "helios.db"
+DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "helios.db"))
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -187,7 +187,7 @@ def init_db():
             FOREIGN KEY (session_id) REFERENCES sessions(id)
         )
     """)
-    
+
     conn.commit()
     conn.close()
 
@@ -195,22 +195,24 @@ def migrate_db():
     """Safe migration for existing databases. Adds new columns without data loss."""
     conn = get_db()
     cursor = conn.cursor()
-    
-    # Add system_access column to users if it doesn't exist
     try:
-        cursor.execute("ALTER TABLE users ADD COLUMN system_access TEXT DEFAULT '{}'")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
+        # Add system_access column to users if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN system_access TEXT DEFAULT '{}'")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
-    # Add category column to memories if it doesn't exist
-    try:
-        cursor.execute("ALTER TABLE memories ADD COLUMN category TEXT DEFAULT 'general'")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
+        # Add category column to memories if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE memories ADD COLUMN category TEXT DEFAULT 'general'")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+    finally:
+        conn.close()
     
-    conn.close()
+
 
 if not os.path.exists(DB_PATH):
     init_db()

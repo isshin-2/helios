@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 from core.checkpoints import CheckpointManager
+from core.quality_contracts import AcceptanceGate, AuditReport, CouncilResult, VerificationResult
 from core.task_contract import StepRecord, TaskContract
 from security.permissions import PermissionManager, validate_path
 
@@ -45,6 +46,9 @@ class CodingContext(BaseModel):
     remaining_budget: Dict[str, Any] = Field(default_factory=dict)
     artifacts: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    acceptance_gate: Optional[AcceptanceGate] = None
+    audit_report: Optional[AuditReport] = None
+    council_result: Optional[CouncilResult] = None
 
     def record_failure(self, failure_info: Dict[str, Any]) -> None:
         """Record failure evidence into the context."""
@@ -245,7 +249,30 @@ class WorkspaceManager:
             self._setup_shadow()
             logger.info(f"[WORKSPACE] Restored shadow workspace at {working_path}")
             return True
-        return False
+    def apply_changes_to_repo(self) -> List[str]:
+        """Apply verified changes from isolated workspace back to repository root."""
+        changed = self.get_changed_files()
+        applied = []
+        working_path = self.get_working_path()
+        if os.path.normpath(working_path) == os.path.normpath(self.repo_root):
+            return changed
+
+        for rel_path in changed:
+            src = os.path.join(working_path, rel_path)
+            dest = os.path.join(self.repo_root, rel_path)
+            if os.path.exists(src):
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                shutil.copy2(src, dest)
+                applied.append(rel_path)
+            elif os.path.exists(dest):
+                try:
+                    os.remove(dest)
+                    applied.append(rel_path)
+                except Exception as e:
+                    logger.warning(f"Failed to delete {dest}: {e}")
+
+        logger.info(f"[WORKSPACE] Applied {len(applied)} verified file(s) to primary repository {self.repo_root}")
+        return applied
 
     def cleanup(self) -> None:
         """Remove isolated worktree or shadow directory upon task completion/cancellation."""
@@ -330,7 +357,9 @@ class CodingTaskRuntime:
         """Roll back all workspace changes."""
         success = self.workspace.rollback()
         self.sync_context()
-        return success
+    def apply_changes(self) -> List[str]:
+        """Apply verified changes from isolated workspace to the base repository."""
+        return self.workspace.apply_changes_to_repo()
 
     def cleanup(self) -> None:
         """Clean up the isolated workspace."""

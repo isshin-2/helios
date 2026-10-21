@@ -35,34 +35,37 @@ def get_input(prompt, default="", is_secret=False):
     if default and is_secret:
         display_default = default[:4] + "*" * (len(default) - 8) + default[-4:] if len(default) > 8 else "***"
         
-    if default:
-        res = input(f"{bold}{prompt}{reset} [{display_default}]: ").strip()
-        return res if res else default
-    return input(f"{bold}{prompt}{reset}: ").strip()
+    try:
+        if not sys.stdin.isatty():
+            return default
+        if default:
+            res = input(f"{bold}{prompt}{reset} [{display_default}]: ").strip()
+            return res if res else default
+        return input(f"{bold}{prompt}{reset}: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return default
 
 def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--reset', action='store_true', help='Force setup to run again')
+    parser.add_argument('--quick', '-y', '--non-interactive', action='store_true', help='Fast non-interactive setup with auto-detected defaults')
     args = parser.parse_args()
     
     if args.reset and os.path.exists(".setup_complete"):
         os.remove(".setup_complete")
 
-    if os.path.exists(".setup_complete"):
+    if os.path.exists(".setup_complete") and not args.reset:
         return
 
     # Enable ANSI colors on Windows terminal
-    os.system('color')
+    if os.name == 'nt':
+        os.system('color')
 
-    clear_screen()
-    print_header()
+    if not args.quick and sys.stdin.isatty():
+        clear_screen()
+        print_header()
 
-    print("--- 1. Operation Mode ---")
-    print("hybrid : Use local models with cloud escalation for complex tasks (Recommended)")
-    print("local  : 100% private, offline execution using local hardware")
-    print("online : 100% cloud-based using external APIs (no local GPU required)")
-    
     # Load existing env for defaults
     env_vars = {}
     if os.path.exists(".env"):
@@ -72,33 +75,65 @@ def main():
                     key, val = line.split("=", 1)
                     env_vars[key.strip()] = val.strip()
 
-    mode = env_vars.get("DEPLOYMENT_MODE", "hybrid")
-    while True:
-        user_mode = get_input("Select Deployment Mode (hybrid/local/online)", mode).lower()
-        if user_mode in ['hybrid', 'local', 'online']:
-            mode = user_mode
-            break
+    # Probe NVIDIA PAIR workstation reachability to set smart default
+    ai_pc_online = False
+    try:
+        from core.ai_pc_manager import is_ai_pc_reachable
+        ai_pc_online = is_ai_pc_reachable(timeout=0.6)
+    except Exception:
+        pass
 
-    provider = env_vars.get("LLM_PROVIDER", "ollama")
+    default_prov = "pair" if ai_pc_online else "ollama"
+
+    mode = env_vars.get("DEPLOYMENT_MODE", "local" if not ai_pc_online else "hybrid")
+    if not args.quick and sys.stdin.isatty():
+        print("--- 1. Operation Mode ---")
+        print("local  : 100% private, offline execution using local hardware (Recommended for single machines)")
+        print("hybrid : Use local models with cloud escalation for complex tasks")
+        print("online : 100% cloud-based using external APIs (no local GPU required)")
+        while True:
+            user_mode = get_input("Select Deployment Mode (local/hybrid/online)", mode).lower()
+            if user_mode in ['hybrid', 'local', 'online']:
+                mode = user_mode
+                break
+
+    provider = env_vars.get("LLM_PROVIDER", default_prov)
     ollama_host = env_vars.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-    pair_host = env_vars.get("PAIR_HOST", "http://127.0.0.1:11434")
+    ai_pc_ip = env_vars.get("AI_PC_IP", "192.168.100.254" if ai_pc_online else "127.0.0.1")
+    pair_host = env_vars.get("PAIR_HOST", f"http://{ai_pc_ip}:11434")
+
     vllm_api_base = env_vars.get("VLLM_API_BASE", "http://127.0.0.1:8000/v1")
     gemini_key = env_vars.get("GEMINI_API_KEY", "")
     groq_key = env_vars.get("GROQ_API_KEY", "")
     nvidia_key = env_vars.get("NVIDIA_API_KEY", "")
 
+    ai_pc_mac = env_vars.get("AI_PC_MAC", "30:56:0F:A8:76:05" if ai_pc_online else "")
+    ai_pc_broadcast = env_vars.get("AI_PC_BROADCAST", "192.168.100.255" if ai_pc_online else "255.255.255.255")
+    ai_pc_wake_script = env_vars.get("AI_PC_WAKE_SCRIPT", "")
+    auto_wake_ai_pc = env_vars.get("AUTO_WAKE_AI_PC", "true" if ai_pc_online else "false")
+    user_name = env_vars.get("USER_NAME", "User")
+    server_port = env_vars.get("SERVER_PORT", "8000")
+    character_port = env_vars.get("CHARACTER_PORT", "8080")
+    enable_desktop_app = env_vars.get("ENABLE_DESKTOP_APP", "false")
+    enable_hot_mic = env_vars.get("ENABLE_HOT_MIC", "false")
+
     if mode in ['hybrid', 'local']:
-        print("\n--- 2. Local Provider Configuration ---")
+        print("\n--- 2. Local & Cluster Provider Configuration ---")
         while True:
-            user_prov = get_input("Select your local LLM Provider (ollama/pair/vllm)", provider).lower()
-            if user_prov in ['ollama', 'pair', 'vllm']:
+            user_prov = get_input("Select LLM Provider (pair [NVIDIA PAIR GPU Workstation] / ollama / vllm)", provider).lower()
+            if user_prov in ['pair', 'ollama', 'vllm']:
                 provider = user_prov
                 break
         
-        if provider == 'ollama':
+        if provider == 'pair':
+            ai_pc_ip = get_input("NVIDIA PAIR Workstation IP (LAN)", ai_pc_ip)
+            pair_host = get_input("NVIDIA PAIR Host URL", env_vars.get("PAIR_HOST", f"http://{ai_pc_ip}:11434"))
+            ai_pc_mac = get_input("NVIDIA PAIR MAC Address (for Wake-on-LAN)", ai_pc_mac)
+            ai_pc_wake_script = get_input("Custom Wake Script Path (optional, leave blank for native UDP WoL)", ai_pc_wake_script)
+            auto_wake_str = get_input("Enable Auto Wake-on-LAN for NVIDIA PAIR? (true/false)", auto_wake_ai_pc)
+            auto_wake_ai_pc = auto_wake_str.lower()
+        elif provider == 'ollama':
             ollama_host = get_input("Ollama Host URL", ollama_host)
-        elif provider == 'pair':
-            pair_host = get_input("NVIDIA PAIR Host URL", pair_host)
         else:
             vllm_api_base = get_input("vLLM/LMStudio API Base", vllm_api_base)
 
@@ -111,11 +146,14 @@ def main():
         nvidia_key = get_input("NVIDIA API Key", nvidia_key, is_secret=True)
 
     print("\n--- 4. Vision Model ---")
-    vision_default = env_vars.get("VISION_MODEL", "gemini-3.6-flash" if mode == 'online' else "qwen2.5vl:3b")
-    vision_model = get_input("Vision Model (used for Computer Control)", vision_default)
+    vision_default = env_vars.get("VISION_MODEL", "moondream:latest")
+    vision_model = get_input("Vision Model (used for Computer Control & UI Inspection)", vision_default)
 
-    print("\n--- 5. Personalization ---")
+    print("\n--- 5. Personalization & Network Ports ---")
+    user_name = get_input("Your Name / Call-Sign", env_vars.get("USER_NAME", "User"))
     bot_name = get_input("Assistant Name", env_vars.get("BOT_NAME", "HELIOS"))
+    server_port = get_input("HELIOS Core Server Port", env_vars.get("SERVER_PORT", "8000"))
+    character_port = get_input("Airi 3D Character Port", env_vars.get("CHARACTER_PORT", "8080"))
     wake_word = get_input("Wake Word (for voice activation)", env_vars.get("WAKE_WORD", "helios")).lower()
     print("\nAvailable Personalities:")
     print("1) Default   (Helpful, professional, and concise)")
@@ -140,35 +178,35 @@ def main():
     voice_enabled = get_input("Enable Voice Output? (true/false)", voice_enabled_str).lower() == "true"
     
     voice_backend = env_vars.get("VOICE_BACKEND", "kokoro")
-    voice_name = env_vars.get("VOICE_NAME", "am_michael")
+    voice_name = env_vars.get("VOICE_NAME", "af_heart")
     voice_speed = env_vars.get("VOICE_SPEED", "1.0")
     
     if voice_enabled:
-        voice_backend = get_input("Voice Backend Engine (e.g. kokoro)", voice_backend)
-        print("\nAvailable Kokoro Voice Profiles:")
-        print("1) am_michael (American Male - Default, Professional)")
-        print("2) af_bella   (American Female - Warm, Friendly)")
-        print("3) af_sarah   (American Female - Crisp, Clear)")
-        print("4) am_adam    (American Male - Deep, Resonant)")
-        print("5) bm_george  (British Male - Formal)")
-        print("6) bf_emma    (British Female - Calm)")
+        voice_backend = get_input("Voice Backend Engine (kokoro / gpt_sovits)", voice_backend)
+        print("\nAvailable Voice Profiles (Kokoro v1.0 54-Voice Catalogue):")
+        print("1) af_heart   (American Female - Expressive, Anime Default for Airi/HELIOS)")
+        print("2) jf_alpha   (Japanese Female - Subtle Japanese Anime Accent)")
+        print("3) am_michael (American Male - Professional, Focused)")
+        print("4) af_bella   (American Female - Warm, Friendly)")
+        print("5) af_sky     (American Female - Soft, Calm)")
+        print("6) am_adam    (American Male - Deep, Resonant)")
         print("7) Custom     (Enter a specific profile name)")
         
         v_choice = get_input("Choose a voice profile [1-7]", "1")
         if v_choice == "2":
-            voice_name = "af_bella"
+            voice_name = "jf_alpha"
         elif v_choice == "3":
-            voice_name = "af_sarah"
+            voice_name = "am_michael"
         elif v_choice == "4":
-            voice_name = "am_adam"
+            voice_name = "af_bella"
         elif v_choice == "5":
-            voice_name = "bm_george"
+            voice_name = "af_sky"
         elif v_choice == "6":
-            voice_name = "bf_emma"
+            voice_name = "am_adam"
         elif v_choice == "7":
             voice_name = get_input("Enter Voice Profile Name", voice_name)
         else:
-            voice_name = "am_michael"
+            voice_name = "af_heart"
         voice_speed = get_input("Voice Speed multiplier", voice_speed)
 
     print("\n--- 6. Tool Configurations (Optional) ---")
@@ -191,15 +229,25 @@ NVIDIA_API_KEY={nvidia_key}
 LLM_PROVIDER={provider}
 OLLAMA_HOST={ollama_host}
 PAIR_HOST={pair_host}
+AI_PC_IP={ai_pc_ip}
+AI_PC_MAC={ai_pc_mac}
+AI_PC_BROADCAST={ai_pc_broadcast}
+AI_PC_WAKE_SCRIPT={ai_pc_wake_script}
+AUTO_WAKE_AI_PC={auto_wake_ai_pc}
 VLLM_API_BASE={vllm_api_base}
 VISION_MODEL={vision_model}
 BOT_NAME={bot_name}
+USER_NAME={user_name}
+SERVER_PORT={server_port}
+CHARACTER_PORT={character_port}
 WAKE_WORD={wake_word}
+ENABLE_HOT_MIC={enable_hot_mic}
 PERSONALITY={personality}
 VOICE_ENABLED={str(voice_enabled).lower()}
 VOICE_BACKEND={voice_backend}
 VOICE_NAME={voice_name}
 VOICE_SPEED={voice_speed}
+ENABLE_DESKTOP_APP={enable_desktop_app}
 GITHUB_TOKEN={github_token}
 BAMBU_CLOUD_EMAIL={bambu_email}
 BAMBU_CLOUD_PASSWORD={bambu_password}

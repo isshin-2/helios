@@ -171,6 +171,8 @@ class CoderAgent(BaseAgent):
             workspace_root = context["worktree"]
         elif context.get("repository_root"):
             workspace_root = context["repository_root"]
+        elif context.get("workspace_root"):
+            workspace_root = context["workspace_root"]
 
         # Ensure directory is normalized
         workspace_root = os.path.abspath(workspace_root)
@@ -202,7 +204,7 @@ In each step, respond with a JSON action:
 5. Finish task:
    {{"action": "finish", "summary": "Detailed summary of completed changes"}}
 
-Output strictly valid JSON for your chosen action.
+When you have written all required code and test files, call the 'finish' action promptly. Output strictly valid JSON for your chosen action.
 """
 
         messages = [{"role": "system", "content": system_prompt}]
@@ -212,9 +214,10 @@ Output strictly valid JSON for your chosen action.
 
         while iterations < self.max_iterations:
             iterations += 1
+            logger.info(f"[CODER] Step {iterations}/{self.max_iterations} for '{objective[:40]}...'")
 
             # Format current iteration prompt
-            user_msg = f"Iteration {iterations}/{self.max_iterations}. State your next action as JSON."
+            user_msg = f"Iteration {iterations}/{self.max_iterations}. State your next action as JSON (e.g. 'write_file' or 'finish')."
             messages.append({"role": "user", "content": user_msg})
 
             try:

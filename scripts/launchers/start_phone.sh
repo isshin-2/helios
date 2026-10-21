@@ -3,7 +3,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/mobile_v2"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$ROOT_DIR/mobile_v2"
 
 echo "============================================================================"
 echo "  HELIOS MOBILE PHONE COMPANION -- Expo Go / React Native"

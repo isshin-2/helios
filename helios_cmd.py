@@ -24,7 +24,29 @@ PY_EXE = os.path.join(AI_ROUTER_DIR, "venv", "Scripts", "python.exe")
 if not os.path.exists(PY_EXE):
     PY_EXE = sys.executable
 
+def run_addon_script(addon_dir_name: str, script_name: str, args: list):
+    addon_dir = os.path.abspath(os.path.join(BASE_DIR, "..", addon_dir_name))
+    script_path = os.path.join(addon_dir, script_name)
+    if not os.path.exists(addon_dir):
+        print(f"\n[!] Error: Addon '{addon_dir_name}' is not installed or missing.")
+        print(f"    Expected path: {addon_dir}")
+        print("    Please ensure the addon repository is cloned or installed.\n")
+        sys.exit(1)
+    if not os.path.exists(script_path):
+        print(f"\n[!] Error: Addon script '{script_name}' not found inside '{addon_dir_name}'.")
+        print(f"    Expected file: {script_path}\n")
+        sys.exit(1)
+    return subprocess.run(["cmd.exe", "/c", script_path] + args)
+
 COMMANDS = {
+    "/main": {
+        "desc": "Launches the HELIOS Main Core AI Router (:8000)",
+        "action": lambda args: subprocess.run([PY_EXE, "main.py"] + args, cwd=AI_ROUTER_DIR)
+    },
+    "/core": {
+        "desc": "Alias for /main (HELIOS Main Core AI Router on :8000)",
+        "action": lambda args: subprocess.run([PY_EXE, "main.py"] + args, cwd=AI_ROUTER_DIR)
+    },
     "/audit": {
         "desc": "Re-scans modified files, validates IPC boundaries, and refreshes docs/SYSTEM_AUDIT.md",
         "action": lambda args: subprocess.run([PY_EXE, os.path.join(BASE_DIR, "scripts", "run_audit.py")] + args)
@@ -50,12 +72,56 @@ COMMANDS = {
         "action": lambda args: subprocess.run([PY_EXE, os.path.join(BASE_DIR, "scripts", "launch_3d_experience.py")] + args)
     },
     "/dev": {
-        "desc": "Launches HELIOS Developer Edition (Core Router :8000 + Hikari Swarm :8001)",
-        "action": lambda args: subprocess.run(["cmd.exe", "/c", os.path.join(BASE_DIR, "start_helios_dev.bat")] + args)
+        "desc": "Launches HELIOS Main Core AI Router (:8000)",
+        "action": lambda args: subprocess.run([PY_EXE, "main.py"] + args, cwd=AI_ROUTER_DIR)
     },
     "/user": {
-        "desc": "Launches HELIOS User Edition (Solstice Companion Engine :8082 + 3D Avatar :8080)",
-        "action": lambda args: subprocess.run(["cmd.exe", "/c", os.path.join(BASE_DIR, "start_solstice.bat")] + args)
+        "desc": "Launches HELIOS 3D Avatar Companion Experience (:8080)",
+        "action": lambda args: subprocess.run([PY_EXE, os.path.join(BASE_DIR, "scripts", "launch_3d_experience.py")] + args)
+    },
+    "/studio": {
+        "desc": "Launches Sol Studio (Solstice Pose & 3D Prop Tuner Studio on :8080/?studio=true)",
+        "action": lambda args: subprocess.run([PY_EXE, os.path.join(BASE_DIR, "scripts", "launch_3d_experience.py"), "--studio"] + args)
+    },
+    "/site": {
+        "desc": "Launches the official HELIOS project website (React 19 + Vite on :5175)",
+        "action": lambda args: run_addon_script("helios-site", "start_site.bat", args)
+    },
+    "/mobile": {
+        "desc": "Launches HELIOS Mobile Companion Addon (Expo / React Native on :8081)",
+        "action": lambda args: subprocess.run(["cmd.exe", "/c", os.path.join(BASE_DIR, "scripts", "launchers", "start_phone.bat")] + args)
+    },
+    "/hikari": {
+        "desc": "Launches standalone Hikari Coding Swarm Addon Engine (:8001)",
+        "action": lambda args: run_addon_script("hikari-addon", "start_hikari_addon.bat", args)
+    },
+    "/solstice": {
+        "desc": "Launches standalone Solstice Avatar Engine Addon (:8082)",
+        "action": lambda args: run_addon_script("solstice-addon", "start_solstice_addon.bat", args)
+    },
+    "/character-only": {
+        "desc": "Launches standalone 3D Character Companion without router (:8080)",
+        "action": lambda args: run_addon_script("solstice-addon", "start_character_only.bat", args)
+    },
+    "/astraea": {
+        "desc": "Launches Astraea Autonomous Gaming Operative Addon (:8085)",
+        "action": lambda args: run_addon_script("astraea-addon", "start_astraea.bat", args)
+    },
+    # Backward compatibility aliases
+    "/hikari-addon": {
+        "desc": "Alias for /hikari",
+        "action": lambda args: run_addon_script("hikari-addon", "start_hikari_addon.bat", args),
+        "hidden": True
+    },
+    "/solstice-addon": {
+        "desc": "Alias for /solstice",
+        "action": lambda args: run_addon_script("solstice-addon", "start_solstice_addon.bat", args),
+        "hidden": True
+    },
+    "/astraea-addon": {
+        "desc": "Alias for /astraea",
+        "action": lambda args: run_addon_script("astraea-addon", "start_astraea.bat", args),
+        "hidden": True
     }
 }
 
@@ -66,6 +132,8 @@ def print_help(governor: HardwareGovernor):
     print("=" * 78)
     print("Available Operational Slash Commands:\n")
     for cmd, info in COMMANDS.items():
+        if info.get("hidden"):
+            continue
         print(f"  {cmd:<22} : {info['desc']}")
     print("\nUsage:")
     print("  python helios_cmd.py /audit")

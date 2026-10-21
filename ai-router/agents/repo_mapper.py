@@ -216,10 +216,19 @@ Output strict JSON with format:
             final_tests = tests[:5]
             summary = f"Deterministically identified {len(final_relevant)} files."
 
+        # Ensure test files genuinely exist on disk to prevent phantom test failures
+        existing_tests = [
+            t for t in final_tests
+            if os.path.exists(os.path.join(repo_root, t))
+        ]
+        # If model hallucinated tests but deterministic search found real ones, use real ones
+        if not existing_tests and tests:
+            existing_tests = [t for t in tests if os.path.exists(os.path.join(repo_root, t))]
+
         output = RepoMapOutput(
             relevant_files=final_relevant,
             symbols=symbols,
-            test_files=final_tests,
+            test_files=existing_tests,
             summary=summary,
         )
 
@@ -227,8 +236,8 @@ Output strict JSON with format:
         if "coding_context" in context:
             ctx = context["coding_context"]
             ctx.relevant_files = sorted(list(set(ctx.relevant_files + final_relevant)))
-            if final_tests and not ctx.test_command:
-                ctx.test_command = f"pytest {' '.join(final_tests[:3])}"
+            if existing_tests and not ctx.test_command:
+                ctx.test_command = f"pytest {' '.join(existing_tests[:3])}"
 
         return self._make_result(
             status=AgentStatus.SUCCESS,

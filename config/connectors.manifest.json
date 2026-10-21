@@ -1,0 +1,16 @@
+{
+  "version": "1.0.0",
+  "description": "HELIOS Autonomous Tool & Extensible Connector Catalog",
+  "connectors": [
+    {
+      "id": "system_diagnostics",
+      "entrypoint": "connectors.system_diagnostics.SystemDiagnosticsConnector",
+      "scopes": [
+        "read_only"
+      ],
+      "timeout_seconds": 10,
+      "enabled": true,
+      "description": "Host hardware diagnostics, CPU/RAM utilization, and budget hardware advisories."
+    }
+  ]
+}

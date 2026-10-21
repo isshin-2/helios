@@ -3,11 +3,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$ROOT_DIR"
 
 PY_BIN="python"
-if [ -f "$SCRIPT_DIR/ai-router/venv/bin/activate" ]; then
-    source "$SCRIPT_DIR/ai-router/venv/bin/activate"
+if [ -f "$ROOT_DIR/ai-router/venv/bin/activate" ]; then
+    source "$ROOT_DIR/ai-router/venv/bin/activate"
 elif command -v python3 >/dev/null 2>&1; then
     PY_BIN="python3"
 fi
@@ -53,7 +54,7 @@ case "$MODE" in
         echo "  [3] Client Sidecar Daemon Only"
         echo "  [4] Full Client Suite (GUI + Sidecar)"
         echo "  [5] Test Server Reachability & Latency Ping"
-        echo "  [6] Send Wake-on-LAN to AI PC"
+        echo "  [6] Send Wake-on-LAN to NVIDIA PAIR Node"
         echo "============================================================================"
         read -r -p "Select client mode [1-6, default=1]: " CHOICE
         case "$CHOICE" in

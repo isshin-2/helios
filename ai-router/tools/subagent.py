@@ -54,7 +54,11 @@ class SubAgentTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "SubAgentTool"
+        return "subagent"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["SubAgentTool"]
 
     @property
     def description(self) -> str:
@@ -107,7 +111,7 @@ class SubAgentTool(BaseTool):
                     # Execute reasoning step via LLM
                     prompt = f"Complete this subtask within budget: {contract.objective}\nPlan:\n{contract.steps[-1].result_summary if contract.steps else ''}"
                     llm_resp = await self.provider.generate(
-                        model="qwen3.5:9b",
+                        model="qwen2.5-coder:14b",
                         prompt=prompt,
                         stream=False,
                     )
@@ -147,7 +151,9 @@ class SubAgentTool(BaseTool):
                 self.checkpoint_manager.save_checkpoint(contract)
 
             summary = supervisor.finalize_task()
-            last_detail = contract.steps[-1].result_summary if contract.steps else "Completed"
+            # Find the execute step's result if available, or fall back to the last step
+            execute_steps = [s for s in contract.steps if "worker" in (s.agent_id or "") or s.action.startswith("worker:")]
+            last_detail = execute_steps[-1].result_summary if execute_steps else (contract.steps[-1].result_summary if contract.steps else "Completed")
             return f"SubAgent [{contract.task_id}] (Parent: {contract.parent_task_id}) {summary['status']}.\nSummary: {last_detail}"
 
         except asyncio.CancelledError:

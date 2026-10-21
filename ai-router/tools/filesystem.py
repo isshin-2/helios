@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from pydantic import BaseModel, Field
 
 from tools.base import BaseTool
@@ -24,7 +24,11 @@ class FileReaderTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "FileReaderTool"
+        return "file_reader"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["FileReaderTool"]
 
     @property
     def description(self) -> str:
@@ -140,7 +144,11 @@ class FileWriterTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "FileWriterTool"
+        return "file_writer"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["FileWriterTool"]
 
     @property
     def description(self) -> str:
@@ -218,7 +226,11 @@ class FilePatcherTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "FilePatcherTool"
+        return "file_patcher"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["FilePatcherTool"]
 
     @property
     def description(self) -> str:
@@ -289,7 +301,11 @@ class DirectoryListerTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "DirectoryListerTool"
+        return "directory_lister"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["DirectoryListerTool"]
 
     @property
     def description(self) -> str:

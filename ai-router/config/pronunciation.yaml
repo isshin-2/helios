@@ -1,0 +1,23 @@
+# HELIOS User Pronunciation Configuration
+# Custom pronunciations for engineering and technical terminology.
+# Edit this file to add or customize how words are pronounced by Kokoro TTS.
+
+pronunciations:
+  ESP32: "E S P thirty two"
+  ESP32-S3: "E S P thirty two S three"
+  ESP32-C3: "E S P thirty two C three"
+  RP2040: "R P two zero four zero"
+  GPIO: "G P I O"
+  I2C: "I two C"
+  SPI: "S P I"
+  UART: "you art"
+  PWM: "P W M"
+  PCB: "P C B"
+  PID: "P I D"
+  CAN: "can"
+  MOSFET: "moss fet"
+  VRM: "V R M"
+  API: "A P I"
+  HTTP: "H T T P"
+  WebSocket: "web socket"
+  FastAPI: "fast A P I"

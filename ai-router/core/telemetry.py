@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from core.events import global_bus
+from core.secret_redactor import redact_dict
 
 logger = logging.getLogger("helios.telemetry")
 
@@ -14,6 +15,10 @@ class TelemetryManager:
     HELIOS Telemetry Manager (Phase 9)
     Outputs structured JSON logs for all critical agent state changes,
     integrated directly into the global EventBus.
+
+    All event data is passed through the secret redactor before being
+    written to disk to prevent API keys or sensitive content leaking
+    into telemetry.jsonl.
     """
     def __init__(self, log_dir: str = "logs"):
         self.log_dir = Path(log_dir)
@@ -31,12 +36,13 @@ class TelemetryManager:
         self.record_event(event_type, session_id, data)
 
     def record_event(self, event_type: str, session_id: str, data: Dict[str, Any]):
-        """Directly record an event to the JSONL sink."""
+        """Directly record an event to the JSONL sink (secrets redacted)."""
+        safe_data = redact_dict(data)
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "event_type": event_type,
             "session_id": str(session_id),
-            "data": data
+            "data": safe_data,
         }
         try:
             with open(self.log_file, "a", encoding="utf-8") as f:
@@ -45,3 +51,4 @@ class TelemetryManager:
             logger.error(f"Failed to record telemetry: {e}")
 
 telemetry = TelemetryManager()
+

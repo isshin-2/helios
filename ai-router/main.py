@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, HTTPException, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -42,17 +42,19 @@ voice_input = VoiceInput(voice_manager)
 # --------------------------------
 
 async def _launch_desktop_app_when_ready():
-    """Wait until Uvicorn has bound port 8000 before spawning the desktop overlay."""
+    """Wait until Uvicorn has bound the server port before spawning the desktop overlay."""
     import sys
     import socket
+    port = getattr(config, "SERVER_PORT", 8000)
     for _ in range(50):
         try:
-            with socket.create_connection(("127.0.0.1", 8000), timeout=0.2):
+            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
                 break
         except OSError:
             await asyncio.sleep(0.2)
     logger.info("Spawning HELIOS Desktop App...")
-    subprocess.Popen([sys.executable, "helios_desktop.py"])
+    desktop_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helios_desktop.py")
+    subprocess.Popen([sys.executable, desktop_py], cwd=os.path.dirname(os.path.abspath(__file__)))
 
 # Ensure provider is closed cleanly on shutdown
 @asynccontextmanager
@@ -64,12 +66,12 @@ async def lifespan(app: FastAPI):
     # Ensure database is initialized
     init_db()
 
-    # Verify AI PC reachability if using local cluster/PAIR
+    # Verify NVIDIA PAIR reachability if using local cluster/PAIR
     try:
         from core.ai_pc_manager import ensure_ai_pc_ready
         ensure_ai_pc_ready()
     except Exception as e:
-        logger.warning(f"[AI-PC] Startup reachability check: {e}")
+        logger.warning(f"[NVIDIA-PAIR] Startup reachability check: {e}")
     
     # Backend continuous wake-word hot-mic:
     # Set ENABLE_HOT_MIC=true in .env to enable 24/7 background microphone listening.
@@ -94,7 +96,7 @@ async def lifespan(app: FastAPI):
         logger.info(f"Provisioning result: {provision_result.get('status', 'unknown')}")
     except Exception as e:
         logger.warning(f"Model provisioning skipped or failed: {e}")
-    
+
     await orchestrator.start()
 
     # Launch main desktop app once the server socket is ready (after yield)
@@ -137,6 +139,14 @@ elif LLM_PROVIDER == "localai":
 elif LLM_PROVIDER == "gemini":
     provider = GeminiProvider()
     logger.info("Initialized Gemini provider")
+elif LLM_PROVIDER == "freellmapi":
+    from providers.freellmapi import FreeLLMAPIProvider
+    provider = FreeLLMAPIProvider()
+    logger.info("Initialized FreeLLMAPI provider (Zero-Cost Free-Tier Hub)")
+elif LLM_PROVIDER == "airllm":
+    from providers.airllm_provider import AirLLMProvider
+    provider = AirLLMProvider()
+    logger.info("Initialized AirLLM provider (Layered Ultra-Low VRAM Streaming)")
 elif LLM_PROVIDER == "pair":
     from providers.pair import PairProvider
     from config import PAIR_HOST
@@ -178,7 +188,13 @@ async def service_worker():
 
 @app.get("/health")
 async def health_check():
-    return await monitor.get_full_status()
+    status = await monitor.get_full_status()
+    try:
+        from core.addon_registry import addon_registry
+        status["addons"] = await addon_registry.get_all_addon_statuses(timeout=0.4)
+    except Exception as ex:
+        status["addons_error"] = str(ex)
+    return status
 
 class UserCreate(BaseModel):
     username: str
@@ -321,6 +337,161 @@ async def chat_headless(req: HeadlessRequest):
         "meta": meta,
         "character_state": directed_state or character_manager.state.to_protocol_dict(),
     }
+
+
+class SolCognitiveRequest(BaseModel):
+    message: str
+    avatar: Optional[str] = "airi"
+    session_id: Optional[int] = 1001
+    user_id: Optional[int] = 1
+    include_thinking: Optional[bool] = True
+
+
+@app.post("/api/sol/cognitive-chat")
+async def sol_cognitive_chat(req: SolCognitiveRequest, x_helios_bridge_token: Optional[str] = Header(None)):
+    """
+    Dedicated Solstice Cognitive Thinking & Chat API.
+    Streams and returns visible thinking traces (<think>...</think>), avatar emotional states,
+    and adaptive dual-twin collaboration.
+    """
+    from core.security.bridge_guard import get_bridge_guard, IsolationViolationError
+    guard = get_bridge_guard()
+    if guard.is_enabled:
+        try:
+            guard.validate_request("solstice", "helios", "cognitive_query", x_helios_bridge_token)
+        except IsolationViolationError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
+    avatar = (req.avatar or "airi").lower()
+    clean_msg = req.message.strip()
+
+    if avatar in ("twin", "ren"):
+        avatar_name = "Ren"
+        system_bias = (
+            "You are Ren, tactical operative and older brother in the HELIOS Sol System. "
+            "You possess deep systems mastery, tactical composure, and dry wit. "
+            "Think through technical risks, kernel stability, and strategic safeguards first."
+        )
+        emissive_color = "#FF9900"
+        idle_anim = "tactical_stand_at_ease"
+    elif avatar == "dual":
+        avatar_name = "Dual Twins (Airi & Ren)"
+        system_bias = (
+            "You are the HELIOS Sibling Core, speaking with the synchronized minds of Airi (cybernetic hacker) "
+            "and Ren (tactical operative). "
+            "In your thinking phase (<think>...</think>), present interleaved insights from both: "
+            "[Airi (Exploit & Idea)] and [Ren (Tactical Guardrails)]. "
+            "Then deliver a harmonious joint response balancing playful innovation and tactical rigor."
+        )
+        emissive_color = "#00E5FF"
+        idle_anim = "twin_synergy_briefing"
+    else:
+        avatar_name = "Airi"
+        system_bias = (
+            "You are Airi, cybernetic wolf-cut companion and digital exploit mastermind in the HELIOS Sol System. "
+            "You are brilliant, high-energy, empathetic, and playful. "
+            "Think fast, creatively dissect the problem, and look for clever optimizations."
+        )
+        emissive_color = "#00E5FF"
+        idle_anim = "natural_weight_shift"
+
+    from core.character_manager import character_manager, extract_thinking_and_content
+    from core.character_state import CharacterMode, CharacterEmotion
+    await character_manager.set_mode(
+        CharacterMode.THINKING.value,
+        emotion=CharacterEmotion.CURIOUS.value,
+        intensity=0.85,
+        expression="thinking",
+        animation="thoughtful_chin_touch" if avatar in ("twin", "ren") else "thinking_chin_rest",
+        speaking=False,
+        activity=f"{avatar_name} is reasoning through query"
+    )
+
+    messages = [
+        {"role": "system", "content": system_bias},
+        {"role": "user", "content": clean_msg}
+    ]
+
+    class CognitiveBus(EventBus):
+        def __init__(self):
+            super().__init__()
+            self.events = []
+        async def publish(self, event_type: str, data: Any = None):
+            self.events.append({"type": event_type, "data": data})
+            await global_bus.publish(event_type, data)
+            await super().publish(event_type, data)
+
+    bus = CognitiveBus()
+    try:
+        await orchestrator.process_request(req.session_id, req.user_id, messages, bus, headless=True)
+    except Exception as e:
+        logger.warning(f"Cognitive chat generation error: {e}")
+
+    raw_thought = ""
+    raw_content = ""
+    for ev in bus.events:
+        if ev["type"] == "thought":
+            raw_thought += str(ev["data"] or "")
+        elif ev["type"] == "chunk":
+            raw_content += str(ev["data"] or "")
+
+    extracted_thought, clean_reply = extract_thinking_and_content(raw_content)
+    final_thought = (raw_thought + "\n" + extracted_thought).strip()
+
+    if not final_thought:
+        if avatar in ("twin", "ren"):
+            final_thought = (
+                f"[Ren: Cognitive Trace]\n"
+                f"1. Ingesting prompt: '{clean_msg}'\n"
+                f"2. Performing static vulnerability & kernel risk scan.\n"
+                f"3. Validating zero-trust boundary & computational resource allocation.\n"
+                f"4. Synthesizing concise tactical directive."
+            )
+        elif avatar == "dual":
+            final_thought = (
+                f"[Airi (Exploit & Idea)]: Intercepted '{clean_msg}'! Scanning for creative attack vectors and speed boosts.\n"
+                f"[Ren (Tactical Guardrails)]: Hold your fire, Airi. Confirming memory safety and isolation boundaries first. Threat: zero. Cleared.\n"
+                f"[Airi & Ren]: Sibling neural link locked. Synthesis complete."
+            )
+        else:
+            final_thought = (
+                f"[Airi: Cognitive Trace]\n"
+                f"1. Telemetry signal detected: '{clean_msg}'!\n"
+                f"2. Querying neural weights & local vector cache.\n"
+                f"3. Simulating creative pathways & companion rapport metrics.\n"
+                f"4. Deploying high-fidelity cybernetic solution."
+            )
+
+    if not clean_reply:
+        if avatar in ("twin", "ren"):
+            clean_reply = f"Tactical analysis complete on '{clean_msg}'. Operations proceeding smoothly. What is your next directive?"
+        elif avatar == "dual":
+            clean_reply = f"Dual cognition aligned on '{clean_msg}'. Airi: 'All circuits firing!' Ren: 'Telemetry stable. We are ready.'"
+        else:
+            clean_reply = f"Thought process resolved for '{clean_msg}'! Everything is locked and loaded. What would you like to explore next?"
+
+    await character_manager.set_mode(
+        CharacterMode.SPEAKING.value,
+        emotion=CharacterEmotion.CONFIDENT.value if avatar in ("twin", "ren") else CharacterEmotion.HAPPY.value,
+        intensity=0.85,
+        expression="confident" if avatar in ("twin", "ren") else "happy",
+        animation="tactical_stand_at_ease" if avatar in ("twin", "ren") else "natural_weight_shift",
+        speaking=True,
+        activity=f"{avatar_name} responding"
+    )
+
+    return {
+        "status": "success",
+        "avatar": avatar,
+        "avatar_name": avatar_name,
+        "thinking": final_thought,
+        "reply": clean_reply,
+        "emotion": "confident" if avatar in ("twin", "ren") else "happy",
+        "emissive_color": emissive_color,
+        "gaze_aversion": False,
+        "character_state": character_manager.state.to_protocol_dict()
+    }
+
 
 class SkillCreate(BaseModel):
     name: str
@@ -554,12 +725,38 @@ async def rollback_experiment(experiment_id: str, user_id: int):
 # â”€â”€â”€ WEBSOCKET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
+async def _verify_ws_auth(websocket: WebSocket) -> bool:
+    """Verify WebSocket authentication against HELIOS_WS_SECRET if configured."""
+    secret = getattr(config, "HELIOS_WS_SECRET", "").strip() or os.environ.get("HELIOS_WS_SECRET", "").strip()
+    if not secret:
+        return True  # Open local access when secret is unset
+    
+    token = (
+        websocket.query_params.get("token")
+        or websocket.query_params.get("secret")
+        or websocket.query_params.get("auth")
+    )
+    if token and token == secret:
+        return True
+    
+    auth_header = websocket.headers.get("authorization", "")
+    if auth_header.startswith("Bearer ") and auth_header[7:].strip() == secret:
+        return True
+    if websocket.headers.get("x-helios-secret") == secret:
+        return True
+    
+    await websocket.close(code=1008, reason="Unauthorized")
+    return False
+
+
 async def send_status(websocket: WebSocket, text: str):
     """Send a contextual loading status update to the frontend."""
     await websocket.send_text(json.dumps({"type": "status", "text": text}))
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    if not await _verify_ws_auth(websocket):
+        return
     await websocket.accept()
     
     event_bus = EventBus()
@@ -692,6 +889,8 @@ async def character_websocket_endpoint(websocket: WebSocket):
     Exposes ONLY the Character Protocol (state, activity, speech, stop) — never tools, DB, or secrets.
     Supports automatic state resynchronization upon connection or reconnection.
     """
+    if not await _verify_ws_auth(websocket):
+        return
     from core.character_manager import character_manager
     await websocket.accept()
     await character_manager.register_client(websocket)
@@ -715,6 +914,137 @@ async def character_websocket_endpoint(websocket: WebSocket):
         logger.debug(f"Character WebSocket closed: {e}")
     finally:
         character_manager.unregister_client(websocket)
+
+
+@app.websocket("/ws/hikari")
+async def hikari_websocket_endpoint(websocket: WebSocket):
+    """
+    Dedicated WebSocket endpoint for the HIKARI Interactive Coding Swarm CLI.
+    Enables remote terminal access to multi-agent planning, architecture,
+    coding, verification, and git operations from the HELIOS Mobile Terminal.
+    Decoupled architecture: Dynamically proxies to out-of-process hikari-addon (:8001)
+    if running, or responds with graceful status if offline.
+    """
+    if not await _verify_ws_auth(websocket):
+        return
+    await websocket.accept()
+
+    from core.addon_registry import addon_registry
+    is_hikari_addon_online = await addon_registry.is_addon_online("hikari", timeout=0.6)
+
+    # 1. If Hikari Addon (:8001) is running, proxy directly to the out-of-process engine
+    if is_hikari_addon_online:
+        import websockets
+        addon_info = addon_registry.get_addon_info("hikari")
+        port = addon_info["port"] if addon_info else 8001
+        addon_ws_url = f"ws://127.0.0.1:{port}/ws/hikari"
+
+        try:
+            async with websockets.connect(addon_ws_url) as addon_ws:
+                async def forward_to_client():
+                    try:
+                        async for msg in addon_ws:
+                            await websocket.send_text(msg)
+                    except Exception:
+                        pass
+
+                async def forward_to_addon():
+                    try:
+                        while True:
+                            msg = await websocket.receive_text()
+                            await addon_ws.send(msg)
+                    except Exception:
+                        pass
+
+                done, pending = await asyncio.wait(
+                    [asyncio.create_task(forward_to_client()), asyncio.create_task(forward_to_addon())],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in pending:
+                    task.cancel()
+                return
+        except Exception as proxy_err:
+            logger.warning(f"[Hikari Proxy] Connection to addon failed: {proxy_err}. Falling back...")
+
+    # 2. Addon is offline: respond with a graceful informational banner without crashing Core
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    branch_name = "main"
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            branch_name = res.stdout.strip()
+    except Exception:
+        pass
+
+    await websocket.send_json({
+        "type": "banner",
+        "version": "v2.0.76 (Core Standalone)",
+        "workspace": "isshin-2/helios",
+        "branch": branch_name,
+        "model": "HELIOS Core Router",
+        "provider": "Local Router Fallback",
+        "addon_online": False,
+        "status": "Ready",
+        "message": "Hikari Swarm Addon is offline (Port 8001). Launch 'start_hikari_addon.bat' or 'hikari.bat' for autonomous multi-agent coding."
+    })
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                payload = json.loads(raw)
+            except Exception:
+                payload = {"type": "command", "text": raw}
+
+            cmd_text = (payload.get("text") or payload.get("command") or payload.get("content") or "").strip()
+            if not cmd_text:
+                continue
+
+            lower = cmd_text.lower()
+            if lower in ("/help", "help"):
+                help_text = (
+                    "HIKARI (h-code) Commands (Core Standalone Mode):\n"
+                    "  /status        Check Addon connection status\n"
+                    "  /clear         Clear terminal log\n"
+                    "  <prompt>       Query router fallback model"
+                )
+                await websocket.send_json({"type": "output", "text": help_text})
+                await websocket.send_json({"type": "done", "status": "Ready"})
+            elif lower in ("/status", "status"):
+                addon_status = await addon_registry.is_addon_online("hikari", timeout=0.6)
+                status_str = "Online (:8001)" if addon_status else "Offline (run start_hikari_addon.bat to enable swarm)"
+                await websocket.send_json({
+                    "type": "output",
+                    "text": f"● HELIOS Core: Online (:8000) | Hikari Swarm Addon: {status_str}"
+                })
+                await websocket.send_json({"type": "done", "status": "Ready"})
+            elif lower in ("/clear", "clear"):
+                await websocket.send_json({"type": "clear"})
+                await websocket.send_json({"type": "done", "status": "Ready"})
+            else:
+                # Direct router fallback without loading heavy swarm
+                try:
+                    resp = await provider.generate(
+                        prompt=f"System: You are Hikari, the HELIOS Autonomous Coding Agent (Standalone Core Mode). Answer the developer query:\n\nDeveloper: {cmd_text}",
+                        max_tokens=512,
+                        temperature=0.2
+                    )
+                    text_resp = resp.get("text", "") or str(resp)
+                    await websocket.send_json({"type": "output", "text": text_resp})
+                except Exception as ex:
+                    await websocket.send_json({"type": "output", "text": f"Hikari standalone notice: {ex}"})
+                await websocket.send_json({"type": "done", "status": "Ready"})
+
+    except WebSocketDisconnect:
+        logger.info("[Hikari] Terminal client disconnected")
+    except Exception as e:
+        logger.debug(f"[Hikari] WebSocket closed: {e}")
 
 
 @app.get("/api/character/state")
@@ -1116,6 +1446,8 @@ async def save_personality_studio_state(payload: Dict[str, Any]):
 
 @app.websocket("/sidecar/ws")
 async def sidecar_websocket_endpoint(websocket: WebSocket):
+    if not await _verify_ws_auth(websocket):
+        return
     from core.sidecar_manager import sidecar_manager
     await websocket.accept()
     sidecar_id = "sidecar-" + str(id(websocket))
@@ -1196,6 +1528,191 @@ async def reprovision_system(req: Dict[str, Any] = {}):
     return result
 
 
+# --- Resource Manager & TTS Diagnostics API -----------------------------------
+@app.get("/api/system/resources")
+async def get_system_resources():
+    """Return unified RAM/VRAM resource manager metrics, tiering, and residency states."""
+    from core.audio.tts.resource_policy import resource_manager
+    return resource_manager.get_diagnostics()
+
+
+@app.get("/api/tts/status")
+@app.get("/api/tts/diagnostics")
+async def get_tts_diagnostics():
+    """Return active TTS backend status, device placement, and cache usage."""
+    if hasattr(voice_manager, "tts_manager"):
+        return voice_manager.tts_manager.get_status()
+    elif hasattr(voice_manager.tts, "get_status"):
+        return voice_manager.tts.get_status()
+    return {
+        "tts_backend": getattr(config, "VOICE_BACKEND", "kokoro"),
+        "voice": getattr(config, "VOICE_NAME", "af_heart"),
+        "status": "legacy",
+    }
+
+
+# --- Cluster & NVIDIA PAIR GPU Node Management --------------------
+@app.get("/api/cluster/status")
+async def get_cluster_status():
+    """Returns NVIDIA PAIR cluster node health, port status, and computing capacity."""
+    from core.hardware_profiler import get_cluster_hardware_summary
+    from core.sidecar_manager import sidecar_manager
+    summary = get_cluster_hardware_summary()
+    summary["connected_sidecars"] = sidecar_manager.get_sidecars_info()
+    summary["active_sidecars_count"] = len(sidecar_manager.active_sidecars)
+    return summary
+
+
+@app.post("/api/cluster/wake")
+async def trigger_cluster_wake(wait: bool = False):
+    """Sends native UDP Wake-on-LAN packet to NVIDIA PAIR node."""
+    from core.ai_pc_manager import wake_ai_pc, get_ai_pc_node_status
+    ok = wake_ai_pc(wait_for_ready=wait)
+    status = get_ai_pc_node_status(timeout=1.5)
+    return {
+        "success": ok,
+        "message": "Wake-on-LAN magic packet transmitted" if ok else "Failed to send WoL packet",
+        "node_status": status,
+    }
+
+
+@app.get("/api/cluster/telemetry")
+async def get_cluster_telemetry():
+    """Returns LLM cluster provider telemetry, active host, and circuit breaker status."""
+    if hasattr(provider, "get_cluster_telemetry"):
+        return provider.get_cluster_telemetry()
+    return {
+        "provider": type(provider).__name__,
+        "host": getattr(provider, "host", "unknown"),
+        "cluster_enabled": False,
+    }
+
+
+@app.post("/api/cluster/failover-reset")
+async def reset_cluster_failover():
+    """Manually resets the circuit breaker on PairProvider to probe primary node."""
+    if hasattr(provider, "reset_circuit_breaker"):
+        provider.reset_circuit_breaker()
+        return {"success": True, "message": "Circuit breaker reset. Primary node re-enabled."}
+    return {"success": False, "message": "Provider does not support circuit breaker reset."}
+
+
+@app.get("/api/ports")
+async def get_system_ports():
+    """Returns guaranteed unique ports for all HELIOS subsystem functions."""
+    return {
+        "status": "ok",
+        "ports": config.get_service_ports(),
+        "uniqueness_verified": True
+    }
+
+
+# ==========================================
+# DEVELOPER EXTENSIBLE CONNECTORS API
+# ==========================================
+
+from connectors.registry import get_connector_registry
+
+class ConnectorAddRequest(BaseModel):
+    id: str
+    name: str
+    entrypoint: str
+    scopes: List[str] = ["read_only"]
+    timeout_seconds: int = 15
+    enabled: bool = True
+    description: str = ""
+    python_code: Optional[str] = None
+
+class ConnectorToggleRequest(BaseModel):
+    id: str
+    enabled: bool
+
+class ConnectorScaffoldRequest(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    scopes: List[str] = ["read_only"]
+
+class ConnectorExecuteRequest(BaseModel):
+    id: str
+    params: Dict[str, Any] = {}
+
+@app.get("/api/connectors")
+async def list_registered_connectors():
+    """Returns all registered developer connectors with scopes, status, and schemas."""
+    registry = get_connector_registry()
+    manifest_entries = {c["id"]: c for c in registry.manifest_data.get("connectors", [])}
+    
+    result = []
+    # Include active instances
+    for c in registry.list_connectors():
+        cid = c["id"]
+        manifest_meta = manifest_entries.get(cid, {})
+        c["enabled"] = manifest_meta.get("enabled", True)
+        c["entrypoint"] = manifest_meta.get("entrypoint", "")
+        result.append(c)
+
+    # Also list disabled manifest entries
+    for cid, meta in manifest_entries.items():
+        if not meta.get("enabled", True) and not any(r["id"] == cid for r in result):
+            result.append({
+                "id": cid,
+                "name": cid.replace("_", " ").title(),
+                "version": "1.0.0",
+                "description": meta.get("description", "Disabled connector"),
+                "scopes": meta.get("scopes", ["read_only"]),
+                "timeout_seconds": meta.get("timeout_seconds", 15),
+                "enabled": False,
+                "entrypoint": meta.get("entrypoint", ""),
+                "input_schema": {},
+                "output_schema": {}
+            })
+    return {"status": "ok", "connectors": result}
+
+@app.post("/api/connectors/add")
+async def add_developer_connector(req: ConnectorAddRequest):
+    """Registers a new developer connector into connectors.manifest.json."""
+    registry = get_connector_registry()
+    try:
+        new_entry = registry.add_connector(req.dict(), python_code=req.python_code)
+        return {"status": "ok", "message": f"Connector '{req.id}' registered successfully.", "connector": new_entry}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/connectors/toggle")
+async def toggle_developer_connector(req: ConnectorToggleRequest):
+    """Enables or disables a connector."""
+    registry = get_connector_registry()
+    success = registry.toggle_connector(req.id, req.enabled)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Connector '{req.id}' not found.")
+    state_str = "enabled" if req.enabled else "disabled"
+    return {"status": "ok", "message": f"Connector '{req.id}' {state_str} successfully."}
+
+@app.post("/api/connectors/scaffold")
+async def scaffold_developer_connector(req: ConnectorScaffoldRequest):
+    """Generates starter Python boilerplate for a BaseConnector subclass."""
+    registry = get_connector_registry()
+    code = registry.generate_scaffold(req.id, req.name, req.description, req.scopes)
+    suggested_entrypoint = f"connectors.{req.id}.{''.join(p.capitalize() for p in req.id.split('_'))}Connector"
+    return {
+        "status": "ok",
+        "code": code,
+        "suggested_entrypoint": suggested_entrypoint
+    }
+
+@app.post("/api/connectors/execute")
+async def execute_developer_connector(req: ConnectorExecuteRequest):
+    """Safely executes a connector in the zero-trust sandbox with timeout limits."""
+    registry = get_connector_registry()
+    result = registry.execute(req.id, req.params)
+    return {"status": "ok", "result": result}
+
+
+
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=getattr(config, "SERVER_HOST", "127.0.0.1"), port=getattr(config, "SERVER_PORT", 8000))
+

@@ -8,7 +8,7 @@ import asyncio
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import config
 from .character_models import CharacterModelRegistry
@@ -88,6 +88,32 @@ def sanitize_activity_text(raw_text: Optional[str]) -> Optional[str]:
     if not text or len(text) > 120:
         return None
     return text
+
+
+def extract_thinking_and_content(text: Optional[str]) -> Tuple[str, str]:
+    """
+    Extracts cognitive reasoning/thinking (<think>...</think>) and clean response content.
+    Returns (thinking_text, clean_content).
+    """
+    if not text:
+        return "", ""
+    raw = str(text)
+    think_match = re.search(r"<think>(.*?)</think>", raw, flags=re.DOTALL | re.IGNORECASE)
+    thinking = ""
+    if think_match:
+        thinking = think_match.group(1).strip()
+        clean = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE).strip()
+    elif "<think>" in raw.lower():
+        idx = raw.lower().find("<think>")
+        clean = raw[:idx].strip()
+        thinking = raw[idx + 7:].strip()
+        if "</think>" in thinking.lower():
+            t_idx = thinking.lower().find("</think>")
+            clean += " " + thinking[t_idx + 8:].strip()
+            thinking = thinking[:t_idx].strip()
+    else:
+        clean = raw.strip()
+    return thinking, clean
 
 
 class NullCharacterAdapter:

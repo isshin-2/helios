@@ -559,7 +559,13 @@ async def test_13_full_spec_vs_character_only_editions():
     import sys
     from pathlib import Path
 
-    char_dir = Path(__file__).resolve().parent.parent.parent / "helios-character"
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    char_candidates = [
+        repo_root.parent / "solstice-addon",
+        repo_root.parent / "character-addon",
+        repo_root / "helios-character",
+    ]
+    char_dir = next((p for p in char_candidates if p.exists()), repo_root / "helios-character")
     if str(char_dir) not in sys.path:
         sys.path.insert(0, str(char_dir))
 
@@ -624,7 +630,13 @@ def test_14_speaking_termination_and_curious_waiting_idle_animations():
     }
     assert idle_anims.issubset(VALID_ANIMATIONS)
 
-    viewer_dir = Path(__file__).resolve().parent.parent.parent / "helios-character" / "viewer"
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    char_candidates = [
+        repo_root.parent / "solstice-addon" / "viewer",
+        repo_root.parent / "character-addon" / "viewer",
+        repo_root / "helios-character" / "viewer",
+    ]
+    viewer_dir = next((p for p in char_candidates if p.exists()), repo_root / "helios-character" / "viewer")
     anim_js = (viewer_dir / "vrm" / "animation.js").read_text(encoding="utf-8")
     lip_js = (viewer_dir / "vrm" / "lip_sync.js").read_text(encoding="utf-8")
     app_js = (viewer_dir / "app.js").read_text(encoding="utf-8")

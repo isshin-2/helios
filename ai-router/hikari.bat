@@ -1,9 +1,14 @@
 @echo off
-:: Verify AI PC is reachable; if offline, run wake script
-powershell -NoProfile -Command "if (-not (Test-NetConnection -ComputerName 192.168.100.254 -Port 3389 -InformationLevel Quiet -WarningAction SilentlyContinue)) { Write-Host '[HELIOS] AI PC is offline. Launching AI-PC.ps1 wake script...' -ForegroundColor Yellow; Start-Process powershell -ArgumentList '-ExecutionPolicy Bypass -File \"C:\Users\krithik\Desktop\AI-PC.ps1\"' }"
+title Hikari — HELIOS Autonomous Coding Swarm
+setlocal
 
-if exist "venv\Scripts\python.exe" (
-    venv\Scripts\python.exe helios_code.py %*
-) else (
-    python helios_code.py %*
+set "PY_EXE=venv\Scripts\python.exe"
+if not exist "%PY_EXE%" (
+    set "PY_EXE=python"
 )
+
+:: Silent headless check for NVIDIA PAIR reachability (sends native UDP WoL if sleeping)
+"%PY_EXE%" -c "from core.ai_pc_manager import ensure_ai_pc_ready; ensure_ai_pc_ready()" 2>nul
+
+:: Launch Hikari CLI
+"%PY_EXE%" helios_code.py %*

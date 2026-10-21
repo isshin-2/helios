@@ -61,16 +61,18 @@ def get_routing_decision(classification: Dict[str, Any]) -> Dict[str, Any]:
         })
         return base_response
         
-    # 4. System / Tool Use
-    if intent in ("system", "tool_use"):
+    # 4. System / Tool Use / Agent
+    if intent in ("system", "tool_use", "agent"):
         model = _get_model_by_role("tool_use", "hermes3:8b")
         base_response.update({
-            "route": "general",
+            "route": "agent",
+            "category": "agent",
             "model": model,
             "context_size": CONTEXT_SIZES.get("complex", 8192),
-            "reason": "System/Tool request needs capable tool model."
+            "reason": "Agent/System/Tool request needs capable tool model."
         })
         return base_response
+
 
     # 5. Conversation
     if intent == "conversation":

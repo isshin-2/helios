@@ -3,15 +3,15 @@ setlocal enabledelayedexpansion
 title AIRI — 3D Cybernetic Companion
 echo ============================================================================
 echo   AIRI -- 3D CYBERNETIC COMPANION -- On-Demand Visual Interface
-echo   Connects to HELIOS Core on AI PC or Localhost on port 8000
+echo   Connects to HELIOS Core on NVIDIA PAIR Node or Localhost on port 8000
 echo ============================================================================
 echo.
 
 :: Detect configured server endpoint (from .env or default)
 set "TARGET_HOST=localhost"
 set "TARGET_PORT=8000"
-if exist "%~dp0ai-router\.env" (
-    for /f "tokens=1,2 delims==" %%A in ('type "%~dp0ai-router\.env"') do (
+if exist "%~dp0..\..\ai-router\.env" (
+    for /f "tokens=1,2 delims==" %%A in ('type "%~dp0..\..\ai-router\.env"') do (
         if /i "%%A"=="AI_PC_IP" set "TARGET_HOST=%%B"
         if /i "%%A"=="SERVER_PORT" set "TARGET_PORT=%%B"
     )
@@ -33,9 +33,9 @@ if not "!TARGET_HOST!"=="localhost" if not "!TARGET_HOST!"=="127.0.0.1" (
 set "HELIOS_EDITION=full_spec"
 set "HELIOS_CHARACTER_MODE=full_spec"
 
-cd /d "%~dp0helios-character"
+cd /d "%~dp0..\..\helios-character"
 
-set "PY_EXE=%~dp0ai-router\venv\Scripts\python.exe"
+set "PY_EXE=%~dp0..\..\ai-router\venv\Scripts\python.exe"
 if not exist "%PY_EXE%" (
     set "PY_EXE=python"
 )

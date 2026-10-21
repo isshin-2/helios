@@ -30,9 +30,17 @@ TIER_THRESHOLDS = {
         "min_ram_gb": 16, "min_vram_gb": 16,
         "max_model_size_gb": 20, "recommended_context": 16384, "max_simultaneous_models": 3
     },
+    "apple_silicon_unified_16gb_plus": {
+        "min_ram_gb": 16, "min_vram_gb": 10,
+        "max_model_size_gb": 14, "recommended_context": 8192, "max_simultaneous_models": 2
+    },
     "gpu_entry_8gb_vram": {
         "min_ram_gb": 16, "min_vram_gb": 6,
         "max_model_size_gb": 10, "recommended_context": 8192, "max_simultaneous_models": 2
+    },
+    "workstation_cpu_32gb_plus": {
+        "min_ram_gb": 28, "min_vram_gb": 0,
+        "max_model_size_gb": 8, "recommended_context": 8192, "max_simultaneous_models": 2
     },
     "balanced_cpu_16gb": {
         "min_ram_gb": 12, "min_vram_gb": 0,
@@ -45,10 +53,29 @@ TIER_THRESHOLDS = {
 }
 
 def detect_hardware() -> HardwareProfile:
-    """Detects system hardware and returns a HardwareProfile instance."""
+    """Detects system hardware across Windows, macOS, and Linux."""
     os_name = platform.system()
     os_version = platform.release()
     cpu_name = platform.processor() or "Unknown"
+
+    # Refine CPU name on macOS or Linux if generic
+    if os_name == "Darwin":
+        try:
+            res = subprocess.run(['sysctl', '-n', 'machdep.cpu.brand_string'], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout.strip():
+                cpu_name = res.stdout.strip()
+        except Exception:
+            pass
+    elif os_name == "Linux" and (cpu_name in ("Unknown", "", "x86_64", "aarch64")):
+        try:
+            with open("/proc/cpuinfo", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("model name"):
+                        cpu_name = line.split(":", 1)[1].strip()
+                        break
+        except Exception:
+            pass
+
     cpu_cores_physical = psutil.cpu_count(logical=False) or 0
     cpu_cores_logical = psutil.cpu_count(logical=True) or 0
     
@@ -70,7 +97,7 @@ def detect_hardware() -> HardwareProfile:
     gpu_name = "Unknown"
     gpu_vram_gb = 0.0
 
-    # a. Try nvidia-smi
+    # a. Try nvidia-smi (cross-platform: Linux & Windows)
     try:
         result = subprocess.run(
             ['nvidia-smi', '--query-gpu=name,memory.total', '--format=csv,noheader,nounits'],
@@ -86,7 +113,17 @@ def detect_hardware() -> HardwareProfile:
     except Exception as e:
         logger.debug(f"nvidia-smi check failed: {e}")
 
-    # b. Try WMI via powershell
+    # b. Try Apple Silicon unified memory GPU (macOS M1/M2/M3/M4)
+    if not gpu_present and os_name == "Darwin":
+        machine = platform.machine().lower()
+        if "arm" in machine or "aarch64" in machine or "apple" in cpu_name.lower():
+            gpu_present = True
+            gpu_vendor = "apple"
+            gpu_name = cpu_name if "apple" in cpu_name.lower() else f"Apple Silicon ({machine})"
+            # Apple unified memory: up to ~75% can be allocated for Metal/GPU inference
+            gpu_vram_gb = round(ram_total_gb * 0.75, 1)
+
+    # c. Try WMI via powershell on Windows
     if not gpu_present and os_name == "Windows":
         try:
             result = subprocess.run(
@@ -118,7 +155,19 @@ def detect_hardware() -> HardwareProfile:
         except Exception as e:
             logger.debug(f"WMI GPU check failed: {e}")
 
-    # c. Try torch.cuda
+    # d. Try Linux AMD ROCm (rocm-smi) or lspci
+    if not gpu_present and os_name == "Linux":
+        try:
+            result = subprocess.run(['rocm-smi', '--showmeminfo', 'vram'], capture_output=True, text=True, timeout=3)
+            if result.returncode == 0:
+                gpu_present = True
+                gpu_vendor = "amd"
+                gpu_name = "AMD Radeon GPU (ROCm)"
+                gpu_vram_gb = 8.0  # safe default fallback
+        except Exception:
+            pass
+
+    # e. Try torch CUDA / MPS
     if not gpu_present:
         try:
             import torch
@@ -127,6 +176,11 @@ def detect_hardware() -> HardwareProfile:
                 gpu_vendor = "nvidia"
                 gpu_name = torch.cuda.get_device_name(0)
                 gpu_vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                gpu_present = True
+                gpu_vendor = "apple"
+                gpu_name = "Apple Metal (MPS)"
+                gpu_vram_gb = round(ram_total_gb * 0.75, 1)
         except Exception as e:
             logger.debug(f"torch GPU check failed: {e}")
 
@@ -169,3 +223,80 @@ def get_hardware_summary() -> dict:
     summary["tier"] = tier_name
     summary["tier_limits"] = tier_limits
     return summary
+
+
+def get_tts_resource_profile() -> dict:
+    """
+    Evaluates hardware specifically for TTS inference:
+    CUDA availability, VRAM capability, recommended TTS backend, and RAM staging budget.
+    """
+    profile = detect_hardware()
+    cuda_available = False
+    cuda_device = "cpu"
+    try:
+        import torch
+        cuda_available = torch.cuda.is_available()
+        if cuda_available:
+            cuda_device = "cuda"
+    except ImportError:
+        pass
+
+    # High-VRAM workstation
+    if profile.gpu_vram_gb >= 12.0 and profile.ram_total_gb >= 32.0:
+        recommended_tts = "gpt_sovits"
+        ram_staging_gb = 32.0
+    elif profile.gpu_vram_gb >= 6.0 and profile.ram_total_gb >= 16.0:
+        recommended_tts = "gpt_sovits"
+        ram_staging_gb = 16.0
+    else:
+        # Integrated graphics or low VRAM/RAM: Kokoro ONNX is ideal
+        recommended_tts = "kokoro"
+        ram_staging_gb = 4.0
+
+    return {
+        "recommended_backend": recommended_tts,
+        "cuda_available": cuda_available,
+        "device": cuda_device,
+        "gpu_name": profile.gpu_name,
+        "gpu_vendor": profile.gpu_vendor,
+        "vram_gb": round(profile.gpu_vram_gb, 2),
+        "ram_total_gb": round(profile.ram_total_gb, 2),
+        "ram_available_gb": round(profile.ram_available_gb, 2),
+        "ram_staging_budget_gb": ram_staging_gb,
+    }
+
+
+def get_cluster_hardware_summary() -> dict:
+    """
+    Returns unified cluster telemetry covering:
+    1. Local controller machine specs & utilization
+    2. Remote NVIDIA PAIR GPU node specs & live status
+    3. Aggregated cluster computing capacity
+    """
+    local = get_hardware_summary()
+    
+    ai_pc_status = {}
+    try:
+        from core.ai_pc_manager import get_ai_pc_node_status
+        ai_pc_status = get_ai_pc_node_status(timeout=1.0)
+    except Exception as e:
+        ai_pc_status = {"reachable": False, "error": str(e)}
+
+    ai_pc_online = ai_pc_status.get("reachable", False)
+    ai_pc_vram = 16.0 if ai_pc_online else 0.0
+    ai_pc_ram = 64.0 if ai_pc_online else 0.0
+
+    return {
+        "cluster_online": True,
+        "nodes": {
+            "local_controller": local,
+            "ai_pc_gpu_node": ai_pc_status,
+        },
+        "aggregate_capacity": {
+            "total_ram_gb": round(local.get("ram_total_gb", 0) + ai_pc_ram, 1),
+            "total_vram_gb": round(local.get("gpu_vram_gb", 0) + ai_pc_vram, 1),
+            "total_logical_cores": local.get("cpu_cores_logical", 0) + (12 if ai_pc_online else 0),
+            "ai_pc_available": ai_pc_online,
+        }
+    }
+

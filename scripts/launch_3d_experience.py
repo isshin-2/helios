@@ -41,9 +41,21 @@ def launch_3d_experience(dry_run: bool = False):
     print(governor.get_advisory_banner())
     print()
 
+    # Determine query params with hardware and mode profiles
+    query_params = ["synergy=true"]
+    base_page = "/dev_studio.html" if "--studio" in sys.argv else "/"
+    if governor.decision.is_budget:
+        query_params.append("budget=true")
+        query_params.append("fps=30")
+        query_params.append("shadows=false")
+    else:
+        query_params.append("fps=60")
+
+    launch_url = f"http://localhost:8080{base_page}?{'&'.join(query_params)}"
+
     if dry_run:
         print("[OK] Dry run: Verified WebGL viewer configuration and telemetry profiles.")
-        print(f"  Target URL: http://localhost:8080/?synergy=true&budget={str(governor.decision.is_budget).lower()}&fps=30&shadows=false")
+        print(f"  Target URL: {launch_url}")
         print("[OK] /3d-web-experience readiness verified successfully.")
         return
 
@@ -51,17 +63,28 @@ def launch_3d_experience(dry_run: bool = False):
     solstice_url = "http://localhost:8082/health"
     if not is_service_up(solstice_url):
         print("[*] Launching Solstice Avatar Telemetry Engine (Port 8082)...")
-        sol_script = os.path.join(BASE_DIR, "engines", "solstice", "server.py")
-        py_exe = os.path.join(BASE_DIR, "ai-router", "venv", "Scripts", "python.exe")
-        if not os.path.exists(py_exe):
-            py_exe = sys.executable
+        # Check standalone addon in C:\projects\solstice-addon
+        addon_sol_script = os.path.abspath(os.path.join(BASE_DIR, "..", "solstice-addon", "server.py"))
+        
+        sol_script = None
+        sol_cwd = BASE_DIR
+        if os.path.exists(addon_sol_script):
+            sol_script = addon_sol_script
+            sol_cwd = os.path.dirname(addon_sol_script)
 
-        subprocess.Popen([py_exe, sol_script], cwd=BASE_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        for _ in range(8):
-            time.sleep(1)
-            if is_service_up(solstice_url):
-                print("[OK] Solstice Avatar Engine connected at :8082")
-                break
+        if sol_script:
+            py_exe = os.path.join(BASE_DIR, "ai-router", "venv", "Scripts", "python.exe")
+            if not os.path.exists(py_exe):
+                py_exe = sys.executable
+
+            subprocess.Popen([py_exe, sol_script], cwd=sol_cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for _ in range(8):
+                time.sleep(1)
+                if is_service_up(solstice_url):
+                    print("[OK] Solstice Avatar Engine connected at :8082")
+                    break
+        else:
+            print("[i] Solstice addon not found at ../solstice-addon. WebGL 3D Avatar running standalone.")
     else:
         print("[OK] Solstice Avatar Engine is already running on :8082.")
 
@@ -70,13 +93,19 @@ def launch_3d_experience(dry_run: bool = False):
     if not is_service_up(viewer_url):
         print("[*] Launching 3D WebGL Avatar Server (Port 8080)...")
         char_script = os.path.join(BASE_DIR, "helios-character", "ai_server.py")
+        char_cwd = os.path.join(BASE_DIR, "helios-character")
+        addon_char_script = os.path.abspath(os.path.join(BASE_DIR, "..", "solstice-addon", "ai_server.py"))
+        if not os.path.exists(char_script) and os.path.exists(addon_char_script):
+            char_script = addon_char_script
+            char_cwd = os.path.dirname(addon_char_script)
+
         py_exe = os.path.join(BASE_DIR, "ai-router", "venv", "Scripts", "python.exe")
         if not os.path.exists(py_exe):
             py_exe = sys.executable
 
         env = os.environ.copy()
         env["CHAR_MODE"] = "character_only"
-        subprocess.Popen([py_exe, char_script], cwd=os.path.join(BASE_DIR, "helios-character"), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen([py_exe, char_script], cwd=char_cwd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for _ in range(8):
             time.sleep(1)
             if is_service_up(viewer_url):
@@ -87,6 +116,12 @@ def launch_3d_experience(dry_run: bool = False):
 
     # 3. Determine URL with budget hardware tuning
     query_params = ["synergy=true"]
+    if "--pose-studio" in sys.argv:
+        base_page = "/pose_studio.html"
+    elif "--studio" in sys.argv:
+        base_page = "/dev_studio.html"
+    else:
+        base_page = "/"
     if governor.decision.is_budget:
         query_params.append("budget=true")
         query_params.append("fps=30")
@@ -94,7 +129,7 @@ def launch_3d_experience(dry_run: bool = False):
     else:
         query_params.append("fps=60")
 
-    launch_url = f"{viewer_url}/?{'&'.join(query_params)}"
+    launch_url = f"{viewer_url}{base_page}?{'&'.join(query_params)}"
     print(f"\n[OK] Launching 3D Web Experience in browser: {launch_url}")
     try:
         webbrowser.open(launch_url)

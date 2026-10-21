@@ -4,7 +4,7 @@ import difflib
 from typing import Tuple, Optional
 from pydantic import BaseModel, Field
 from tools.base import BaseTool
-from security.permissions import PermissionManager, HELIOS_DIR
+from security.permissions import PermissionManager, HELIOS_DIR, HELIOS_REPO_ROOT
 
 class FilePatchInput(BaseModel):
     file_path: str = Field(description="Path to the file to patch.")
@@ -26,16 +26,17 @@ class FilePatchTool(BaseTool):
     def __init__(self, permission_manager: PermissionManager):
         self.permission_manager = permission_manager
         
-    async def execute(self, user_id: str, file_path: str, search_block: str, replace_block: str, **kwargs) -> Tuple[str, str]:
-        return await asyncio.to_thread(self._sync_execute, user_id, file_path, search_block, replace_block)
+    async def execute(self, user_id: int, file_path: str, search_block: str, replace_block: str, **kwargs) -> Tuple[str, str]:
+        return await asyncio.to_thread(self._sync_execute, str(user_id), file_path, search_block, replace_block)
         
     def _sync_execute(self, user_id: str, file_path: str, search_block: str, replace_block: str) -> Tuple[str, str]:
         abs_path = os.path.abspath(file_path)
-        if not abs_path.startswith(os.path.abspath(HELIOS_DIR)):
-            return "Error", f"Access denied: Path {file_path} is outside HELIOS_DIR."
+        allowed_roots = [os.path.abspath(HELIOS_DIR), os.path.abspath(HELIOS_REPO_ROOT)]
+        if not any(abs_path.startswith(r) for r in allowed_roots):
+            return f"Access denied: Path {file_path} is outside allowed directory.", self.name
             
         if not os.path.exists(abs_path):
-            return "Error", f"File {file_path} not found."
+            return f"File {file_path} not found.", self.name
             
         try:
             with open(abs_path, 'r', encoding='utf-8') as f:
@@ -50,9 +51,9 @@ class FilePatchTool(BaseTool):
             count = norm_content.count(norm_search)
             
             if count == 0:
-                return "Error", "Search block not found. Try providing more context lines or ensure exact match."
+                return "Error: Search block not found. Try providing more context lines or ensure exact match.", self.name
             elif count > 1:
-                return "Error", "Search block found multiple times. Provide more context lines to make it unique."
+                return "Error: Search block found multiple times. Provide more context lines to make it unique.", self.name
                 
             new_norm_content = norm_content.replace(norm_search, replace_block)
             
@@ -67,9 +68,7 @@ class FilePatchTool(BaseTool):
                 tofile=f"b/{os.path.basename(abs_path)}"
             ))
             
-            # self.permission_manager.log_action("file_patch", user_id, file_path=file_path)
-            
-            return "Success", diff
+            return diff if diff else "Successfully patched file with no diff.", self.name
             
         except Exception as e:
-            return "Error", str(e)
+            return f"Error patching file: {e}", self.name

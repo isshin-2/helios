@@ -99,6 +99,54 @@ HUMAN_REFERENCE_POSES["crouch_fist_raise"] = {
     },
 }
 
+# Gender-archetype pose differentiation:
+# Airi (Feminine cyber companion, 1.68m, playful, contrapposto, expressive)
+AIRI_EXCLUSIVE_POSES: List[str] = [
+    "sassy_hip_pop",
+    "heart_hands_love",
+    "shy_bashful_tuck",
+    "hand_to_heart_sincere",
+    "excited_victory_jump",
+]
+
+# Ren (Masculine tactical operative, 1.82m, broad shoulders, disciplined, tactical postures)
+REN_EXCLUSIVE_POSES: List[str] = [
+    "tactical_stand_at_ease",
+    "arms_folded_relaxed",
+    "hands_pocket_relaxed",
+    "thoughtful_chin_touch",
+    "crossed_arms_think",
+]
+
+SHARED_CANONICAL_POSES: List[str] = [
+    "natural_weight_shift",
+    "cyber_salute",
+    "hands_on_hips_power",
+    "thumbs_up_approval",
+    "polite_namaste_bow",
+    "wave_greeting_friendly",
+    "shrug_confused_expressive",
+    "thinking_chin_rest",
+    "point_forward",
+    "tired_stretch_yawn",
+    "rock_on_pose",
+    "facepalm",
+    "zen_meditation",
+    "hands_up_surrender",
+]
+
+AIRI_REFERENCE_POSES: Dict[str, Dict[str, Any]] = {
+    k: copy.deepcopy(HUMAN_REFERENCE_POSES[k])
+    for k in (SHARED_CANONICAL_POSES + AIRI_EXCLUSIVE_POSES)
+    if k in HUMAN_REFERENCE_POSES
+}
+
+REN_REFERENCE_POSES: Dict[str, Dict[str, Any]] = {
+    k: copy.deepcopy(HUMAN_REFERENCE_POSES[k])
+    for k in (SHARED_CANONICAL_POSES + REN_EXCLUSIVE_POSES)
+    if k in HUMAN_REFERENCE_POSES
+}
+
 
 def _unit_vec(v: List[float], fallback: List[float]) -> np.ndarray:
     arr = np.array(v if (isinstance(v, (list, tuple)) and len(v) >= 3) else fallback, dtype=np.float32)[:3]
@@ -188,20 +236,23 @@ def compute_human_reference_reward(
     candidate_pose: Dict[str, Any],
     reference_pose_name: str,
     browser_telemetry: Optional[Dict[str, Any]] = None,
+    character: str = "airi",
 ) -> Dict[str, Any]:
     """
     DeepMimic-style Human Biomechanical + Expressive Style Imitation Reward Function.
-    Compares `candidate_pose` against the human ground-truth reference pose
-    (`HUMAN_REFERENCE_POSES[reference_pose_name]`) across 5 dimensions:
+    Compares `candidate_pose` against the character-appropriate human ground-truth reference pose
+    (`AIRI_REFERENCE_POSES` or `REN_REFERENCE_POSES`) across 5 dimensions:
       1. r_pose (0.35): 13-bone joint orientation accuracy
       2. r_endeff (0.22): 3D hand end-effector & finger shape match
       3. r_wrist_anatomy (0.18): Forearm-wrist collinearity, pronation & elbow pole
       4. r_com_gaze (0.13): Center-of-mass height & cervical gaze horizon balance
       5. r_expressive_style (0.12): Human posture style, facial emotion & head-tilt expressiveness
     """
-    ref = HUMAN_REFERENCE_POSES.get(reference_pose_name)
+    char_key = str(character or "airi").lower()
+    ref_pool = REN_REFERENCE_POSES if ("ren" in char_key or "twin" in char_key) else AIRI_REFERENCE_POSES
+    ref = ref_pool.get(reference_pose_name) or HUMAN_REFERENCE_POSES.get(reference_pose_name)
     if not ref:
-        ref = HUMAN_REFERENCE_POSES["cyber_salute"]
+        ref = ref_pool.get("cyber_salute") or HUMAN_REFERENCE_POSES["cyber_salute"]
 
     cand_bones = candidate_pose.get("bones") or {}
     ref_bones = ref.get("bones") or {}
@@ -382,13 +433,16 @@ class RLHumanPosePolicy:
     """
     Trainable 2-Layer Neural Gaussian Policy Network (`State -> Hidden(96, Tanh) -> 64-DoF Action`)
     trained via Policy Gradient Reinforcement Learning (REINFORCE with EMA Value Baseline
-    & Advantage Normalization) to imitate real human reference poses.
+    & Advantage Normalization) to imitate gender-appropriate human reference poses.
     """
 
-    MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "helios_rl_pose_policy.pkl"
+    def __init__(self, character: str = "airi", seed: int = 42):
+        self.character: str = "ren" if ("ren" in str(character).lower() or "twin" in str(character).lower()) else "airi"
+        self.model_path = Path(__file__).resolve().parent.parent / "models" / f"helios_rl_pose_policy_{self.character}.pkl"
 
-    def __init__(self, seed: int = 42):
-        self.pose_names: List[str] = sorted(HUMAN_REFERENCE_POSES.keys())
+        ref_dict = REN_REFERENCE_POSES if self.character == "ren" else AIRI_REFERENCE_POSES
+        self.reference_poses: Dict[str, Dict[str, Any]] = ref_dict
+        self.pose_names: List[str] = sorted(self.reference_poses.keys())
         self.pose_to_idx: Dict[str, int] = {k: i for i, k in enumerate(self.pose_names)}
         self.num_poses: int = len(self.pose_names)
         self.action_dim: int = 64
@@ -397,7 +451,7 @@ class RLHumanPosePolicy:
 
         # Ground-truth target matrix Y_ref [num_poses, 64] for reference comparisons
         self.Y_ref = np.stack(
-            [pose_dict_to_action_vector(HUMAN_REFERENCE_POSES[k]) for k in self.pose_names],
+            [pose_dict_to_action_vector(self.reference_poses[k]) for k in self.pose_names],
             axis=0,
         )
 
@@ -439,11 +493,12 @@ class RLHumanPosePolicy:
         Generate the 64-DoF 3D VRM pose from the trained RL Policy Network for `pose_name`
         and return `(pose_dict, reward_evaluation)`.
         """
-        clean_name = pose_name if pose_name in self.pose_to_idx else "cyber_salute"
+        clean_name = pose_name if pose_name in self.pose_to_idx else ("tactical_stand_at_ease" if self.character == "ren" else "cyber_salute")
         p_idx = self.pose_to_idx[clean_name]
         _, mu = self.forward_mean(p_idx)
-        pose_dict = action_vector_to_pose_dict(mu[0], HUMAN_REFERENCE_POSES[clean_name])
-        reward_eval = compute_human_reference_reward(pose_dict, clean_name)
+        ref_template = self.reference_poses.get(clean_name) or HUMAN_REFERENCE_POSES.get(clean_name) or HUMAN_REFERENCE_POSES["cyber_salute"]
+        pose_dict = action_vector_to_pose_dict(mu[0], ref_template)
+        reward_eval = compute_human_reference_reward(pose_dict, clean_name, character=self.character)
         pose_dict["rl_reward"] = reward_eval["total_reward"]
         pose_dict["rl_award_points"] = reward_eval["award_points"]
         return pose_dict, reward_eval
@@ -510,7 +565,7 @@ class RLHumanPosePolicy:
 
             for p_idx in pose_indices:
                 p_name = self.pose_names[p_idx]
-                template = HUMAN_REFERENCE_POSES[p_name]
+                template = self.reference_poses.get(p_name) or HUMAN_REFERENCE_POSES[p_name]
                 x = self._state_vec(p_idx)
                 h, mu = self.forward_mean(p_idx)
 
@@ -530,7 +585,7 @@ class RLHumanPosePolicy:
                 for k in range(samples_per_episode):
                     cand_pose = action_vector_to_pose_dict(actions[k], template)
                     telem = browser_telemetry if (target_pose == p_name) else None
-                    r_info = compute_human_reference_reward(cand_pose, p_name, browser_telemetry=telem)
+                    r_info = compute_human_reference_reward(cand_pose, p_name, browser_telemetry=telem, character=self.character)
                     # Smooth dense shaping term in action space + DeepMimic biomechanical reward
                     action_l2 = float(np.mean((actions[k] - self.Y_ref[p_idx]) ** 2))
                     shaping = float(math.exp(-3.5 * action_l2))
@@ -574,7 +629,9 @@ class RLHumanPosePolicy:
                 # Evaluate updated policy mean against human ground-truth reference
                 eval_pose, eval_info = self.predict_pose(p_name)
                 if browser_telemetry and target_pose == p_name:
-                    eval_info = compute_human_reference_reward(eval_pose, p_name, browser_telemetry=browser_telemetry)
+                    eval_info = compute_human_reference_reward(
+                        eval_pose, p_name, browser_telemetry=browser_telemetry, character=self.character
+                    )
 
                 if simulate_curriculum and ep == mid_ep and p_idx == focus_idx:
                     mid_training_pose_snapshot = copy.deepcopy(eval_pose)
@@ -619,7 +676,7 @@ class RLHumanPosePolicy:
         learned_pose, learned_eval = self.predict_pose(focus_pose_name)
         if browser_telemetry and target_pose == focus_pose_name:
             learned_eval = compute_human_reference_reward(
-                learned_pose, focus_pose_name, browser_telemetry=browser_telemetry
+                learned_pose, focus_pose_name, browser_telemetry=browser_telemetry, character=self.character
             )
 
         if simulate_curriculum and exploratory_pose_snapshot and mid_training_pose_snapshot:
@@ -763,7 +820,7 @@ class RLHumanPosePolicy:
         matches (>=88%), or refine it via the trained RL policy network if below threshold.
         """
         ref_key = self.infer_reference_pose_key(pose, prompt_hint)
-        eval_info = compute_human_reference_reward(pose, ref_key)
+        eval_info = compute_human_reference_reward(pose, ref_key, character=self.character)
         refined = copy.deepcopy(pose)
 
         if not eval_info["matched"] and auto_train_if_low and ref_key in self.pose_to_idx:
@@ -847,7 +904,7 @@ class RLHumanPosePolicy:
         Apply an online RL reward/penalty signal (+1.0 Award Match or -0.5 Penalize)
         from the browser evaluator or human user, updating the policy weights immediately.
         """
-        clean_name = pose_name if pose_name in self.pose_to_idx else "cyber_salute"
+        clean_name = pose_name if pose_name in self.pose_to_idx else ("tactical_stand_at_ease" if self.character == "ren" else "cyber_salute")
 
         if reward_signal > 0:
             # Positive reinforcement: step policy toward the human biomechanical reference & award points
@@ -881,7 +938,7 @@ class RLHumanPosePolicy:
         pose_dict, eval_info = self.predict_pose(clean_name)
         if browser_telemetry:
             eval_info = compute_human_reference_reward(
-                pose_dict, clean_name, browser_telemetry=browser_telemetry
+                pose_dict, clean_name, browser_telemetry=browser_telemetry, character=self.character
             )
 
         return {
@@ -949,8 +1006,9 @@ class RLHumanPosePolicy:
 
     def save(self) -> None:
         try:
-            self.MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+            self.model_path.parent.mkdir(parents=True, exist_ok=True)
             bundle = {
+                "character": self.character,
                 "pose_names": self.pose_names,
                 "W1": self.W1,
                 "b1": self.b1,
@@ -964,16 +1022,16 @@ class RLHumanPosePolicy:
                 "training_history": self.training_history,
                 "per_pose_best_reward": self.per_pose_best_reward,
             }
-            with open(self.MODEL_PATH, "wb") as f:
+            with open(self.model_path, "wb") as f:
                 pickle.dump(bundle, f)
         except Exception:
             pass
 
     def load(self) -> bool:
-        if not self.MODEL_PATH.exists():
+        if not self.model_path.exists():
             return False
         try:
-            with open(self.MODEL_PATH, "rb") as f:
+            with open(self.model_path, "rb") as f:
                 bundle = pickle.load(f)
             if bundle.get("pose_names") != self.pose_names:
                 return False
@@ -994,6 +1052,18 @@ class RLHumanPosePolicy:
             return False
 
 
-# Singleton RL Human Pose Policy Trainer
-rl_pose_policy = RLHumanPosePolicy()
-rl_pose_trainer = rl_pose_policy
+# Singleton RL Human Pose Policy Trainers (Dual Character Policy Models)
+rl_pose_policy_airi = RLHumanPosePolicy(character="airi")
+rl_pose_policy_ren = RLHumanPosePolicy(character="ren")
+
+# Default alias pointing to Airi for backward compatibility
+rl_pose_policy = rl_pose_policy_airi
+rl_pose_trainer = rl_pose_policy_airi
+
+
+def get_rl_trainer(character: str = "airi") -> RLHumanPosePolicy:
+    """Return the dedicated RL Pose Policy Trainer for Airi or Ren."""
+    c = str(character or "airi").lower()
+    if "ren" in c or "twin" in c:
+        return rl_pose_policy_ren
+    return rl_pose_policy_airi

@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import websockets
 import json
 
@@ -22,4 +22,5 @@ async def run_test():
                 print("Connection closed")
                 break
 
-asyncio.run(run_test())
+if __name__ == "__main__":
+    asyncio.run(run_test())

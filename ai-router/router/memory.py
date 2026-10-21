@@ -68,15 +68,40 @@ class MemoryManager:
             
             # Find the JSON array in the output
             json_match = re.search(r'\[.*\]', output, re.DOTALL)
+            parsed_facts = False
             if json_match:
-                facts_data = json.loads(json_match.group(0))
-                for item in facts_data:
-                    fact = item.get("fact")
-                    category = item.get("category", "general")
-                    if fact:
-                        await self.save_fact(user_id, fact, category=category)
+                try:
+                    facts_data = json.loads(json_match.group(0))
+                    for item in facts_data:
+                        if isinstance(item, dict):
+                            fact = item.get("fact")
+                            category = item.get("category", "general")
+                        elif isinstance(item, str):
+                            fact = item
+                            category = "general"
+                        else:
+                            continue
+                        if fact and fact.strip():
+                            await self.save_fact(user_id, fact.strip(), category=category)
+                    parsed_facts = True
+                except Exception as je:
+                    logger.debug(f"JSON parsing failed for facts, falling back to lines: {je}")
+
+            if not parsed_facts:
+                # Fallback: parse bulleted or numbered lines
+                lines = output.split("\n")
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Remove bullet markers (- , * , 1. , etc.)
+                    clean_line = re.sub(r'^(?:[-*•]|\d+\.)\s*', '', line).strip()
+                    if clean_line and clean_line.upper() != "NONE":
+                        await self.save_fact(user_id, clean_line, category="general")
         except Exception as e:
-            logger.error(f"Error extracting facts: {e}")
+            err_msg = f"{type(e).__name__}: {e}" if str(e).strip() else type(e).__name__
+            logger.warning(f"Fact extraction skipped (LLM warming up or node busy: {err_msg})")
+
 
     async def save_fact(self, user_id: int, fact: str, category: str = "general"):
         try:

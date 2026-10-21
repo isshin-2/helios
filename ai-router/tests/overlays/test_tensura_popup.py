@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from unittest.mock import patch, MagicMock
 import sys
 import os
@@ -6,31 +6,27 @@ import os
 # Add the root directory to sys.path so we can import overlays
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-@pytest.fixture
-def mock_tk():
-    with patch('tkinter.Tk') as mock_tk_class:
-        # Create a mock root window
-        mock_root = MagicMock()
-        mock_tk_class.return_value = mock_root
-        
-        # We need to mock winfo_screenwidth etc if they are called
-        mock_root.winfo_screenwidth.return_value = 1920
-        mock_root.winfo_screenheight.return_value = 1080
-        
-        yield mock_root
-
-def test_tensura_popup_initialization(mock_tk):
+@patch('overlays.tensura_popup.webview')
+def test_tensura_popup_initialization(mock_webview):
     from overlays.tensura_popup import get_user_input
     
-    # Run the function. Because we mocked Tk(), it won't actually block!
-    # Wait, get_user_input calls root.mainloop(). Since root is a MagicMock, mainloop() does nothing!
+    mock_window = MagicMock()
+    mock_webview.create_window.return_value = mock_window
+    
+    # Run get_user_input with mocked webview
     result = get_user_input("Are you the Storm Dragon Veldora?", options=["Yes", "No"])
     
-    # Verify the window properties were set for Tensura style
-    mock_tk.title.assert_called_with("HELIOS: System Notice")
-    mock_tk.attributes.assert_any_call("-fullscreen", True)
-    mock_tk.attributes.assert_any_call("-alpha", 0.90)
-    mock_tk.configure.assert_called()
+    # Verify create_window was called with expected title and properties
+    mock_webview.create_window.assert_called_once()
+    args, kwargs = mock_webview.create_window.call_args
+    assert args[0] == 'HELIOS - Question'
+    assert kwargs.get('transparent') is True
+    assert kwargs.get('frameless') is True
+    assert kwargs.get('on_top') is True
     
-    # It should return None because we didn't mock a button click event
-    assert result is None
+    # Verify webview.start was called
+    mock_webview.start.assert_called_once_with(gui="edgechromium")
+    
+    # Should default to "CANCELLED" when no result was submitted
+    assert result == "CANCELLED"
+

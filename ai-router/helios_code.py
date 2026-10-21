@@ -17,6 +17,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 import subprocess
 import argparse
+import time
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
@@ -53,7 +54,7 @@ class HeliosCodeCLI:
         self.provider_name = provider_name.lower()
         self.model_name = model_name or os.getenv("HIKARI_MODEL", "Swarm (Qwen 2.5-Coder / Devstral)")
         self.provider_display = (
-            "NVIDIA PAIR (AI PC · RTX 5060 Ti)" if self.provider_name == "pair"
+            "NVIDIA PAIR (GPU Node)" if self.provider_name == "pair"
             else ("Ollama (Local)" if self.provider_name == "ollama"
             else ("Anthropic API" if self.provider_name == "anthropic" or "claude" in self.model_name.lower()
             else self.provider_name.upper()))
@@ -232,7 +233,10 @@ class HeliosCodeCLI:
         help_table.add_row("/models", "Inspect active models & VRAM hardware mapping")
         help_table.add_row("/model <name>", "Switch displayed / active model profile")
         help_table.add_row("/diff", "View syntax-highlighted git diff of the current task")
+        help_table.add_row("/apply", "Apply changes from latest worktree into active workspace")
         help_table.add_row("/review", "Run automated code quality and security review on recent changes")
+        help_table.add_row("/council <query>", "Deliberate architecture or complex bugs with multi-model LLM Council")
+        help_table.add_row("/audit [path]", "Run 6-phase Cloudflare-style adversarial security audit on path")
         help_table.add_row("/test [cmd]", "Run verification command manually in workspace")
         help_table.add_row("/cd <path>", "Switch workspace target directory inside session")
         help_table.add_row("/workspace", "Show current workspace root path")
@@ -266,6 +270,32 @@ class HeliosCodeCLI:
                 elif user_input.lower() == "/diff":
                     self.show_diff()
 
+                elif user_input.lower() == "/apply":
+                    if self.last_summary and self.last_summary.get("worktree"):
+                        worktree = self.last_summary["worktree"]
+                        changed = self.last_summary.get("changed_files", [])
+                        import shutil
+                        applied = []
+                        for f in changed:
+                            src = os.path.join(worktree, f)
+                            dst = os.path.join(self.repo_root, f)
+                            if os.path.exists(src):
+                                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                                shutil.copy2(src, dst)
+                                applied.append(f)
+                            elif os.path.exists(dst):
+                                try:
+                                    os.remove(dst)
+                                    applied.append(f)
+                                except Exception:
+                                    pass
+                        if applied:
+                            console.print(f"[bold green]✔ Applied {len(applied)} file(s) to workspace:[/bold green] {', '.join(applied)}")
+                        else:
+                            console.print("[dim yellow]No changed files found to apply.[/dim yellow]")
+                    else:
+                        console.print("[dim yellow]No recent task worktree available to apply.[/dim yellow]")
+
                 elif user_input.lower() == "/review":
                     if self.last_summary and self.last_summary.get("changed_files"):
                         console.print(f"[bold cyan]Running Code & Security Review on {len(self.last_summary['changed_files'])} file(s)...[/bold cyan]")
@@ -282,6 +312,66 @@ class HeliosCodeCLI:
                     else:
                         console.print("[dim yellow]No recent file changes to review.[/dim yellow]")
 
+                elif user_input.lower().startswith("/council"):
+                    parts = user_input.split(maxsplit=1)
+                    if len(parts) > 1:
+                        query = parts[1].strip()
+                        console.print(Panel(f"[bold cyan]Convening LLM Council on query:[/bold cyan]\n{query}", title="[bold #00e5ff]LLM Council Deliberation[/bold #00e5ff]"))
+                        from core.llm_council import LLMCouncilEngine
+                        council = LLMCouncilEngine(self.provider)
+                        with console.status("[bold #00e5ff]Running 3-Stage Deliberation (Opinions → Anonymized Peer Ranking → Chairman Synthesis)...[/bold #00e5ff]"):
+                            res = await council.run_deliberation(f"cli-{int(time.time())}", query)
+                        
+                        # Display Opinions
+                        for cand in res.candidates:
+                            console.print(Panel(cand.opinion_text, title=f"[cyan]Candidate: {cand.candidate_id} ({cand.model_name})[/cyan]"))
+                        
+                        # Display Chairman Synthesis
+                        chair_panel = Text()
+                        chair_panel.append(f"Status: {res.status.value.upper()}\n", style="bold green" if res.status.value == "consensus" else "bold yellow")
+                        chair_panel.append(f"Confidence: {res.confidence * 100:.0f}%\n\n", style="bold")
+                        chair_panel.append(f"Decision:\n{res.decision}\n\n", style="bold white")
+                        if res.limitations:
+                            chair_panel.append(f"Limitations / Assumptions:\n" + "\n".join([f"- {l}" for l in res.limitations]) + "\n\n", style="dim yellow")
+                        if res.same_model_disclosure:
+                            chair_panel.append(f"Note: {res.same_model_disclosure}\n", style="italic dim")
+                        
+                        console.print(Panel(chair_panel, title="[bold green]Chairman Definitive Synthesis[/bold green]", border_style="green"))
+                    else:
+                        console.print("[dim yellow]Usage: /council <question or architecture dilemma>[/dim yellow]")
+
+                elif user_input.lower().startswith("/audit"):
+                    parts = user_input.split(maxsplit=1)
+                    target_path = parts[1].strip() if len(parts) > 1 else None
+                    scan_dir = os.path.join(self.repo_root, target_path) if target_path else self.repo_root
+                    console.print(f"[bold yellow]Running Cloudflare-style Adversarial Security Audit on:[/] {scan_dir}")
+                    
+                    from core.security_audit import CloudflareSecurityAuditor
+                    auditor = CloudflareSecurityAuditor(provider=self.provider, repo_root=self.repo_root)
+                    with console.status("[bold yellow]Executing 6-Phase Adversarial Audit (Recon → Ledger → Hunter → Verifier/Disprover)...[/bold yellow]"):
+                        report = await auditor.run_full_audit(target_subpath=target_path)
+                    
+                    # Display summary table
+                    table = Table(title=f"Security Audit Results — Run `{report.run_id}`", border_style="yellow")
+                    table.add_column("Category", style="bold")
+                    table.add_column("Count", style="white")
+                    table.add_column("Details", style="dim")
+                    
+                    table.add_row("Confirmed Flaws", str(len(report.confirmed_findings)), "[bold red]Requires immediate fix[/bold red]" if report.confirmed_findings else "[green]None[/green]")
+                    table.add_row("Suspected / Needs Validation", str(len(report.suspected_findings)), "Manual review suggested" if report.suspected_findings else "None")
+                    table.add_row("Disproved (False Positives Filtered)", str(len(report.disproved_findings)), "Verified mitigated by guardrails")
+                    table.add_row("Coverage", f"{report.coverage_percentage:.1f}%", f"{report.total_files_inspected} files inspected")
+                    console.print(table)
+                    
+                    if report.confirmed_findings:
+                        for cf in report.confirmed_findings[:5]:
+                            console.print(Panel(
+                                f"[bold red]File:[/] {cf.affected_file}:{cf.line_start}\n[bold red]Attack:[/] {cf.attack_scenario}\n[bold green]Remediation:[/] {cf.remediation}",
+                                title=f"[bold red]🚨 [{cf.severity.upper()}] {cf.title}[/bold red]",
+                                border_style="red"
+                            ))
+                    console.print(f"[dim]Machine-readable ledger saved to .helios_audit_ledger.json and report to AUDIT_REPORT.md[/dim]")
+
                 elif user_input.lower() == "/models":
                     await self.show_models()
 
@@ -290,7 +380,7 @@ class HeliosCodeCLI:
                     if len(parts) > 1:
                         self.model_name = parts[1].strip()
                         self.provider_display = (
-                            "NVIDIA PAIR (AI PC · RTX 5060 Ti)" if self.provider_name == "pair"
+                            "NVIDIA PAIR (GPU Node)" if self.provider_name == "pair"
                             else ("Ollama (Local)" if self.provider_name == "ollama"
                             else ("Anthropic API" if self.provider_name == "anthropic" or "claude" in self.model_name.lower()
                             else self.provider_name.upper()))

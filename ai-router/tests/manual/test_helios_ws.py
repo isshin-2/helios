@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import websockets
 import json
 
@@ -28,4 +28,5 @@ async def send_to_helios():
     except Exception as e:
         print(f"Error: {e}")
 
-asyncio.run(send_to_helios())
+if __name__ == "__main__":
+    asyncio.run(send_to_helios())

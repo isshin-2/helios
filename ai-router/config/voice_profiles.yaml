@@ -1,0 +1,95 @@
+# HELIOS Voice Profiles Configuration
+# Custom prosody and voice mappings for HELIOS TTS.
+
+profiles:
+  helios:
+    voice: af_heart
+    base_speed: 1.0
+    prosody:
+      natural:
+        speed: 1.00
+        energy: 1.00
+      happy:
+        speed: 1.03
+        energy: 1.05
+      curious:
+        speed: 0.98
+        energy: 1.00
+      excited:
+        speed: 1.05
+        energy: 1.08
+      serious:
+        speed: 0.92
+        energy: 0.92
+      concerned:
+        speed: 0.90
+        energy: 0.90
+      amused:
+        speed: 0.96
+        energy: 1.02
+      relaxed:
+        speed: 0.94
+        energy: 0.92
+      confused:
+        speed: 0.95
+        energy: 0.95
+
+  airi:
+    backend: gpt_sovits
+    voice: airi
+    fallback_voice: en-US-AriaNeural
+    reference_audio: "voices/airi/reference.wav"
+    reference_text: "voices/airi/reference.txt"
+    language: en
+    accent: ja
+    base_speed: 1.05
+    prosody:
+      natural:
+        speed: 1.02
+        energy: 1.05
+      happy:
+        speed: 1.08
+        energy: 1.12
+      curious:
+        speed: 1.02
+        energy: 1.05
+      excited:
+        speed: 1.12
+        energy: 1.18
+      serious:
+        speed: 0.94
+        energy: 0.95
+      concerned:
+        speed: 0.92
+        energy: 0.92
+      amused:
+        speed: 1.04
+        energy: 1.10
+      relaxed:
+        speed: 0.96
+        energy: 0.96
+      confused:
+        speed: 0.98
+        energy: 1.00
+
+  helios_cloned:
+    backend: gpt_sovits
+    voice: helios
+    reference_audio: "voices/helios/reference.wav"
+    reference_text: "voices/helios/reference.txt"
+    language: en
+    accent: ja
+    base_speed: 1.0
+    prosody:
+      natural:
+        speed: 1.00
+        energy: 1.00
+      happy:
+        speed: 1.05
+        energy: 1.08
+      serious:
+        speed: 0.92
+        energy: 0.92
+      excited:
+        speed: 1.06
+        energy: 1.10

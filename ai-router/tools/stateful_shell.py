@@ -3,7 +3,7 @@ import shlex
 import subprocess
 import logging
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List
 from pydantic import BaseModel, Field
 
 from tools.base import BaseTool
@@ -24,7 +24,11 @@ class StatefulShellTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "StatefulShellTool"
+        return "stateful_shell"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["StatefulShellTool"]
 
     @property
     def description(self) -> str:

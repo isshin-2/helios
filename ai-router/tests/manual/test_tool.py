@@ -1,4 +1,4 @@
-﻿import httpx
+import httpx
 import json
 import asyncio
 
@@ -25,4 +25,5 @@ async def test():
         })
         print(json.dumps(res.json(), indent=2))
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test())

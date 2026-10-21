@@ -22,7 +22,17 @@ import platform
 import argparse
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent
+# Dynamically resolve repository root across launcher locations
+_p = Path(__file__).resolve().parent
+if (_p / "ai-router").exists():
+    ROOT_DIR = _p
+elif (_p.parent / "ai-router").exists():
+    ROOT_DIR = _p.parent
+elif (_p.parent.parent / "ai-router").exists():
+    ROOT_DIR = _p.parent.parent
+else:
+    ROOT_DIR = _p
+
 ROUTER_DIR = ROOT_DIR / "ai-router"
 CHAR_DIR = ROOT_DIR / "helios-character"
 CLIENT_DIR = ROOT_DIR / "helios-client"
@@ -140,7 +150,7 @@ def run_status():
         print(f"  RAM Total          : {local.get('ram_total_gb', 0):.1f} GB ({local.get('ram_available_gb', 0):.1f} GB free)")
         print(f"  GPU Hardware       : {local.get('gpu_name')} ({local.get('gpu_vendor').upper()}, {local.get('gpu_vram_gb', 0):.1f} GB VRAM)")
         print(f"  Hardware Tier      : {local.get('tier')}")
-        print(f"  AI PC Remote Node  : {'ONLINE (Reachable)' if ai_pc.get('reachable') else 'STANDBY / Offline'}")
+        print(f"  NVIDIA PAIR Node   : {'ONLINE (Reachable)' if ai_pc.get('reachable') else 'STANDBY / Offline'}")
         print(f"  Cluster Capacity   : {summary.get('aggregate_capacity', {}).get('total_ram_gb', 0):.1f} GB RAM | {summary.get('aggregate_capacity', {}).get('total_vram_gb', 0):.1f} GB VRAM\n")
     except Exception as e:
         print(f"[!] Could not read hardware profiler: {e}")
@@ -158,7 +168,7 @@ def interactive_menu():
     print("  [2] Hikari Coding CLI    (Interactive Claude Code / Codex Terminal Swarm)")
     print("  [3] HELIOS Full Spec     (Core Server :8000 + Airi 3D Companion :8080)")
     print("  [4] Airi Companion Only  (Standalone 3D VRM Avatar without :8000)")
-    print("  [5] HELIOS Client Mode   (Desktop GUI / CLI connected to Server / AI PC)")
+    print("  [5] HELIOS Client Mode   (Desktop GUI / CLI connected to Server / NVIDIA PAIR)")
     print("  [6] System Diagnostics   (Hardware profile, cluster capacity, node ping)")
     print("  [7] Environment Setup    (Verify & install dependencies, configure .env)")
     print("  [8] Run Test Suite       (Execute core verification tests)")
@@ -190,10 +200,10 @@ def main():
     if len(sys.argv) == 1:
         return interactive_menu()
 
-    cmd = sys.argv[1].lower().lstrip("-")
+    cmd = sys.argv[1].lower().lstrip("-/").strip()
     extra = sys.argv[2:]
 
-    if cmd in ("core", "server"):
+    if cmd in ("core", "server", "main", "router"):
         return run_core()
     elif cmd in ("hikari", "code", "cli"):
         return run_hikari(extra)

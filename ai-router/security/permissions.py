@@ -32,11 +32,12 @@ class PermissionResult(NamedTuple):
 # ─── Default Permissions ────────────────────────────────────────────────────
 
 HELIOS_DIR = str(Path(__file__).resolve().parent.parent)
+HELIOS_REPO_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 
 DEFAULT_SYSTEM_ACCESS = {
     "file_read": {
         "enabled": True,
-        "paths": [HELIOS_DIR]
+        "paths": [HELIOS_DIR, HELIOS_REPO_ROOT]
     },
     "file_write": {
         "enabled": False,
@@ -76,6 +77,39 @@ PRIVILEGED_COMMANDS = frozenset({
     "git", "node", "python", "python3", "py",
     "cargo", "rustc", "gcc", "g++", "make", "cmake",
 })
+
+# ─── Protected Computer & GUI Targets ─────────────────────────────────────────
+PROTECTED_COMPUTER_APPLICATIONS = frozenset({
+    "1password", "bitwarden", "keepass", "lastpass", "dashlane", "enpass",
+    "credential", "credentials", "uac", "regedit", "secpol.msc", "taskmgr",
+    "windows security", "security center", "system configuration", "msconfig",
+    "banking", "chase", "wellsfargo", "bankofamerica"
+})
+
+PROTECTED_WINDOW_KEYWORDS = frozenset({
+    "password", "master password", "credential", "sign in", "pin entry",
+    "user account control", "windows security", "registry editor",
+    "bitwarden", "keepass", "1password"
+})
+
+COMPUTER_ACTION_RISK_MAP = {
+    "screenshot": "low",
+    "move": "low",
+    "scroll": "low",
+    "wait": "low",
+    "click": "medium",
+    "double_click": "medium",
+    "right_click": "medium",
+    "type": "medium",
+    "press": "medium",
+    "hotkey": "medium",
+    "focus_window": "medium",
+    "launch_application": "medium",
+    "drag": "high",
+    "close_window": "high",
+    "clipboard": "high",
+}
+
 
 # ─── Core Application Protection ─────────────────────────────────────────────
 # Paths that the AI is NEVER allowed to write to, even if granted broad write access.
@@ -595,6 +629,99 @@ class PermissionManager:
     def needs_approval(self, command: str) -> bool:
         """Check if a command requires user approval."""
         return command.lower().strip() in PRIVILEGED_COMMANDS
+
+    def is_protected_computer_target(self, target: Optional[str]) -> bool:
+        """Check if an application or window title points to a protected target."""
+        if not target:
+            return False
+        tgt = str(target).lower().strip()
+        for app in PROTECTED_COMPUTER_APPLICATIONS:
+            if app in tgt:
+                return True
+        for kw in PROTECTED_WINDOW_KEYWORDS:
+            if kw in tgt:
+                return True
+        return False
+
+    def classify_computer_action_risk(
+        self, action: str, target: Optional[str] = None, details: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Classify risk for a computer control action into low, medium, high, critical."""
+        act = str(action).lower().strip()
+        if self.is_protected_computer_target(target):
+            return "critical"
+        
+        # Check details for credentials or destructive commands
+        if details:
+            text = str(details.get("text", "")).lower()
+            if any(k in text for k in ("password", "secret", "private_key", "token")):
+                return "critical"
+            keys = details.get("keys", [])
+            if isinstance(keys, list):
+                k_joined = "+".join(str(k).lower() for k in keys)
+                if any(k in k_joined for k in ("alt+f4", "ctrl+alt+del", "win+r")):
+                    return "high"
+
+        return COMPUTER_ACTION_RISK_MAP.get(act, "medium")
+
+    def can_control_computer(
+        self, user_id: int, action: str, target: Optional[str] = None, details: Optional[Dict[str, Any]] = None
+    ) -> PermissionResult:
+        """
+        Check if user is allowed to perform computer control action.
+        """
+        access = self._get_user_access(user_id)
+        comp_access = access.get("computer_control", {})
+        
+        # Default is enabled if not explicitly disabled
+        if comp_access and not comp_access.get("enabled", True):
+            return PermissionResult(False, "Computer control is disabled for your account.")
+
+        risk = self.classify_computer_action_risk(action, target, details)
+        if risk == "critical":
+            self.log_operation(
+                user_id, "computer_control", action, str(target or ""),
+                "DENIED (protected computer target / credential operation)"
+            )
+            return PermissionResult(False, f"Operation targeting protected system/credential interface '{target}' is blocked.")
+
+        if risk == "high" and comp_access and not comp_access.get("allow_high_risk", False):
+            # High risk requires approval
+            return PermissionResult(True, "High risk computer action allowed pending approval.")
+
+        # Check allowed applications if restricted
+        allowed_apps = comp_access.get("allowed_applications", ["*"]) if comp_access else ["*"]
+        if "*" not in allowed_apps and target:
+            tgt_lower = str(target).lower()
+            if not any(a.lower() in tgt_lower for a in allowed_apps):
+                return PermissionResult(False, f"Target application '{target}' is not in allowed applications.")
+
+        return PermissionResult(True, f"Computer action '{action}' is permitted (risk: {risk}).")
+
+    def is_safe_for_agent_mode(self, operation: str, target: str) -> bool:
+        """
+        Agent mode can ONLY bypass approval for explicitly safe (low risk) operations.
+        Dangerous operations and protected targets MUST NEVER bypass approval.
+        """
+        op = str(operation).lower().strip()
+        tgt = str(target).lower().strip()
+
+        # Critical / protected check
+        if self.is_protected_computer_target(tgt):
+            return False
+
+        # Safe read-only operations
+        if op in ("file_read", "directory_list"):
+            return True
+
+        if op.startswith("computer.") or op in ("computer_control", "computer"):
+            action = op.split(".", 1)[1] if "." in op else tgt
+            risk = self.classify_computer_action_risk(action, tgt)
+            return risk == "low"
+
+        # All mutations, writes, commands, terminal, privileged actions require approval
+        return False
+
 
     # ── Configuration Validation ────────────────────────────────────────
 

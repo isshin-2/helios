@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field
 from agents.base import AgentResult, AgentStatus, BaseAgent
 from core.coding_runtime import CodingContext
 from core.model_router import model_router
+from core.quality_contracts import AuditReport, FindingLifecycleStatus
+from core.security_audit import CloudflareSecurityAuditor
 from providers.base import BaseProvider
 
 logger = logging.getLogger("helios.agents.security_reviewer")
@@ -174,6 +176,30 @@ You MUST respond with valid JSON matching this schema:
                 if dv.description not in existing_desc:
                     report.vulnerabilities.append(dv)
                     report.safe = False
+
+            # 3. Cloudflare-Style Adversarial Audit on Changed Files / Workspace
+            audit_report = None
+            if coding_ctx and coding_ctx.repository_root:
+                try:
+                    auditor = CloudflareSecurityAuditor(
+                        provider=self.provider,
+                        repo_root=coding_ctx.worktree or coding_ctx.repository_root,
+                    )
+                    # Run audit across changed files
+                    audit_report = await auditor.run_full_audit()
+                    coding_ctx.audit_report = audit_report
+                    if audit_report.confirmed_findings:
+                        report.safe = False
+                        for cf in audit_report.confirmed_findings:
+                            report.vulnerabilities.append(SecurityVulnerability(
+                                vuln_type="adversarial_confirmed",
+                                description=f"[{cf.severity.upper()}] {cf.title} in {cf.affected_file}:{cf.line_start} - {cf.description}",
+                                severity=cf.severity.value,
+                                file=cf.affected_file,
+                                recommendation=cf.remediation,
+                            ))
+                except Exception as e:
+                    logger.debug(f"Adversarial security audit pass error: {e}")
 
             if not report.safe:
                 # If high/critical requiring human sign-off

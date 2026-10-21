@@ -5,6 +5,9 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 
+import pytest
+
+@pytest.mark.asyncio
 async def test_helios_coding():
     uri = "ws://localhost:8000/ws"
     
@@ -56,8 +59,12 @@ async def test_helios_coding():
                     
             print(f"\n\nTest completed. Tools called: {tools_called}", flush=True)
                     
+    except (ConnectionRefusedError, OSError) as e:
+        print(f"Skipping test_helios_websocket: server not running on localhost:8000 ({e})")
+        pytest.skip(f"HELIOS server not running on localhost:8000: {e}")
     except Exception as e:
         print(f"Error: {e}", flush=True)
+        raise
 
 if __name__ == "__main__":
     asyncio.run(test_helios_coding())

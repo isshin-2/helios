@@ -1,7 +1,7 @@
 """
 HELIOS — Model Router & VRAM Lifecycle Manager
 Manages per-agent model profiles, fallbacks, and intelligent VRAM model swapping
-tailored for hardware constraints (e.g. RTX 5060 Ti 16 GB VRAM).
+tailored for hardware constraints and dynamic GPU VRAM thresholds.
 """
 
 from __future__ import annotations
@@ -31,10 +31,10 @@ class AgentModelProfile(BaseModel):
 
 class HardwareLimits(BaseModel):
     """Hardware constraints for model execution."""
-    target_device: str = "RTX 5060 Ti"
+    target_device: str = "auto"
     max_vram_gb: float = 16.0
     system_ram_gb: float = 64.0
-    cpu: str = "AMD Ryzen 5 7600X"
+    cpu: str = "auto"
     max_concurrent_large_models: int = 3
     large_model_threshold_gb: float = 6.0
     default_context_tokens: int = 16384
@@ -44,44 +44,44 @@ class HardwareLimits(BaseModel):
 
 DEFAULT_PROFILES: Dict[str, Dict[str, Any]] = {
     "planner": {
-        "model": "qwen3.5:9b",
+        "model": "qwen2.5-coder:14b",
         "temperature": 0.2,
-        "fallback_models": ["qwen2.5-coder:7b", "llama3.2:3b"],
+        "fallback_models": ["qwen2.5-coder:7b", "hermes3:8b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"],
     },
     "architect": {
-        "model": "qwen3.5:9b",
+        "model": "qwen2.5-coder:32b",
         "temperature": 0.1,
-        "fallback_models": ["qwen2.5-coder:7b", "llama3.2:3b"],
+        "fallback_models": ["qwen2.5-coder:14b", "qwen2.5-coder:7b", "hermes3:8b", "qwen3.5:9b", "qwen2.5-coder:3b", "llama3.2:3b"],
     },
     "repo_mapper": {
-        "model": "qwen3.5:9b",
+        "model": "qwen2.5-coder:7b",
         "temperature": 0.1,
-        "fallback_models": ["qwen2.5-coder:7b", "llama3.2:3b"],
+        "fallback_models": ["qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"],
     },
     "coder": {
-        "model": "devstral-small-2:24b",
+        "model": "qwen2.5-coder:32b",
         "temperature": 0.1,
-        "fallback_models": ["qwen2.5-coder:14b", "qwen2.5-coder:7b"],
+        "fallback_models": ["qwen2.5-coder:14b", "qwen2.5-coder:7b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"],
     },
     "tester": {
         "model": "qwen2.5-coder:14b",
         "temperature": 0.0,
-        "fallback_models": ["qwen2.5-coder:7b", "llama3.2:3b"],
+        "fallback_models": ["qwen2.5-coder:7b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"],
     },
     "repair": {
-        "model": "devstral-small-2:24b",
+        "model": "qwen2.5-coder:32b",
         "temperature": 0.1,
-        "fallback_models": ["qwen2.5-coder:14b", "qwen2.5-coder:7b"],
+        "fallback_models": ["qwen2.5-coder:14b", "qwen2.5-coder:7b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"],
     },
     "reviewer": {
         "model": "qwen2.5-coder:14b",
         "temperature": 0.0,
-        "fallback_models": ["qwen2.5-coder:7b", "llama3.2:3b"],
+        "fallback_models": ["qwen2.5-coder:7b", "hermes3:8b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"],
     },
     "security_reviewer": {
         "model": "qwen2.5-coder:14b",
         "temperature": 0.0,
-        "fallback_models": ["qwen2.5-coder:7b", "llama3.2:3b"],
+        "fallback_models": ["qwen2.5-coder:7b", "hermes3:8b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"],
     },
 }
 
@@ -90,7 +90,7 @@ class ModelRouter:
     """
     Intelligent Model Router that handles:
     1. Per-agent model profile configuration.
-    2. Model swapping and eviction under 16 GB VRAM limits.
+    2. Model swapping and eviction under GPU VRAM limits.
     3. Multi-tier model fallback when primary models are unavailable or OOM.
     4. Lifecycle event logging.
     """
@@ -146,7 +146,7 @@ class ModelRouter:
         self.profiles[agent_type] = profile
 
     def _is_large_model(self, model_name: str) -> bool:
-        """Heuristic to detect if model exceeds safe multi-tenancy in 16 GB VRAM."""
+        """Heuristic to detect if model exceeds safe multi-tenancy in active GPU VRAM."""
         lower = model_name.lower()
         return any(tag in lower for tag in ["14b", "24b", "32b", "70b", "devstral", "mixtral", "gemma4:12b"])
 
@@ -170,19 +170,55 @@ class ModelRouter:
         chosen_model = target_model
 
         if hasattr(provider, "model_exists"):
+            found = False
             for candidate in candidate_models:
                 try:
                     exists = await provider.model_exists(candidate)
                     if exists:
                         chosen_model = candidate
+                        found = True
                         break
                 except Exception as ex:
                     logger.debug(f"Error checking model existence for {candidate}: {ex}")
 
+            # If none of candidate_models exist, query installed models on provider
+            if not found and hasattr(provider, "list_models"):
+                try:
+                    res = await provider.list_models()
+                    installed = [m.get("name", "") for m in res.get("models", []) if m.get("name")]
+                    if installed:
+                        best_match = None
+                        # Priority 1: coding models
+                        for m in installed:
+                            m_lower = m.lower()
+                            if "coder" in m_lower or "code" in m_lower:
+                                best_match = m
+                                break
+                        # Priority 2: general reasoning models
+                        if not best_match:
+                            for m in installed:
+                                m_lower = m.lower()
+                                if any(k in m_lower for k in ["qwen", "llama", "deepseek", "mistral", "gemma", "phi"]):
+                                    best_match = m
+                                    break
+                        # Priority 3: first available model
+                        if not best_match and installed:
+                            best_match = installed[0]
+
+                        if best_match:
+                            chosen_model = best_match
+                            found = True
+                            logger.info(
+                                f"[MODEL_LIFECYCLE] Preferred models for '{agent_type}' not found in provider. "
+                                f"Auto-adapting to installed model '{chosen_model}'."
+                            )
+                except Exception as e:
+                    logger.debug(f"Could not query installed models: {e}")
+
             if chosen_model != target_model:
                 logger.info(
                     f"[MODEL_LIFECYCLE] Primary model '{target_model}' for agent '{agent_type}' "
-                    f"unavailable; falling back to '{chosen_model}'."
+                    f"unavailable; resolved to '{chosen_model}'."
                 )
 
         # 2. VRAM/RAM Lifecycle: Manage multi-model retention with 64 GB host RAM + 16 GB VRAM

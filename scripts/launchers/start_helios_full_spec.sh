@@ -3,11 +3,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$ROOT_DIR"
 
 PY_BIN="python"
-if [ -f "$SCRIPT_DIR/ai-router/venv/bin/activate" ]; then
-    source "$SCRIPT_DIR/ai-router/venv/bin/activate"
+if [ -f "$ROOT_DIR/ai-router/venv/bin/activate" ]; then
+    source "$ROOT_DIR/ai-router/venv/bin/activate"
 elif command -v python3 >/dev/null 2>&1; then
     PY_BIN="python3"
 fi
@@ -23,7 +24,7 @@ echo "==========================================================================
 
 # Launch 3D Character Server in background
 (
-    cd "$SCRIPT_DIR/helios-character"
+    cd "$ROOT_DIR/helios-character"
     "$PY_BIN" ai_server.py
 ) &
 CHAR_PID=$!
@@ -42,5 +43,5 @@ CHAR_PID=$!
 trap "kill $CHAR_PID 2>/dev/null || true" EXIT
 
 # Start Core AI Router
-cd "$SCRIPT_DIR/ai-router"
+cd "$ROOT_DIR/ai-router"
 exec bash start.sh

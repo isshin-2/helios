@@ -62,10 +62,14 @@ if not exist "%VENV_DIR%\Scripts\activate.bat" (
     echo %GREEN%[OK] Virtual environment already initialized [Idempotent].%RESET%
 )
 
-:: Check for direct customization flag
+:: Check for direct routing flags
 if /i "%~1"=="--custom" goto DO_CUSTOM
 if /i "%~1"=="-c" goto DO_CUSTOM
 if /i "%~1"=="/c" goto DO_CUSTOM
+if /i "%~1"=="--voice" goto DO_VOICE
+if /i "%~1"=="-v" goto DO_VOICE
+if /i "%~1"=="--airi" goto DO_AIRI
+if /i "%~1"=="-a" goto DO_AIRI
 
 :: 3. Execute Hardware Diagnostic, Ollama Auto-Install and Adaptive Ingestion
 echo.
@@ -76,13 +80,21 @@ if errorlevel 1 (
     echo %YELLOW%[!] Bootstrap completed with notices.%RESET%
 )
 
+:: Ensure core audio and paramiko dependencies are installed in virtual environment
+"%PY_EXE%" -c "import soundfile, httpx, paramiko" >nul 2>&1
+if errorlevel 1 (
+    echo %YELLOW%[*] Installing essential audio and networking dependencies...%RESET%
+    "%PY_EXE%" -m pip install -q soundfile sounddevice httpx paramiko
+)
+
 :: 4. Verify Data Directories and Database Silos
 echo.
 echo %CYAN%[4/5] Verifying Memory Silos and Security Directories...%RESET%
 if not exist "%~dp0data" mkdir "%~dp0data"
 if not exist "%~dp0config" mkdir "%~dp0config"
 if not exist "%~dp0docs" mkdir "%~dp0docs"
-echo %GREEN%[OK] Directories data\, config\, and docs\ verified.%RESET%
+if not exist "%~dp0voices\airi" mkdir "%~dp0voices\airi"
+echo %GREEN%[OK] Directories data\, config\, docs\, and voices\ verified.%RESET%
 
 :: 5. Final Readiness Summary
 echo.
@@ -94,9 +106,9 @@ echo.
 echo %GREEN%==============================================================================%RESET%
 echo %GREEN%  HELIOS BOOTSTRAP COMPLETE -- ALL SYSTEMS READY                                %RESET%
 echo %GREEN%==============================================================================%RESET%
-echo   - %CYAN%Developer Edition%RESET% : Run %YELLOW%start_helios_dev.bat%RESET%
-echo   - %CYAN%User Edition (Sol)%RESET%: Run %YELLOW%start_solstice.bat%RESET%
-echo   - %CYAN%Coding CLI%RESET%        : Run %YELLOW%hikari.bat%RESET%
+echo   - %CYAN%HELIOS Main Server%RESET%: Run %YELLOW%helios.bat%RESET% (or %YELLOW%start_helios.bat%RESET%)
+echo   - %CYAN%Airi 3D Companion%RESET%: Run %YELLOW%scripts\launchers\start_airi.bat%RESET%
+echo   - %CYAN%Coding CLI (Hikari)%RESET%: Run %YELLOW%hikari.bat%RESET%
 echo   - %CYAN%Command Dispatcher%RESET%: Run %YELLOW%helios /help%RESET%
 echo.
 
@@ -105,38 +117,45 @@ if "%~1"=="-q" goto END_SETUP
 if "%~1"=="--quiet" goto END_SETUP
 
 echo %CYAN%Select an immediate action or customize ecosystem:%RESET%
+echo   %YELLOW%[M]%RESET% Launch HELIOS Main Server (:8000)
+echo   %YELLOW%[A]%RESET% Launch Airi 3D Companion (:8080)
+echo   %YELLOW%[V]%RESET% Voice Configuration & Voice Cloning Setup
 echo   %YELLOW%[C]%RESET% Customize Profile, Models, Persona, Ports, or Biometrics
-echo   %YELLOW%[D]%RESET% Launch Developer Edition (Core + Hikari Swarm + Web UI)
-echo   %YELLOW%[U]%RESET% Launch User Edition (Solstice 3D Companion)
-echo   %YELLOW%[H]%RESET% Launch Hikari Coding CLI
-echo   %YELLOW%[T]%RESET% Run Isolation and Biometric Test Suite
+echo   %YELLOW%[T]%RESET% Run Isolation, TTS, and Biometric Test Suite
 echo   %YELLOW%[Enter]%RESET% Exit Setup
 echo.
 set "USER_ACTION="
-set /p USER_ACTION="Enter selection [C, D, U, H, T, or Enter to exit]: "
+set /p USER_ACTION="Enter selection [M, A, V, C, T, or Enter to exit]: "
 
+if /i "%USER_ACTION%"=="M" (
+    echo [*] Starting HELIOS Main Server...
+    call "%~dp0start_helios.bat"
+    goto END_SETUP
+)
+if /i "%USER_ACTION%"=="A" goto DO_AIRI
+if /i "%USER_ACTION%"=="V" goto DO_VOICE
 if /i "%USER_ACTION%"=="C" goto DO_CUSTOM
-if /i "%USER_ACTION%"=="D" (
-    echo [*] Starting Developer Edition...
-    call start_helios_dev.bat
-    goto END_SETUP
-)
-if /i "%USER_ACTION%"=="U" (
-    echo [*] Starting Solstice User Edition...
-    call start_solstice.bat
-    goto END_SETUP
-)
-if /i "%USER_ACTION%"=="H" (
-    echo [*] Starting Hikari Swarm CLI...
-    call hikari.bat
-    goto END_SETUP
-)
 if /i "%USER_ACTION%"=="T" (
-    echo [*] Executing Isolation and Biometric Tests...
-    "%PY_EXE%" -m pytest tests\test_isolation.py
-    "%PY_EXE%" scripts\verify_voice.py
+    echo [*] Executing Isolation, TTS, and Biometric Tests...
+    "%PY_EXE%" -m pytest tests\test_isolation.py -q
+    "%PY_EXE%" -m pytest ai-router\tests\test_gpt_sovits_resource_manager.py -q
+    "%PY_EXE%" scripts\verify_voice.py --test
     goto END_SETUP
 )
+goto END_SETUP
+
+:DO_VOICE
+echo.
+echo %CYAN%[*] Launching HELIOS Voice Setup Utility...%RESET%
+cd /d "%~dp0ai-router"
+"%PY_EXE%" scripts\setup_voice.py
+cd /d "%~dp0"
+goto END_SETUP
+
+:DO_AIRI
+echo.
+echo %CYAN%[*] Launching Airi 3D Companion...%RESET%
+call "%~dp0scripts\launchers\start_airi.bat"
 goto END_SETUP
 
 :DO_CUSTOM
@@ -146,4 +165,5 @@ echo %CYAN%[*] Launching HELIOS Interactive Customization Wizard...%RESET%
 goto END_SETUP
 
 :END_SETUP
+
 

@@ -9,4 +9,5 @@ async def test():
     
     await orc.process_request("test_session", 1, [{"role": "user", "content": "open whatsapp"}], DummyBus(), headless=True, agent_mode=True)
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test())

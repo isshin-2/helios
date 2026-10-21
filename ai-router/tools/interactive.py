@@ -16,7 +16,11 @@ class AskUserTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "AskUserTool"
+        return "ask_user"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["AskUserTool"]
 
     @property
     def description(self) -> str:

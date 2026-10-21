@@ -24,6 +24,9 @@ from agents.security_reviewer import SecurityReviewerAgent
 from agents.tester import TesterAgent
 from core.checkpoints import CheckpointManager
 from core.coding_runtime import CodingContext, CodingTaskRuntime
+from core.hardware_governor import HardwareGovernor
+from core.llm_council import LLMCouncilEngine
+from core.quality_contracts import AcceptanceGate, VerificationResult
 from core.state_machine import TaskState
 from core.supervisor import Supervisor
 from core.task_contract import RiskLevel, TaskBudget, TaskContract
@@ -48,6 +51,8 @@ class CodingSwarmOrchestrator:
         self.provider = provider
         self.permission_manager = permission_manager or PermissionManager()
         self.checkpoint_manager = checkpoint_manager or CheckpointManager()
+        self.governor = HardwareGovernor()
+        self.is_budget_sequential = self.governor.decision.is_budget or (self.governor.decision.max_concurrent_agents <= 1)
 
         # Instantiate Swarm Agents
         self.planner = PlannerAgent(self.provider)
@@ -58,6 +63,7 @@ class CodingSwarmOrchestrator:
         self.repair = RepairAgent(self.provider, permission_manager=self.permission_manager)
         self.reviewer = ReviewerAgent(self.provider)
         self.security_reviewer = SecurityReviewerAgent(self.provider)
+        self.council = LLMCouncilEngine(self.provider)
 
     async def run_task(
         self,
@@ -126,6 +132,20 @@ class CodingSwarmOrchestrator:
                 # ─── 2. PLAN ──────────────────────────────────────────────
                 elif current_state == TaskState.PLAN:
                     notify("PLAN", "Formulating execution plan and file modification map...")
+                    # LLM Council deliberation for high-risk / requested tasks
+                    if contract.risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL) or contract.metadata.get("use_council"):
+                        notify("PLAN", "Deliberating via multi-model LLM Council for high-risk architecture...")
+                        try:
+                            council_res = await self.council.run_deliberation(
+                                task_id=contract.task_id,
+                                query=contract.objective,
+                                context={"relevant_files": runtime.context.relevant_files},
+                            )
+                            runtime.context.council_result = council_res
+                            logger.info(f"[SWARM] LLM Council deliberation complete. Status: {council_res.status.value}")
+                        except Exception as e:
+                            logger.warning(f"[SWARM] LLM Council deliberation failed: {e}")
+
                     plan_res = await self.planner.execute(
                         contract.objective,
                         {"coding_context": runtime.context, "repo_map": runtime.context.relevant_files},
@@ -159,11 +179,30 @@ class CodingSwarmOrchestrator:
 
                 # ─── 5. VERIFY (Tester) ───────────────────────────────────
                 elif current_state == TaskState.VERIFY:
-                    notify("VERIFY", f"Executing test suite: {runtime.context.test_command or 'pytest'}...")
+                    test_cmd = runtime.context.test_command or "pytest"
+                    notify("VERIFY", f"Executing test suite: {test_cmd}...")
                     tester_res = await self.tester.execute(
                         contract.objective,
                         {"coding_context": runtime.context, "worktree": runtime.working_directory},
                     )
+
+                    # Initialize Acceptance Gate (unlazy methodology)
+                    gate = runtime.context.acceptance_gate or AcceptanceGate(
+                        task_id=contract.task_id,
+                        required_tests=[test_cmd],
+                    )
+                    test_passed = (tester_res.status == AgentStatus.SUCCESS)
+                    gate.results.append(
+                        VerificationResult(
+                            check_name=test_cmd,
+                            command=test_cmd,
+                            exit_code=0 if test_passed else 1,
+                            passed=test_passed,
+                            stdout_preview=str(tester_res.detail)[:500],
+                        )
+                    )
+                    runtime.context.acceptance_gate = gate
+
                     decision = supervisor.evaluate(tester_res)
                     supervisor.apply(decision)
 
@@ -182,22 +221,34 @@ class CodingSwarmOrchestrator:
                     decision = supervisor.evaluate(repair_res)
                     supervisor.apply(decision)
 
-                # ─── 7. REVIEW (Parallel Code Review & Security Review) ───
+                # ─── 7. REVIEW (Code Review & Security Review) ────────────
                 elif current_state == TaskState.REVIEW:
-                    notify("REVIEW", "Running Code Review and Security Audit in parallel...")
                     diff_text = runtime.workspace.get_diff()
 
-                    # Run Reviewer and SecurityReviewer in parallel safely
-                    logger.info("[SWARM] Running Code Reviewer and Security Reviewer in parallel...")
-                    rev_task = self.reviewer.execute(
-                        contract.objective,
-                        {"coding_context": runtime.context, "diff": diff_text},
-                    )
-                    sec_task = self.security_reviewer.execute(
-                        contract.objective,
-                        {"coding_context": runtime.context, "diff": diff_text},
-                    )
-                    rev_result, sec_result = await asyncio.gather(rev_task, sec_task)
+                    if self.is_budget_sequential:
+                        logger.info("[SWARM] Budget hardware detected: Executing Code Reviewer and Security Reviewer sequentially to avoid VRAM/RAM thrashing...")
+                        notify("REVIEW", "Running Code Review (Sequential execution)...")
+                        rev_result = await self.reviewer.execute(
+                            contract.objective,
+                            {"coding_context": runtime.context, "diff": diff_text},
+                        )
+                        notify("REVIEW", "Running Security Audit (Sequential execution)...")
+                        sec_result = await self.security_reviewer.execute(
+                            contract.objective,
+                            {"coding_context": runtime.context, "diff": diff_text},
+                        )
+                    else:
+                        notify("REVIEW", "Running Code Review and Security Audit in parallel...")
+                        logger.info("[SWARM] Running Code Reviewer and Security Reviewer in parallel...")
+                        rev_task = self.reviewer.execute(
+                            contract.objective,
+                            {"coding_context": runtime.context, "diff": diff_text},
+                        )
+                        sec_task = self.security_reviewer.execute(
+                            contract.objective,
+                            {"coding_context": runtime.context, "diff": diff_text},
+                        )
+                        rev_result, sec_result = await asyncio.gather(rev_task, sec_task)
 
                     # Evaluate Reviewer
                     rev_decision = supervisor.evaluate(rev_result)
@@ -228,13 +279,25 @@ class CodingSwarmOrchestrator:
                 # ─── 10. FINALIZE ─────────────────────────────────────────
                 elif current_state == TaskState.FINALIZE:
                     notify("FINALIZE", "Finalizing verified changes and archiving artifacts...")
-                    final_res = AgentResult(
-                        agent_id="swarm_finalizer",
-                        agent_type="finalizer",
-                        status=AgentStatus.SUCCESS,
-                        summary="Coding swarm completed task successfully with passing tests and verified security.",
-                        artifacts=runtime.context.artifacts,
-                    )
+                    # Evidence-based Acceptance Gate check (unlazy principle)
+                    if runtime.context.acceptance_gate and not runtime.context.acceptance_gate.is_satisfied():
+                        logger.warning("[SWARM] Acceptance gate has unsatisfied checks; cannot finalize.")
+                        final_res = AgentResult(
+                            agent_id="swarm_finalizer",
+                            agent_type="finalizer",
+                            status=AgentStatus.FAILURE,
+                            summary="Task completion blocked: Acceptance gate requirements not satisfied with passing evidence.",
+                            error="Unsatisfied acceptance criteria",
+                        )
+                    else:
+                        applied_files = runtime.apply_changes()
+                        final_res = AgentResult(
+                            agent_id="swarm_finalizer",
+                            agent_type="finalizer",
+                            status=AgentStatus.SUCCESS,
+                            summary=f"Coding swarm completed task successfully with passing tests and verified security. Applied {len(applied_files)} file(s).",
+                            artifacts=runtime.context.artifacts,
+                        )
                     decision = supervisor.evaluate(final_res)
                     supervisor.apply(decision)
 

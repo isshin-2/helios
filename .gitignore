@@ -127,3 +127,11 @@ ai-router/benchmarks/results/
 helios_swarm_test/
 ai-router/static/media/*.jpg
 ai-router/static/media/*.png
+*.png
+*.jpg
+
+# --- Decoupled Addons & Standalone Engines ---
+engines/
+mobile_v2/
+helios-character/
+*-addon/

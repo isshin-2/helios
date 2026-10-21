@@ -28,6 +28,7 @@ from core.task_contract import (
     RiskLevel,
     StepRecord,
     TaskContract,
+    TaskCapability,
 )
 from agents.base import AgentResult, AgentStatus
 
@@ -91,6 +92,21 @@ class Supervisor:
             or meta.get("task_type") == "coding"
             or self._contract.objective.lower().startswith("coding:")
         )
+
+    @property
+    def is_computer_task(self) -> bool:
+        """Whether this task involves desktop computer-use execution."""
+        if not self._contract:
+            return False
+        meta = self._contract.metadata or {}
+        return (
+            bool(meta.get("is_computer_task"))
+            or meta.get("workflow") == "computer"
+            or meta.get("task_type") == "computer"
+            or TaskCapability.COMPUTER_CONTROL in self._contract.allowed_capabilities
+            or self._contract.objective.lower().startswith("computer:")
+        )
+
 
     @property
     def contract(self) -> Optional[TaskContract]:

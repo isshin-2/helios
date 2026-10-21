@@ -1,0 +1,32 @@
+# HELIOS Unified Resource Management Configuration
+# Strategic RAM/VRAM resource tiering, arbitration, and caching for RTX 5060 Ti + 64GB RAM & all hardware tiers.
+
+resources:
+  # GPU / VRAM Arbitration
+  gpu:
+    enabled: true
+    # Reserve VRAM for Windows desktop composition, display manager, and driver buffers (MB)
+    reserve_mb: 2048
+    max_utilization_percent: 90
+    # Thresholds for VRAM-aware model placement (GB)
+    vram_high_watermark_gb: 8.0     # > 8 GB free: full GPU residency permitted
+    vram_constrained_watermark_gb: 4.0 # 4-8 GB free: memory-saving GPU mode, < 4 GB: demote inactive to RAM
+
+  # System RAM Model Staging & Cache
+  ram:
+    # Always maintain safety reserve for OS, browser, HELIOS UI, and filesystem (GB)
+    reserve_gb: 8.0
+    # Maximum RAM to allow for model staging, inactive models, and audio/RAG caches (GB)
+    cache_limit_gb: 32.0
+    # Aggressively purge inactive caches when free RAM drops below this (GB)
+    ram_emergency_release_gb: 8.0
+
+  # Model Residency & Eviction Policies
+  policy:
+    prefer_gpu: true
+    allow_cpu_fallback: true
+    keep_tts_loaded: true
+    # Keep models GPU-resident during active conversations; demote to RAM after idle timeout (seconds)
+    idle_unload_seconds: 300
+    # Maximum inactive models to hold in RAM LRU staging cache
+    max_cached_models: 8

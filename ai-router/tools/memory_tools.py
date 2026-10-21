@@ -1,4 +1,4 @@
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from pydantic import BaseModel, Field
 
 from tools.base import BaseTool
@@ -19,7 +19,11 @@ class CoreMemoryAppendTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "CoreMemoryAppendTool"
+        return "core_memory_append"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["CoreMemoryAppendTool"]
 
     @property
     def description(self) -> str:
@@ -56,7 +60,11 @@ class ArchivalMemorySearchTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "ArchivalMemorySearchTool"
+        return "archival_memory_search"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["ArchivalMemorySearchTool"]
 
     @property
     def description(self) -> str:

@@ -35,6 +35,21 @@ class TaskCapability(str, Enum):
     DOCKER_SANDBOX = "docker_sandbox"
     HOST_CONTROL = "host_control"
     SELF_MODIFICATION = "self_modification"
+    COMPUTER_CONTROL = "computer_control"
+
+
+# ─── Computer Constraints ───────────────────────────────────────────────────
+
+class ComputerConstraints(BaseModel):
+    """Structured constraints for computer-use tasks."""
+    target_application: Optional[str] = Field(default=None, description="Primary application to control.")
+    allowed_applications: List[str] = Field(default_factory=list, description="Whitelist of applications that may be touched.")
+    allowed_monitors: List[int] = Field(default_factory=list, description="Allowed monitor IDs (empty = all).")
+    maximum_actions: int = Field(default=50, ge=1, description="Maximum individual computer actions allowed.")
+    maximum_runtime: float = Field(default=600.0, gt=0, description="Max runtime in seconds.")
+    require_verification: bool = Field(default=True, description="Whether each action must be verified.")
+    risk_policy: Dict[str, Any] = Field(default_factory=dict, description="Custom risk rules or threshold policies.")
+
 
 
 # ─── Budget ─────────────────────────────────────────────────────────────────
@@ -45,7 +60,7 @@ class TaskBudget(BaseModel):
     max_agent_calls: int = Field(default=20, ge=1, description="Maximum total agent invocations.")
     max_tool_calls: int = Field(default=50, ge=1, description="Maximum total tool calls.")
     max_runtime_seconds: float = Field(default=600.0, gt=0, description="Wall-clock timeout in seconds.")
-    max_retries: int = Field(default=3, ge=0, description="Maximum retries after verified failure.")
+    max_retries: int = Field(default=3, ge=0, le=10, description="Maximum retries after verified failure (configurable up to 10).")
     max_repeated_failures: int = Field(default=3, ge=1, description="Max identical consecutive failures before hard stop.")
 
 
@@ -142,6 +157,10 @@ class TaskContract(BaseModel):
     risk_level: RiskLevel = RiskLevel.LOW
     budget: TaskBudget = Field(default_factory=TaskBudget)
     stop_conditions: StopConditions = Field(default_factory=StopConditions)
+    computer_constraints: Optional[ComputerConstraints] = Field(
+        default=None,
+        description="Constraints for desktop computer-use tasks."
+    )
 
     # State (mutated by the Supervisor)
     current_state: str = "IDLE"

@@ -3,11 +3,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/helios-character"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$ROOT_DIR/helios-character"
 
 PY_BIN="python"
-if [ -f "$SCRIPT_DIR/ai-router/venv/bin/activate" ]; then
-    source "$SCRIPT_DIR/ai-router/venv/bin/activate"
+if [ -f "$ROOT_DIR/ai-router/venv/bin/activate" ]; then
+    source "$ROOT_DIR/ai-router/venv/bin/activate"
     PY_BIN="python"
 elif command -v python3 >/dev/null 2>&1; then
     PY_BIN="python3"

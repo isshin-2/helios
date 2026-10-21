@@ -1,6 +1,7 @@
 import logging
 import httpx
 from typing import Dict, Any, Tuple
+from config import PAIR_HOST, OLLAMA_HOST
 
 logger = logging.getLogger(__name__)
 
@@ -9,9 +10,9 @@ class RoutingEngine:
     Intelligent routing engine to dispatch queries to Fast Path, Semantic Cache, Local, or Cloud (Gemini).
     """
     
-    def __init__(self, semantic_cache_db, ollama_url: str = "http://127.0.0.1:11434"):
+    def __init__(self, semantic_cache_db, ollama_url: str = None):
         self.cache = semantic_cache_db
-        self.ollama_url = ollama_url
+        self.ollama_url = (ollama_url or PAIR_HOST or OLLAMA_HOST or "http://127.0.0.1:11434").rstrip("/")
         # Fallback chain for local models
         self.local_chain = ["qwen2.5:7b", "phi3:mini"]
 
@@ -61,6 +62,17 @@ class RoutingEngine:
         query_lower = text_query.lower().strip()
         if query_lower in ["stop", "clear memory", "mute"]:
             return "fast_path", {"command": query_lower}
+
+        # Check for explicit desktop / computer automation intent
+        computer_keywords = [
+            "open vs code", "open vscode", "open calculator", "open calc",
+            "open notepad", "take a screenshot", "click the", "click on",
+            "control my computer", "control desktop", "focus window",
+            "close window", "run the tests and tell me", "run tests and tell me"
+        ]
+        if any(kw in query_lower for kw in computer_keywords) or query_lower.startswith(("computer:", "desktop:")):
+            return "computer", {"category": "computer", "model": "hermes3:8b"}
+
             
         # 2. Semantic Cache
         if self.cache:
@@ -115,4 +127,10 @@ class RoutingEngine:
         if not force_local and use_cloud:
             return "cloud", {"model": cloud_text_model}
             
-        return "local", {"model": best_local_model, "context_size": local_decision.get("context_size", 4096)}
+        detected_cat = local_decision.get("category", classification.get("category", "general"))
+        return "local", {
+            "model": best_local_model,
+            "category": detected_cat,
+            "context_size": local_decision.get("context_size", 4096)
+        }
+

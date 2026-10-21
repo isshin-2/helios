@@ -100,12 +100,27 @@ class ScreenVisionTool(BaseTool):
             try:
                 import time
                 import os
+                import glob
                 timestamp = int(time.time())
+                media_dir = os.path.join("static", "media")
+                os.makedirs(media_dir, exist_ok=True)
                 filename = f"screenshot_{timestamp}.jpg"
-                filepath = os.path.join("static", "media", filename)
-                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                filepath = os.path.join(media_dir, filename)
                 screenshot.save(filepath, format="JPEG", quality=80)
                 img_markdown = f"![Screenshot](/static/media/{filename})\n\n"
+
+                # Automatically retain only the 7 most recent screenshots (5-10 range)
+                all_shots = sorted(
+                    glob.glob(os.path.join(media_dir, "screenshot_*.jpg")),
+                    key=os.path.getmtime
+                )
+                MAX_RETAINED_SCREENSHOTS = 7
+                if len(all_shots) > MAX_RETAINED_SCREENSHOTS:
+                    for old_shot in all_shots[:-MAX_RETAINED_SCREENSHOTS]:
+                        try:
+                            os.remove(old_shot)
+                        except Exception:
+                            pass
             except Exception as e:
                 logger.error(f"Failed to save screenshot for UI: {e}")
                 img_markdown = ""

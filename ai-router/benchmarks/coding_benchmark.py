@@ -177,7 +177,7 @@ class BenchmarkMockProvider(BaseProvider):
         return [0.0] * 128
 
     async def list_models(self):
-        return {"models": [{"name": "devstral-small-2:24b", "size": 14000000000}]}
+        return {"models": [{"name": "qwen2.5-coder:32b", "size": 19000000000}, {"name": "qwen2.5-coder:14b", "size": 9000000000}]}
 
     async def list_running(self):
         return {"models": [{"name": m, "size_vram": 8000000000} for m in self.running_models]}
@@ -884,7 +884,7 @@ class HELIOSCodingBenchmark:
         md_path = os.path.join(self.output_dir, "BENCHMARK_REPORT.md")
         with open(md_path, "w", encoding="utf-8") as f:
             f.write("# HELIOS Coding Swarm: Self-Benchmark Report\n\n")
-            f.write(f"**Target System**: RTX 5060 Ti (16 GB VRAM) | 64 GB RAM | AMD Ryzen 5 7600X\n\n")
+            f.write(f"**Target System**: Workstation GPU Node | Dynamic Hardware Allocation\n\n")
             f.write("## Executive Summary\n\n")
             f.write(f"- **Task Success Rate**: {report_data['task_success_rate']} ({passed_tasks}/{total_tasks})\n")
             f.write(f"- **Test Pass Rate**: {report_data['test_pass_rate']}\n")

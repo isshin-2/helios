@@ -18,6 +18,11 @@ class BaseTool(ABC):
         pass
 
     @property
+    def aliases(self) -> List[str]:
+        """Alternative names for this tool (e.g. legacy PascalCase or snake_case variants)."""
+        return []
+
+    @property
     @abstractmethod
     def description(self) -> str:
         """A detailed description of what the tool does."""

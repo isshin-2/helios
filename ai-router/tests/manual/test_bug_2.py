@@ -26,4 +26,5 @@ async def test():
     except Exception as e:
         print(f"FAILED: {e}")
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test())

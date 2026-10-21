@@ -124,12 +124,24 @@ def classify_category(prompt: str, messages: List[Dict[str, Any]]) -> str:
         if re.search(pattern, prompt_lower):
             return "system"
 
+    # Computer Control & Screen Vision / OS automation
+    desktop_actions = [
+        "open notepad", "open app", "open the app", "open application",
+        "move mouse", "move cursor", "click", "double click", "right click",
+        "take a screenshot", "screenshot", "screen vision", "on my screen",
+        "on the display", "on my display", "type text", "hotkey", "press key",
+        "scroll down", "scroll up", "open calc", "launch app"
+    ]
+    if any(act in prompt_lower for act in desktop_actions):
+        return "agent"
+
     # Research / Sub-Agent
     research_keywords = [
         "plan a refactor", "build a whole app", "autonomous",
         "step-by-step plan", "execute a complex", "multi-step",
         "research", "deep dive", "sub-agent"
     ]
+
     if any(kw in prompt_lower for kw in research_keywords):
         return "research"
 
@@ -238,6 +250,7 @@ async def classify_request(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         
     return {
         "intent": intent,
+        "category": intent,
         "detail": detail,
         "requires_tools": requires_tools,
         "requires_reasoning": requires_reasoning,
@@ -246,4 +259,5 @@ async def classify_request(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         "complexity": complexity,
         "escalate_to_cloud": escalate_to_cloud
     }
+
 

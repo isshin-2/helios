@@ -2,50 +2,49 @@ agent_profiles:
   planner:
     model: "qwen2.5-coder:14b"
     temperature: 0.2
-    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b", "llama3.2:3b"]
+    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"]
 
   architect:
-    model: "qwen2.5-coder:14b"
+    model: "qwen2.5-coder:32b"
     temperature: 0.1
-    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b"]
+    fallback_models: ["qwen2.5-coder:14b", "qwen2.5-coder:7b", "hermes3:8b", "qwen3.5:9b", "qwen2.5-coder:3b", "llama3.2:3b"]
 
   repo_mapper:
     model: "qwen2.5-coder:7b"
     temperature: 0.1
-    fallback_models: ["llama3.2:3b"]
+    fallback_models: ["qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"]
 
   coder:
-    model: "devstral-small-2:24b"
+    model: "qwen2.5-coder:32b"
     temperature: 0.1
-    fallback_models: ["qwen2.5-coder:14b", "qwen2.5-coder:7b"]
+    fallback_models: ["qwen2.5-coder:14b", "qwen2.5-coder:7b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"]
 
   tester:
     model: "qwen2.5-coder:14b"
     temperature: 0.0
-    fallback_models: ["qwen2.5-coder:7b", "llama3.2:3b"]
+    fallback_models: ["qwen2.5-coder:7b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"]
 
   repair:
-    model: "devstral-small-2:24b"
+    model: "qwen2.5-coder:32b"
     temperature: 0.1
-    fallback_models: ["qwen2.5-coder:14b", "qwen2.5-coder:7b"]
+    fallback_models: ["qwen2.5-coder:14b", "qwen2.5-coder:7b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"]
 
   reviewer:
     model: "qwen2.5-coder:14b"
     temperature: 0.0
-    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b"]
+    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"]
 
   security_reviewer:
     model: "qwen2.5-coder:14b"
     temperature: 0.0
-    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b"]
+    fallback_models: ["qwen2.5-coder:7b", "hermes3:8b", "qwen2.5-coder:3b", "llama3.2:3b", "qwen2.5:3b"]
 
 hardware_limits:
-  target_device: "RTX 5060 Ti"
+  target_device: "auto"
   max_vram_gb: 16.0
   system_ram_gb: 64.0
-  cpu: "AMD Ryzen 5 7600X"
+  cpu: "auto"
   max_concurrent_large_models: 3
   large_model_threshold_gb: 8.0
   default_context_tokens: 16384
   ram_offload_enabled: true
-

@@ -1,9 +1,19 @@
 import sys
 import os
-from PyQt5.QtCore import Qt, QUrl, QTimer
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QShortcut
-from PyQt5.QtGui import QKeySequence, QColor
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
+
+# Check if running in a headless Unix environment
+if sys.platform != "win32" and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+    print("[HELIOS-DESKTOP] Headless environment detected (no display server). Desktop overlay disabled.")
+    sys.exit(0)
+
+try:
+    from PyQt5.QtCore import Qt, QUrl, QTimer
+    from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QShortcut
+    from PyQt5.QtGui import QKeySequence, QColor
+    from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
+except ImportError as e:
+    print(f"[HELIOS-DESKTOP] PyQt5 / PyQtWebEngine not available: {e}. Desktop overlay disabled.")
+    sys.exit(0)
 
 class SilentReconnectPage(QWebEnginePage):
     def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):

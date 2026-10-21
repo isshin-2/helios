@@ -1,10 +1,11 @@
-﻿import os
+import os
+import sys
+import asyncio
 import importlib
 import inspect
 from typing import Tuple, List, Dict, Any
 import logging
 import subprocess
-import sys
 
 from tools.base import BaseTool
 from providers.base import BaseProvider
@@ -33,14 +34,15 @@ class ToolRouter:
         if not os.path.exists(tools_dir):
             return
             
-        # Dependencies that different tools might need
         SYSTEM_TOOLS = {"SystemTool", "ScreenVisionTool", "ComputerControlTool"}
         MEMORY_TOOLS = {"CoreMemoryAppendTool", "ArchivalMemorySearchTool"}
         FILESYSTEM_TOOLS = {
             "FileReaderTool", "DirectoryListerTool",
             "FileWriterTool", "TerminalTool", "StatefulShellTool",
             "SelfModificationTool", "AskUserTool",
-            "RepoMapTool", "FilePatchTool", "FilePatcherTool"
+            "RepoMapTool", "FilePatchTool", "FilePatcherTool",
+            "GitOpsTool", "ProcessMonitorTool", "HttpClientTool", "EnvSecretsTool",
+            "ReverseEngineerTool"
         }
         
         for filename in os.listdir(tools_dir):
@@ -51,31 +53,48 @@ class ToolRouter:
                     # Find classes in the module that inherit from BaseTool
                     for name, obj in inspect.getmembers(module, inspect.isclass):
                         if issubclass(obj, BaseTool) and obj is not BaseTool:
-                            # Instantiate with appropriate dependencies
+                            # Inspect constructor parameters for smart dependency injection
+                            init_sig = inspect.signature(obj.__init__)
+                            params = list(init_sig.parameters.keys())[1:] # strip self
+                            
+                            tool_instance = None
                             if name in SYSTEM_TOOLS:
                                 tool_instance = obj(self.provider, self.monitor)
-                            elif name in FILESYSTEM_TOOLS:
+                            elif name in FILESYSTEM_TOOLS or "permission_manager" in params:
                                 tool_instance = obj(self.permission_manager)
                             elif name in MEMORY_TOOLS:
-                                # We need memory manager here. Assuming it is available in ToolRouter via some import or initialization.
-                                # For now, we will pass self.memory_manager which we will create below.
                                 if not hasattr(self, 'memory_manager'):
                                     from router.memory import MemoryManager
                                     self.memory_manager = MemoryManager(self.provider)
                                 tool_instance = obj(self.memory_manager)
                             elif name == "SubAgentTool":
-                                tool_instance = obj(self.provider, self)
-                            else:
+                                tool_instance = obj(self.provider, self, self.permission_manager)
+                            elif len(params) == 0:
                                 tool_instance = obj()
+                            else:
+                                # Fallback instantiation attempting permission_manager or no-args
+                                try:
+                                    tool_instance = obj(self.permission_manager)
+                                except Exception:
+                                    tool_instance = obj()
                                 
-                            self.tools[tool_instance.name] = tool_instance
+                            if tool_instance:
+                                # Primary canonical name
+                                self.tools[tool_instance.name] = tool_instance
+                                # Register any backwards-compatible aliases
+                                for alias in getattr(tool_instance, "aliases", []):
+                                    self.tools[alias] = tool_instance
                 except Exception as e:
                     logger.error(f"Failed to load tool {module_name}: {e}")
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
-        """Return the JSON schema representations of all loaded tools for LLM use."""
+        """Return the JSON schema representations of unique loaded tools for LLM use."""
         schemas = []
+        seen = set()
         for name, tool in self.tools.items():
+            if tool.name in seen:
+                continue
+            seen.add(tool.name)
             schema = tool.input_schema.model_json_schema()
             schemas.append({
                 "type": "function",
@@ -96,39 +115,27 @@ class ToolRouter:
             return (f"Error: Tool '{tool_name}' not found.", tool_name)
             
         tool = self.tools[tool_name]
+        is_interactive_tool = tool_name in ["computer_control", "screen_vision", "terminal"]
         try:
-            # Show overlay if this is a computer control or vision tool
-            if tool_name in ["computer_control", "screen_vision", "terminal"]:
-                if not self.overlay_process:
-                    script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts', 'autonomous_overlay.py')
-                    self.overlay_process = subprocess.Popen([sys.executable, script_path])
-                    
-            # Validate input against schema
+            if is_interactive_tool and not self.overlay_process:
+                script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts', 'autonomous_overlay.py')
+                self.overlay_process = subprocess.Popen([sys.executable, script_path])
+                
             validated_inputs = tool.input_schema(**kwargs)
-            import asyncio
             try:
                 result = await asyncio.wait_for(tool.execute(user_id=user_id, **validated_inputs.model_dump()), timeout=300.0)
+                return result
             except asyncio.TimeoutError:
                 return (f"Error: Tool '{tool_name}' timed out after 300 seconds.", tool_name)
-            
-            if tool_name in ["computer_control", "screen_vision", "terminal"]:
-                if self.overlay_process:
-                    try:
-                        self.overlay_process.terminate()
-                    except Exception:
-                        pass
-                    self.overlay_process = None
-                    
-            return result
         except Exception as e:
-            if tool_name in ["computer_control", "screen_vision", "terminal"]:
-                if self.overlay_process:
-                    try:
-                        self.overlay_process.terminate()
-                    except Exception:
-                        pass
-                    self.overlay_process = None
             logger.error(f"Error executing tool {tool_name}: {e}")
             return (f"Error executing tool {tool_name}: {e}", tool_name)
+        finally:
+            if is_interactive_tool and self.overlay_process:
+                try:
+                    self.overlay_process.terminate()
+                except Exception:
+                    pass
+                self.overlay_process = None
 
 

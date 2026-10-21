@@ -9,17 +9,9 @@ HELIOS is an autonomous, locally-hosted AI ecosystem composed of:
 
 ---
 
-## 🤖 Antigravity Multi-Agent Collaboration Protocol
+## 🤖 Multi-Agent Collaboration Protocol (Discontinued)
 
-When working across multiple sessions or worktrees (e.g. Orchestrator vs. IDE Agent):
-1. **Handover Board:** Always inspect and maintain `HANDOVER.md` at the repository root.
-2. **Status Lifecycle:**
-   - Use `@IDE-Agent READY` for tasks ready for direct editor implementation.
-   - Use `@IDE-Agent COMPLETED` when editor changes are committed to the worktree branch (`agent-ide-tasks`).
-   - Use `@Orchestrator VERIFIED` only after automated pytest/tsc validation passes 100%.
-3. **Testing Standards:**
-   - Never assert raw strings on serialized JSON tool outputs; parse with `json.loads()` and assert dictionary keys.
-   - Screen capture tools must use `mss.MSS()` context manager.
+*Note: Handover Protocol via `HANDOVER.md` has been discontinued per user instruction. All tasks and implementation work are executed directly in single-agent mode.*
 
 ---
 

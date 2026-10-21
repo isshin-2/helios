@@ -87,6 +87,16 @@ async def main():
 
 if __name__ == '__main__':
     try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Sidecar shutting down.")
+        import sys
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        sys.path.insert(0, str(repo_root))
+        from importlib import import_module
+        sidecar_mod = import_module("helios-client.sidecar")
+        sidecar_mod.start_sidecar_standalone()
+    except Exception as e:
+        logger.info(f"Falling back to legacy sidecar loop: {e}")
+        try:
+            asyncio.run(main())
+        except KeyboardInterrupt:
+            logger.info("Sidecar shutting down.")

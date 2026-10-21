@@ -43,5 +43,5 @@ echo %CYAN%   HELIOS Server Starting...%RESET%
 echo %WHITE%   Local UI: http://localhost:8000%RESET%
 echo %GREEN%=======================================================%RESET%
 echo.
-
-python -m uvicorn main:app --host 0.0.0.0 --port 8000
+if "%SERVER_PORT%"=="" set "SERVER_PORT=8000"
+python -m uvicorn main:app --host 0.0.0.0 --port %SERVER_PORT%

@@ -38,8 +38,12 @@ class HeliosFullApp(QMainWindow):
         self.reload_shortcut = QShortcut(QKeySequence("F5"), self)
         self.reload_shortcut.activated.connect(self.browser.reload)
         
-        # DevTools shortcut (F12)
-        # Not easily supported in basic PyQtWebEngine without extra setup, but kept for future.
+        # Attach Ambient System Tray Indicator
+        try:
+            from core.system_tray import HeliosSystemTray
+            self.tray = HeliosSystemTray(QApplication.instance())
+        except Exception as e:
+            pass
 
 if __name__ == '__main__':
     # Initialize application

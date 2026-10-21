@@ -49,6 +49,10 @@ class CharacterModelRegistry:
         self.search_dirs = search_dirs or [
             repo_root / "helios-character" / "viewer" / "models",
             repo_root / "helios-character" / "models",
+            repo_root.parent / "solstice-addon" / "viewer" / "models",
+            repo_root.parent / "solstice-addon" / "models",
+            repo_root.parent / "character-addon" / "viewer" / "models",
+            repo_root.parent / "character-addon" / "models",
         ]
         self._manifests: Dict[str, Dict[str, Any]] = {
             "helios-v1": dict(DEFAULT_HELIOS_V1_MANIFEST)

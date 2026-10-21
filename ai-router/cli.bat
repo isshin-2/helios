@@ -1,3 +1,3 @@
-powershell -NoProfile -Command "if (-not (Test-NetConnection -ComputerName 192.168.100.254 -Port 3389 -InformationLevel Quiet -WarningAction SilentlyContinue)) { Write-Host '[HELIOS] AI PC is offline. Launching AI-PC.ps1 wake script...' -ForegroundColor Yellow; Start-Process powershell -ArgumentList '-ExecutionPolicy Bypass -File \"C:\Users\krithik\Desktop\AI-PC.ps1\"' }"
+venv\Scripts\python.exe -c "from core.ai_pc_manager import ensure_ai_pc_ready; ensure_ai_pc_ready()" 2>nul
 echo Starting HELIOS Terminal Chat...
 venv\Scripts\python.exe cli.py %*

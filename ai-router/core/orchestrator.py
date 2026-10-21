@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 
@@ -152,8 +153,21 @@ class ConversationOrchestrator:
         if self.permission_manager.approval_manager.has_session_approval(user_id, operation, target):
             return True
             
+        # Hard block permanently protected applications/credentials
+        if hasattr(self.permission_manager, "is_protected_computer_target") and self.permission_manager.is_protected_computer_target(target):
+            await event_bus.publish("approval_request", {
+                "request_id": "blocked_protected",
+                "operation": operation,
+                "target": target,
+                "reason": "Target is a protected credential/system application."
+            })
+            return False
+
+        # Agent mode may bypass approval ONLY for explicitly safe capabilities
         if agent_mode:
-            return True
+            if hasattr(self.permission_manager, "is_safe_for_agent_mode") and self.permission_manager.is_safe_for_agent_mode(operation, target):
+                return True
+            # Dangerous computer actions and high-risk operations remain protected and continue to approval check!
             
         if headless:
             await event_bus.publish("approval_request", {
@@ -162,6 +176,7 @@ class ConversationOrchestrator:
                 "target": target
             })
             return False
+
             
         request_id = self.permission_manager.approval_manager.generate_request_id()
         loop = asyncio.get_event_loop()
@@ -220,11 +235,20 @@ class ConversationOrchestrator:
         await event_bus.publish("status", "Analyzing your request...")
         
         _mem_keywords = ("remember", "my name", "i am", "i like", "prefer", "fact", "earlier", "previous", "who am i", "what did i")
-        is_short_greeting = (
-            isinstance(last_msg, str)
-            and len(last_msg.strip()) < 90
-            and not any(k in last_msg.lower() for k in _mem_keywords)
+        _action_keywords = (
+            "notepad", "mouse", "cursor", "click", "screenshot", "screen",
+            "display", "open app", "open the app", "open ", "launch ", "type ",
+            "press ", "scroll", "hotkey", "test", "run ", "execute", "take a screenshot",
+            "calc", "calculator", "math", "app"
         )
+        has_action_request = any(kw in str(last_msg).lower() for kw in _action_keywords)
+        _greeting_patterns = {"hi", "hello", "hey", "yo", "sup", "what's up", "whats up", "howdy", "good morning", "good evening", "good afternoon"}
+        clean_msg = re.sub(r'[^\w\s]', '', str(last_msg).lower().strip())
+        is_greeting_text = clean_msg in _greeting_patterns or (
+            len(str(last_msg).strip()) < 30 and any(clean_msg.startswith(w) for w in ["hi ", "hello ", "hey ", "yo ", "sup "])
+        )
+        is_short_greeting = is_greeting_text and not has_action_request and not agent_mode and not any(k in str(last_msg).lower() for k in _mem_keywords)
+
         if not is_budget_mode_active() and not is_short_greeting:
             asyncio.create_task(self.memory_manager.extract_and_save_facts(user_id, last_msg))
         
@@ -244,27 +268,48 @@ class ConversationOrchestrator:
         
         route_type, route_metadata = route_tuple
 
-        agent = agent_manager.get_agent(route_type)
+        agent = agent_manager.get_agent(
+            route_type,
+            provider=getattr(self.model_manager, "provider", None),
+            permission_manager=self.permission_manager,
+            event_bus=event_bus
+        )
         if agent:
-            result = await agent.execute(last_msg)
-            await event_bus.publish("message", {"role": "assistant", "content": result})
-            self.memory_manager.save_to_memory(user_id, result, "assistant")
+            result = await agent.execute(
+                last_msg,
+                context={
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "task_id": str(getattr(task, "id", f"task_{session_id}"))
+                }
+            )
+            content_str = result.summary if hasattr(result, "summary") else str(result)
+            await event_bus.publish("message", {"role": "assistant", "content": content_str})
+            await event_bus.publish("chunk", content_str)
+            await event_bus.publish("done", None)
+            self.memory_manager.save_to_memory(user_id, content_str, "assistant")
             return
+
           
         
         # Construct compatibility 'route' dictionary for the rest of orchestrator
+        detected_category = route_metadata.get("category", "general")
+        if agent_mode or has_action_request:
+            detected_category = "agent"
+        elif route_type == "cloud":
+            detected_category = "cloud"
+
+        default_agent_model = "hermes3:8b"
+        chosen_model = route_metadata.get("model", default_agent_model if detected_category == "agent" else "llama3.2:3b")
+        if detected_category == "agent" and chosen_model == "llama3.2:3b":
+            chosen_model = default_agent_model
+            
         route = {
             "route": route_type,
-            "category": "general",
-            "context_size": 1024 if is_short_greeting else 4096,
-            "model": "llama3.2:3b" if is_short_greeting else route_metadata.get("model", route_metadata.get("model_chain", ["llama3.2:3b"])[0])
+            "category": detected_category,
+            "context_size": 1024 if is_short_greeting else route_metadata.get("context_size", 8192 if detected_category == "agent" else 4096),
+            "model": "llama3.2:3b" if is_short_greeting else chosen_model
         }
-        
-        if route_type == "cloud":
-            route["category"] = "cloud"
-            
-        if agent_mode:
-            route["category"] = "agent"
             
         await event_bus.publish("meta", {
             "route": route,
@@ -290,13 +335,47 @@ class ConversationOrchestrator:
         full_response = ""
         
         allowed_tools = []
-        if agent_mode or route.get("category") in ("agent", "tool_use", "system"):
+        needs_tools = (
+            agent_mode
+            or route.get("category") in ("agent", "tool_use", "system", "coding")
+            or has_action_request
+        )
+        if needs_tools:
             if self.tool_router:
-                allowed_tools = self.tool_router.get_tool_schemas()
+                all_schemas = self.tool_router.get_tool_schemas()
+                if route.get("category") in ("agent", "system") or has_action_request:
+                    os_tool_names = {
+                        "computer_control", "screen_vision", "terminal", "TerminalTool",
+                        "stateful_shell", "StatefulShellTool", "file_reader", "FileReaderTool",
+                        "file_writer", "FileWriterTool", "directory_lister", "DirectoryListerTool",
+                        "ask_user", "AskUserTool", "git_ops", "process_monitor", "http_client",
+                        "env_secrets", "reverse_engineer"
+                    }
+                    q_lower = str(last_msg).lower()
+                    if any(w in q_lower for w in ["search", "web", "google", "lookup", "browse"]):
+                        os_tool_names.update(["web_search", "browser_tool"])
+                    if any(w in q_lower for w in ["github", "issue", "repo", "git"]):
+                        os_tool_names.update(["github_create_issue", "github_list_issues", "repo_map", "git_ops"])
+                    if any(w in q_lower for w in ["reverse", "decompile", "binary", "assembly", "disassemble", "rea", "pe", "elf"]):
+                        os_tool_names.update(["reverse_engineer"])
+                    if any(w in q_lower for w in ["process", "port", "kill", "cpu", "ram", "task"]):
+                        os_tool_names.update(["process_monitor"])
+                    if any(w in q_lower for w in ["http", "api", "curl", "request", "webhook", "fetch"]):
+                        os_tool_names.update(["http_client"])
+                    if any(w in q_lower for w in ["env", "secret", "token", "variable", "key"]):
+                        os_tool_names.update(["env_secrets"])
+                    if any(w in q_lower for w in ["printer", "bambu", "3d", "octoprint", "print"]):
+                        os_tool_names.update(["bambu_printer_status", "bambu_printer_stop", "octoprint_control", "octoprint_status"])
+                    if any(w in q_lower for w in ["drive", "cloud"]):
+                        os_tool_names.update(["google_drive_list_files", "google_drive_read_file"])
+                    allowed_tools = [s for s in all_schemas if s.get("function", {}).get("name") in os_tool_names]
+                else:
+                    allowed_tools = all_schemas
                 
             mcp_tools = await self.mcp_manager.list_all_tools()
             if mcp_tools:
                 allowed_tools.extend(mcp_tools)
+
         
         # Track whether screen_vision has been called (for vision enforcement)
         vision_used = False
@@ -337,6 +416,7 @@ class ConversationOrchestrator:
                             except UnicodeEncodeError:
                                 safe_print(reasoning.encode('ascii', 'replace').decode('ascii'))
                             
+                            await event_bus.publish("thought", reasoning)
                             await event_bus.publish("chunk", reasoning)
                             
                         if "content" in msg and msg["content"]:
@@ -366,50 +446,64 @@ class ConversationOrchestrator:
                 if self.cancellation_events[session_id].is_set() or global_bus.get_token(session_id).is_cancelled:
                     break
 
-                import re
-                import json
-                
                 # ── TRUNCATE: strip everything after the JSON block so hallucinated text never enters history ──
                 json_block_match = re.search(r'(```json\s*\{.*?\}\s*```)', content_accum, re.DOTALL)
                 if json_block_match and not tool_calls:
                     # Keep only the JSON block itself in the assistant message
                     content_accum = json_block_match.group(1)
+                    # Also strip hallucinated text from full_response so it is neither saved to history nor spoken by TTS
+                    full_response = ""
+                elif not tool_calls and any(tag in content_accum for tag in ("<tool_call>", "```")):
+                    full_response = ""
                 
                 if not tool_calls:
-                    # Fallback for small models outputting JSON blocks instead of native tool calls
-                    json_str = None
-                    # Try to find standard ```json ... ``` blocks first
-                    json_match = re.search(r'```json\s*(.*?)\s*```', content_accum, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(1)
-                    else:
-                        start_idx = content_accum.find('{')
-                        end_idx = content_accum.rfind('}')
-                        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                            json_str = content_accum[start_idx:end_idx+1]
-                        else:
-                            json_str = content_accum.strip()
-                        
-                    if json_str:
+                    # Fallback for models outputting JSON blocks or tool tags instead of native tool calls
+                    json_blocks = []
+                    # 1. Standard markdown code blocks: ```json ... ``` or ``` ... ```
+                    for m in re.finditer(r'```(?:json)?\s*(\{.*?\})\s*```', content_accum, re.DOTALL):
+                        json_blocks.append(m.group(1))
+                    # 2. <tool_call> tags
+                    for m in re.finditer(r'<tool_call>\s*(\{.*?\})\s*</tool_call>', content_accum, re.DOTALL):
+                        json_blocks.append(m.group(1))
+                    # 3. json\n{...}\n[/json]
+                    for m in re.finditer(r'json\s*(\{.*?\})\s*\[/json\]', content_accum, re.DOTALL):
+                        json_blocks.append(m.group(1))
+                    # 4. Balanced braces fallback
+                    if not json_blocks:
+                        for m in re.finditer(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', content_accum, re.DOTALL):
+                            json_blocks.append(m.group(0))
+
+                    for block in json_blocks:
                         try:
-                            parsed = json.loads(json_str)
+                            parsed = json.loads(block)
                             if isinstance(parsed, dict):
                                 func_name = parsed.get("function", parsed.get("name"))
-                                args = parsed.get("arguments", {})
-                                
+                                args = parsed.get("arguments", parsed.get("parameters", {}))
+                                if not func_name and "action" in parsed:
+                                    func_name = "computer_control"
+                                    args = parsed
                                 if func_name:
-                                    # Heuristic for hallucinated computer_control actions
                                     if func_name in ["move", "click", "double_click", "right_click", "type", "press", "hotkey", "scroll", "open_app"]:
                                         args["action"] = func_name
                                         func_name = "computer_control"
-                                        
+                                    # Validate and filter empty degenerate tool calls
+                                    if func_name == "computer_control":
+                                        action = str(args.get("action", "")).strip()
+                                        if not action:
+                                            continue
+                                        if action in ("launch_application", "open_app") and not str(args.get("app_name", "")).strip():
+                                            continue
+                                        if action in ("type", "write") and not str(args.get("text", "")).strip():
+                                            continue
+                                        if action in ("press", "hotkey") and not args.get("keys") and not args.get("key"):
+                                            continue
                                     tool_calls.append({
                                         "function": {
                                             "name": func_name,
                                             "arguments": args
                                         }
                                     })
-                        except Exception as e:
+                        except Exception:
                             pass
                             
                 if not tool_calls:
@@ -417,12 +511,16 @@ class ConversationOrchestrator:
                     break
                 
                 # ── VISION ENFORCEMENT: force screen_vision before spatial computer_control ──
-                SPATIAL_ACTIONS = {"click", "double_click", "right_click", "type", "move", "scroll"}
+                # Spatial actions strictly require pixel coordinates on screen
+                SPATIAL_ACTIONS = {"click", "double_click", "right_click", "move", "click_element"}
                 enforced_tool_calls = []
                 for call in tool_calls:
                     fn = call.get("function", {}).get("name", "")
                     fn_args = call.get("function", {}).get("arguments", {})
                     action = fn_args.get("action", "")
+                    if not action and (fn_args.get("app_name") or fn_args.get("app")):
+                        action = "launch_application"
+                        fn_args["action"] = action
                     
                     if fn == "computer_control" and action in SPATIAL_ACTIONS and not vision_used:
                         safe_print("[VISION ENFORCEMENT] Blocked spatial computer_control – injecting screen_vision first.\n")
@@ -497,7 +595,7 @@ class ConversationOrchestrator:
                                 
                                 if approved:
                                     # Specific execution post-approval (like FileWriterTool's perform_write)
-                                    if operation == "file_write" and function_name == "FileWriterTool":
+                                    if operation == "file_write" and function_name in ("FileWriterTool", "file_writer"):
                                         content_arg = validated_args.get("content", "")
                                         res_text, _ = await tool.perform_write(target, content_arg, user_id)
                                     else:
@@ -547,7 +645,6 @@ class ConversationOrchestrator:
                         raw_question = res_text_safe.replace("INPUT_REQUIRED::", "").strip()
                         options = None
                         
-                        import re
                         opts_match = re.search(r'\[OPTIONS:(.*?)\]', raw_question)
                         if opts_match:
                             options = opts_match.group(1).split('|')
@@ -567,10 +664,10 @@ class ConversationOrchestrator:
                         break
                     
                     # Small models (3B) often fail to understand "role": "tool" and break character.
-                    # Appending as "role": "user" with a strict instruction forces them back into tool-calling mode.
+                    # Appending as "role": "user" with guidance allows continued tool execution OR completion.
                     messages.append({
                         "role": "user",
-                        "content": f"SYSTEM/TOOL RESULT from '{function_name}':\n{json.dumps(structured_result)}\n\nIMPORTANT INSTRUCTION: The task is NOT complete. Continue using tools (output ONLY a ```json tool call block). Do NOT talk to the user or ask them to do anything manually."
+                        "content": f"SYSTEM/TOOL RESULT from '{function_name}':\n{json.dumps(structured_result)}\n\nIMPORTANT INSTRUCTION: If additional steps are required, continue using tools (output ONLY a ```json tool call block). If the requested goal is already completely accomplished, conclude the task by outputting a concise conversational summary to the user (without any further tool calls)."
                     })
                     
                     # Ensure tool outputs are saved in the session history and displayed seamlessly

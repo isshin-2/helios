@@ -65,10 +65,20 @@ class TesterAgent(BaseAgent):
         """Deterministically detect appropriate test command based on workspace files."""
         # 1. Check explicit command in context
         coding_ctx: Optional[CodingContext] = context.get("coding_context")
-        if coding_ctx and coding_ctx.test_command:
-            return coding_ctx.test_command
-        if context.get("test_command"):
-            return context["test_command"]
+        explicit_cmd = (coding_ctx.test_command if coding_ctx else None) or context.get("test_command")
+        if explicit_cmd:
+            parts = explicit_cmd.split()
+            file_targets = [p for p in parts if (p.endswith(".py") or p.endswith(".ts") or p.endswith(".js")) and not p.startswith("-")]
+            if file_targets:
+                valid_targets = [p for p in file_targets if os.path.exists(os.path.join(workspace_path, p))]
+                if not valid_targets:
+                    self.logger.warning(
+                        f"[TESTER] Explicit test command '{explicit_cmd}' targets non-existent file(s) {file_targets}. Discarding in favor of auto-detection."
+                    )
+                else:
+                    return explicit_cmd
+            else:
+                return explicit_cmd
 
         # 2. Check targeted test files from relevant_files or changed_files
         candidate_files = []
@@ -93,6 +103,15 @@ class TesterAgent(BaseAgent):
         # 3. Detect project type
         if os.path.exists(os.path.join(workspace_path, "tests")):
             return "python -m pytest tests"
+
+        # Check for root-level test files in workspace
+        try:
+            root_tests = [f for f in os.listdir(workspace_path) if (f.startswith("test_") or f.endswith("_test.py")) and f.endswith(".py")]
+            if root_tests:
+                return f"python -m pytest {' '.join(root_tests[:3])}"
+        except Exception:
+            pass
+
         if os.path.exists(os.path.join(workspace_path, "package.json")):
             return "npm test"
         if os.path.exists(os.path.join(workspace_path, "Cargo.toml")):
@@ -100,7 +119,7 @@ class TesterAgent(BaseAgent):
 
         # Fallback to python syntax check on changed files
         if candidate_files:
-            py_files = [f for f in candidate_files if f.endswith(".py")]
+            py_files = [f for f in candidate_files if f.endswith(".py") and os.path.exists(os.path.join(workspace_path, f))]
             if py_files:
                 return f"python -m py_compile {' '.join(py_files[:5])}"
 
@@ -161,6 +180,8 @@ Provide a concise, 2-3 sentence diagnosis of why the test failed and the root ca
             workspace_path = context["worktree"]
         elif context.get("repository_root"):
             workspace_path = context["repository_root"]
+        elif context.get("workspace_root"):
+            workspace_path = context["workspace_root"]
 
         workspace_path = os.path.abspath(workspace_path)
         command = self.detect_test_command(workspace_path, context)

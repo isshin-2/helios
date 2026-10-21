@@ -10,4 +10,5 @@ async def check():
     print(status)
     await provider.close()
 
-asyncio.run(check())
+if __name__ == "__main__":
+    asyncio.run(check())

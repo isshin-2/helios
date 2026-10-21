@@ -2,7 +2,7 @@ import asyncio
 import logging
 from models.manager import ModelManager
 from providers.ollama import OllamaProvider
-from core.sysmon import SystemMonitor
+from health.monitor import SystemMonitor
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -31,4 +31,5 @@ async def test():
     
     await manager.provider.close()
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test())

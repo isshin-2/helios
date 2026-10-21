@@ -50,7 +50,7 @@ class MockLLMProvider(BaseProvider):
         self.call_history: List[Dict[str, Any]] = []
         self.running_models: List[str] = []
         self.available_models: List[str] = [
-            "qwen3.5:9b", "qwen2.5-coder:14b", "devstral-small-2:24b", "qwen2.5-coder:7b", "llama3.2:3b"
+            "qwen2.5-coder:32b", "qwen2.5-coder:14b", "qwen2.5-coder:7b", "hermes3:8b", "llama3.2:3b"
         ]
 
     async def chat(self, model: str, messages: List[Dict[str, Any]], options: Optional[Dict[str, Any]] = None, **kwargs):
@@ -427,13 +427,14 @@ def test_supervisor_max_retries_exceeded():
 async def test_model_router_fallback_and_vram_swapping():
     """Verify ModelRouter unloads inactive 24B/14B models on 16GB GPU and falls back when missing."""
     router = ModelRouter()
+    router.hardware.max_concurrent_large_models = 1
     provider = MockLLMProvider()
 
-    # Simulate 24B devstral is NOT available, but 14B fallback IS available
+    # Simulate 32B is NOT available, but 14B fallback IS available
     provider.available_models = ["qwen2.5-coder:14b", "qwen2.5-coder:7b", "llama3.2:3b"]
 
     chosen_model, options = await router.prepare_model_for_agent("coder", provider)
-    # Target was devstral-small-2:24b, fallback should be qwen2.5-coder:14b
+    # Target was qwen2.5-coder:32b, fallback should be qwen2.5-coder:14b
     assert chosen_model == "qwen2.5-coder:14b"
     assert options["temperature"] == 0.1
 
@@ -441,12 +442,12 @@ async def test_model_router_fallback_and_vram_swapping():
     provider.running_models = ["qwen2.5-coder:14b"]
     router.active_large_model = "qwen2.5-coder:14b"
 
-    # Now request repair with a different large model: it must unload the previous model
-    provider.available_models.append("devstral-small-2:24b")
+    # Now request repair with a different large model (32b): it must unload the previous model
+    provider.available_models.append("qwen2.5-coder:32b")
     chosen2, _ = await router.prepare_model_for_agent("repair", provider)
-    assert chosen2 == "devstral-small-2:24b"
+    assert chosen2 == "qwen2.5-coder:32b"
     assert "qwen2.5-coder:14b" not in provider.running_models  # Unloaded!
-    assert router.active_large_model == "devstral-small-2:24b"
+    assert router.active_large_model == "qwen2.5-coder:32b"
 
 
 # ─── 5. Cancellation & Checkpoints ───────────────────────────────────────────
@@ -506,7 +507,27 @@ async def test_subagent_tool_spawns_contract_and_supervisor():
         parent_task_id="parent_task_999",
     )
 
-    assert tool_name == "SubAgentTool"
+    assert tool_name in ("subagent", "SubAgentTool")
     assert "SubAgent [" in output
     assert "parent_task_999" in output
     assert "COMPLETED" in output
+
+
+def test_tester_discards_phantom_test_command(tmp_path):
+    """Verify TesterAgent discards explicit test_command that targets non-existent files and falls back."""
+    provider = MockLLMProvider()
+    tester = TesterAgent(provider)
+
+    # Workspace has a newly created python file, but no tests
+    hello_file = tmp_path / "hello.py"
+    hello_file.write_text("print('hello')\n")
+
+    # Explicit command pointing to a phantom non-existent test file
+    cmd = tester.detect_test_command(str(tmp_path), {
+        "test_command": "pytest tests/test_nonexistent.py",
+        "relevant_files": ["hello.py"],
+    })
+    # Should discard the phantom pytest command and fall back to py_compile on hello.py
+    assert "test_nonexistent.py" not in cmd
+    assert "py_compile" in cmd
+

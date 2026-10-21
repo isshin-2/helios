@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Literal
+from typing import Tuple, Optional, Literal, List
 from pydantic import BaseModel, Field, model_validator
 
 from tools.base import BaseTool
@@ -59,7 +59,11 @@ class SelfModificationTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "SelfModificationTool"
+        return "self_modification"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["SelfModificationTool"]
 
     @property
     def description(self) -> str:

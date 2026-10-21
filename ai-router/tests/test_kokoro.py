@@ -10,4 +10,5 @@ async def main():
     stream = kokoro.create_stream("Hello world", voice="af_heart")
     print("stream type:", type(stream))
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

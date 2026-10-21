@@ -6,7 +6,15 @@ echo   HELIOS MOBILE PHONE COMPANION -- Expo Go / React Native
 echo   Bare HELIOS AI Core HUD + Airi 3D VRM Companion + Hikari Terminal
 echo ============================================================================
 echo.
-cd /d "%~dp0mobile_v2"
+:: Path resolution for Mobile Addon
+set "MOBILE_DIR=%~dp0..\..\..\mobile-addon"
+if not exist "%MOBILE_DIR%" set "MOBILE_DIR=%~dp0..\..\mobile_v2"
+if not exist "%MOBILE_DIR%" (
+    echo [X] Mobile addon not found at C:\projects\mobile-addon.
+    pause
+    exit /b 1
+)
+cd /d "%MOBILE_DIR%"
 
 :: Add Android SDK platform-tools (adb) to PATH if present
 if exist "%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe" (

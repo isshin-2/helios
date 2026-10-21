@@ -420,6 +420,24 @@ def run_bootstrap(dry_run: bool = False):
     if os.path.exists(audit_script):
         subprocess.run([sys.executable, audit_script])
 
+    # Check Addons Status
+    hikari_addon = os.path.abspath(os.path.join(BASE_DIR, "..", "hikari-addon"))
+    solstice_addon = os.path.abspath(os.path.join(BASE_DIR, "..", "solstice-addon"))
+    mobile_addon = os.path.abspath(os.path.join(BASE_DIR, "..", "mobile-addon"))
+    print("\n[*] Modular Addons Status:")
+    if os.path.exists(hikari_addon):
+        print(f"  [OK] Hikari Swarm Addon detected at {hikari_addon}")
+    else:
+        print("  [i] Hikari Swarm Addon not installed (optional).")
+    if os.path.exists(solstice_addon):
+        print(f"  [OK] Solstice Avatar Addon detected at {solstice_addon}")
+    else:
+        print("  [i] Solstice Avatar Addon not installed (optional).")
+    if os.path.exists(mobile_addon):
+        print(f"  [OK] Mobile Companion Addon detected at {mobile_addon}")
+    else:
+        print("  [i] Mobile Companion Addon not installed (optional).")
+
     print("\n[OK] Bootstrap health check completed successfully.")
 
 if __name__ == "__main__":

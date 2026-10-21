@@ -1,1 +1,0 @@
-"""Hikari Coding Swarm Subsystem."""

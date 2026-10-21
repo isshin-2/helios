@@ -1,0 +1,24 @@
+{
+  "bridge_enabled": false,
+  "bridge_secret": "9ea0f807277486a130c87fe5f71d0eb8c50bf4416e91b2f29c92e37cf113b700",
+  "allowed_routes": {
+    "helios->hikari": [
+      "task_dispatch",
+      "status_query"
+    ],
+    "hikari->helios": [
+      "task_result",
+      "log_stream"
+    ],
+    "solstice->helios": [
+      "user_input",
+      "biometric_status"
+    ],
+    "helios->solstice": [
+      "avatar_telemetry",
+      "tts_playback"
+    ]
+  },
+  "token_max_age_seconds": 5,
+  "log_bridge_traffic": true
+}

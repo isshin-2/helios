@@ -1,0 +1,11 @@
+httpx>=0.24.0
+websockets>=11.0
+rich>=13.0.0
+pyyaml>=6.0
+pydantic>=2.0
+python-dotenv>=1.0.0
+mss>=9.0.0
+Pillow>=9.0.0
+pyautogui; sys_platform == 'win32'
+PyQt5; sys_platform == 'win32'
+PyQtWebEngine; sys_platform == 'win32'

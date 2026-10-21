@@ -1,4 +1,3 @@
-
 fastapi
 uvicorn[standard]
 httpx
@@ -13,7 +12,14 @@ torchaudio
 psutil
 mcp
 httpx_sse
-# Agentic Mode Dependencies
+pydantic>=2.0
+pyyaml
+python-dotenv
+rich
+pytest
+pytest-asyncio
+requests
+# Desktop & Computer Control Dependencies
 pyautogui; sys_platform == 'win32'
 Pillow
 pywhispercpp
@@ -23,10 +29,7 @@ selenium
 selenium_stealth
 beautifulsoup4
 webdriver-manager
-skillspector @ git+https://github.com/NVIDIA/skillspector.git@f161b700d83d1e685f501c525d4cf7a8a49bd82e
 PyQt5
 PyQtWebEngine
-
-
-
-
+# Optional security scanner (installed via setup.py if git is available)
+# skillspector @ git+https://github.com/NVIDIA/skillspector.git@f161b700d83d1e685f501c525d4cf7a8a49bd82e

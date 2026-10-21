@@ -4,7 +4,7 @@ import shlex
 import subprocess
 import logging
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, List, Optional
 from pydantic import BaseModel, Field
 
 from tools.base import BaseTool
@@ -26,7 +26,11 @@ class TerminalTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "TerminalTool"
+        return "terminal"
+
+    @property
+    def aliases(self) -> List[str]:
+        return ["TerminalTool"]
 
     @property
     def description(self) -> str:

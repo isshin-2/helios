@@ -1,6 +1,30 @@
 import webview
 import os
+import sys
 import ctypes
+
+def get_target_monitor_bounds():
+    """
+    Identifies the display bounds (x, y, width, height) of the active monitor.
+    Uses mouse cursor position or primary display fallback.
+    """
+    try:
+        import win32api
+        import win32gui
+        # Get current cursor position
+        point = win32gui.GetCursorPos()
+        # Find monitor containing the cursor
+        hmonitor = win32api.MonitorFromPoint(point, 2)  # MONITOR_DEFAULTTONEAREST = 2
+        info = win32api.GetMonitorInfo(hmonitor)
+        rect = info.get("Work", info.get("Monitor"))
+        left, top, right, bottom = rect
+        return left, top, right - left, bottom - top
+    except Exception:
+        # Fallback to single primary monitor
+        user32 = ctypes.windll.user32
+        w = user32.GetSystemMetrics(0)
+        h = user32.GetSystemMetrics(1)
+        return 0, 0, w, h
 
 def enforce_topmost(window_title):
     import win32gui
@@ -23,13 +47,13 @@ def main():
     except Exception:
         pass
         
-    user32 = ctypes.windll.user32
-    screen_w = user32.GetSystemMetrics(0)
+    mon_x, mon_y, mon_w, mon_h = get_target_monitor_bounds()
     
-    width = screen_w
+    # Position the HUD at the top center of the detected monitor
+    width = mon_w
     height = 80
-    x = 0
-    y = 20
+    x = mon_x
+    y = mon_y + 20
     
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     html_path = os.path.join(base_dir, 'static', 'media', 'autonomous_overlay.html')

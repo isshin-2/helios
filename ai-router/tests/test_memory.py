@@ -13,6 +13,7 @@ def mock_db():
         CREATE TABLE IF NOT EXISTS memories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
+            category TEXT DEFAULT 'general',
             fact TEXT NOT NULL,
             embedding TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

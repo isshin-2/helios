@@ -4,6 +4,9 @@ setlocal
 
 if /i "%~1"=="1" goto core_only
 if /i "%~1"=="core" goto core_only
+if /i "%~1"=="main" goto core_only
+if /i "%~1"=="server" goto core_only
+if /i "%~1"=="router" goto core_only
 if /i "%~1"=="2" goto hikari_cli
 if /i "%~1"=="hikari" goto hikari_cli
 if /i "%~1"=="3" goto full_spec
@@ -26,7 +29,7 @@ echo   [2] Hikari Coding CLI    (hikari.bat — Interactive Claude Code / Codex 
 echo   [3] HELIOS + Airi        (Core Server :8000 + Airi 3D Companion :8080)
 echo   [4] Airi Companion Only  (Standalone 3D VRM Character without :8000)
 echo   [5] Mobile Phone App     (start_phone.bat — Expo Go Android / iOS :8081)
-echo   [6] HELIOS Client Mode   (start_helios_client.bat — Connect to Server / AI PC)
+echo   [6] HELIOS Client Mode   (start_helios_client.bat — Connect to Server / NVIDIA PAIR)
 echo ============================================================================
 set /p "CHOICE=Select launch mode [1-6, default=1]: "
 
@@ -38,13 +41,13 @@ if "%CHOICE%"=="6" goto client_mode
 
 :core_only
 echo [*] Starting HELIOS Core AI Router (:8000)...
-cd /d "%~dp0ai-router"
+cd /d "%~dp0..\..\ai-router"
 call start.bat
 goto :eof
 
 :hikari_cli
 echo [*] Launching Hikari Autonomous Coding CLI...
-call "%~dp0hikari.bat"
+call "%~dp0..\..\hikari.bat"
 goto :eof
 
 :full_spec
