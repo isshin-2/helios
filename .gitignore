@@ -70,26 +70,6 @@ voices/
 *.aac
 
 # --- 3D Character Scratch, Intermediate Textures & Test Artifacts ---
-helios-character/artifacts/
-helios-character/custom_items_thumbs/
-helios-character/inspect_airi_textures/
-helios-character/inspect_ren_vrm_textures/
-helios-character/test_ren_ref_extract/
-helios-character/test_vroid_extract/
-helios-character/vroid_embedded_pngs/
-helios-character/viewer/models/vroid_extracted_*
-helios-character/viewer/models/orig_yu1_*
-helios-character/viewer/models/recolored_yu1_*
-helios-character/viewer/models/yu1_*
-helios-character/viewer/models/airi_ref_*
-helios-character/viewer/models/airi_emissive_*
-helios-character/viewer/models/ren_emissive_*
-helios-character/viewer/models/ren_tactical_*
-helios-character/viewer/models/ren_vrm_*
-helios-character/viewer/models/*.jpg
-helios-character/viewer/models/ren_source_thumb.png
-helios-character/viewer/models/ren_body_opaque.png
-helios-character/viewer/ren_test.vrm
 
 # --- Node / React / Expo / Mobile Build Artifacts ---
 node_modules/
@@ -133,5 +113,4 @@ ai-router/static/media/*.png
 # --- Decoupled Addons & Standalone Engines ---
 engines/
 mobile_v2/
-helios-character/
 *-addon/
