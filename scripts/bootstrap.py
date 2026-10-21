@@ -1,10 +1,11 @@
 """HELIOS Zero-Friction Bootstrap & Adaptive Ingestion Engine.
 Probes hardware, auto-installs Ollama if missing, pulls tier-matched models, and safeguards existing configs.
-Features an interactive CLI customization wizard with 1-key default acceptance for:
+Features an interactive CLI customization wizard with dedicated modular menus for:
 1. User Preferences (Call-sign, Persona tone, Wake-word, Hot-mic, Workspace root)
 2. Voice Settings (GPT-SoVITS, Kokoro presets, Reference audio, Prosody, Audible test)
-3. LLM Integration (Ollama, Remote AI PC / NVIDIA PAIR, Cloud APIs, Tier auto-detection)
-4. Ecosystem & Infrastructure (Ports, Biometrics, Swarm concurrency, Security Bridge)
+3. AI Model Selection & Tiers (Hardware Tiers vs Custom User-Preferred Models)
+4. LLM Providers & AI PC Workstation (Ollama, NVIDIA PAIR, Gemini, Groq, WoL)
+5. Infrastructure & Security (Swarm concurrency, Service Ports, Biometrics, Token Bridge)
 """
 
 import os
@@ -202,16 +203,126 @@ def prompt_val(prompt_text: str, default_val: str, interactive: bool = True) -> 
         return default_val
 
 
-def run_customization_wizard(interactive: bool = True):
+# Preset Hardware Tier Model Definitions
+MODEL_TIERS = {
+    "1": {
+        "tier": "Tier 3: Budget / iGPU (<=16GB RAM)",
+        "desc": "Ultra-lightweight models optimized for CPUs and integrated graphics",
+        "models": {
+            "primary": "qwen2.5:1.5b",
+            "coder": "qwen2.5-coder:1.5b",
+            "vision": "moondream:latest",
+            "embed": "nomic-embed-text:latest"
+        }
+    },
+    "2": {
+        "tier": "Tier 2: Balanced / Dedicated GPU (<=8GB VRAM)",
+        "desc": "Medium-sized high-speed models with strong reasoning",
+        "models": {
+            "primary": "llama3.2:3b",
+            "coder": "qwen2.5-coder:3b",
+            "vision": "qwen2.5vl:3b",
+            "embed": "nomic-embed-text:latest"
+        }
+    },
+    "3": {
+        "tier": "Tier 1: Heavy / Workstation (>=12GB VRAM)",
+        "desc": "Maximum accuracy 7B models for dedicated RTX GPUs",
+        "models": {
+            "primary": "qwen2.5:7b",
+            "coder": "qwen2.5-coder:7b",
+            "vision": "llava:7b",
+            "embed": "nomic-embed-text:latest"
+        }
+    },
+    "4": {
+        "tier": "Tier 0: Massive / Multi-GPU Workstation (>=16GB VRAM / AI PC)",
+        "desc": "Heavy 14B-32B coder models for dedicated AI PC workstation",
+        "models": {
+            "primary": "qwen2.5:14b",
+            "coder": "qwen2.5-coder:14b",
+            "vision": "qwen2.5vl:3b",
+            "embed": "nomic-embed-text:latest"
+        }
+    }
+}
+
+
+def configure_models_menu(existing_env: dict, governor: HardwareGovernor, interactive: bool = True) -> dict:
+    """
+    Dedicated AI Model Selection Menu:
+    Allows user to either pick from preset hardware tiers or specify custom user-preferred models.
+    """
+    print("\n" + "=" * 78)
+    print(" [AI MODEL SELECTION & TIER CONFIGURATION]")
+    print("=" * 78)
+    detected_tier = governor.decision.tier_name
+    print(f"  * Detected Hardware: {detected_tier}")
+    print()
+    print("  How would you like to configure your AI models?")
+    print("    [1] Use Hardware Tier Presets (Auto-detect or pick standard tier)")
+    print("    [2] User-Preferred Custom Models (Enter exact model names per subsystem)")
+
+    mode = prompt_val("  Select Model Configuration Mode [1-2]", "1", interactive)
+
+    if mode == "1":
+        print("\n  Available Model Tier Presets:")
+        print("    [1] Tier 3: Budget / iGPU   (Qwen 2.5 1.5B | Coder 1.5B | Moondream 1B)")
+        print("    [2] Tier 2: Balanced        (Llama 3.2 3B | Coder 3B | Qwen2.5-VL 3B)")
+        print("    [3] Tier 1: Heavy (7B)      (Qwen 2.5 7B  | Coder 7B | LLaVA 7B)")
+        print("    [4] Tier 0: Massive (AI PC) (Qwen 2.5 14B | Coder 14B/32B | Qwen2.5-VL)")
+        print("    [5] Auto-Detect by Governor (Matches current machine hardware)")
+
+        def_choice = "5"
+        t_choice = prompt_val("  Select Tier Preset [1-5]", def_choice, interactive)
+        if t_choice in ("1", "2", "3", "4"):
+            selected = MODEL_TIERS[t_choice]
+            models = selected["models"]
+            applied_tier = selected["tier"]
+        else:
+            applied_tier = detected_tier
+            models = {
+                "primary": governor.decision.recommended_models.get("general", "qwen2.5:1.5b"),
+                "coder": governor.decision.recommended_models.get("coder", "qwen2.5-coder:1.5b"),
+                "vision": governor.decision.recommended_models.get("vision", "moondream:latest"),
+                "embed": governor.decision.recommended_models.get("embed", "nomic-embed-text:latest")
+            }
+
+        print(f"\n    -> Selected Tier: {applied_tier}")
+        print(f"    -> Primary Model : {models['primary']}")
+        print(f"    -> Coder Model   : {models['coder']}")
+        print(f"    -> Vision Model  : {models['vision']}")
+        print(f"    -> Embed Model   : {models['embed']}")
+        return {"tier": applied_tier, "models": models}
+
+    else:
+        print("\n  User-Preferred Custom Model Configuration:")
+        print("  (Enter Ollama model tags, e.g. qwen2.5-coder:32b, hermes3:8b, llama3.2:3b)")
+        p_model = prompt_val("  * General Reasoning / Orchestrator Model", existing_env.get("PRIMARY_MODEL", "qwen2.5:1.5b"), interactive)
+        c_model = prompt_val("  * Hikari Autonomous Coding Swarm Model", existing_env.get("CODER_MODEL", "qwen2.5-coder:1.5b"), interactive)
+        v_model = prompt_val("  * Visual Screen & Camera Analysis Model", existing_env.get("VISION_MODEL", "moondream:latest"), interactive)
+        e_model = prompt_val("  * Vector RAG Embedding Model", existing_env.get("EMBED_MODEL", "nomic-embed-text:latest"), interactive)
+
+        models = {
+            "primary": p_model,
+            "coder": c_model,
+            "vision": v_model,
+            "embed": e_model
+        }
+        return {"tier": "Custom User-Preferred", "models": models}
+
+
+def run_customization_wizard(interactive: bool = True, target_menu: str = "all"):
     """
     Comprehensive interactive CLI wizard covering:
     1. User Preferences
     2. Voice Settings & Cloning
-    3. LLM Integration & AI PC Workstation
-    4. Swarm, Security & System Infrastructure
+    3. AI Model Selection & Tiers (Preset vs User-Preferred)
+    4. LLM Providers & AI PC Workstation
+    5. Infrastructure, Ports & Security
     """
     print("=" * 78)
-    print("   HELIOS & TWIN ECOSYSTEM — UNIFIED INTERACTIVE CONFIGURATION WIZARD")
+    print("   HELIOS & TWIN ECOSYSTEM — UNIFIED CONFIGURATION WIZARD")
     print("   Press [Enter] at any prompt to accept the current/recommended default.")
     print("=" * 78)
 
@@ -220,16 +331,30 @@ def run_customization_wizard(interactive: bool = True):
     print(f"Hardware Profile Detected: {detected_tier}")
     print("-" * 78)
 
-    # Load existing configuration defaults
     existing_env = read_env_file(os.path.join(BASE_DIR, ".env"))
     if not existing_env:
         existing_env = read_env_file(os.path.join(BASE_DIR, "ai-router", ".env"))
+
+    # If only model menu requested
+    if target_menu in ("models", "model", "m"):
+        model_res = configure_models_menu(existing_env, governor, interactive)
+        env_updates = {
+            "TIER_OVERRIDE": model_res["tier"],
+            "PRIMARY_MODEL": model_res["models"]["primary"],
+            "CODER_MODEL": model_res["models"]["coder"],
+            "VISION_MODEL": model_res["models"]["vision"],
+            "EMBED_MODEL": model_res["models"]["embed"],
+        }
+        update_env_file(os.path.join(BASE_DIR, ".env"), env_updates)
+        update_env_file(os.path.join(BASE_DIR, "ai-router", ".env"), env_updates)
+        print("\n[OK] Model preferences successfully updated in .env.")
+        return
 
     # =========================================================================
     # SECTION 1: USER PREFERENCES
     # =========================================================================
     print("\n" + "=" * 78)
-    print(" [1/4] USER PREFERENCES & CALL-SIGN")
+    print(" [1/5] USER PREFERENCES & CALL-SIGN")
     print("=" * 78)
 
     user_name = prompt_val("  * User Call-sign / Nickname", existing_env.get("USER_NAME", "User"), interactive)
@@ -259,7 +384,7 @@ def run_customization_wizard(interactive: bool = True):
     # SECTION 2: VOICE SETTINGS & CLONING
     # =========================================================================
     print("\n" + "=" * 78)
-    print(" [2/4] VOICE ENGINE, PROSODY & CLONING")
+    print(" [2/5] VOICE ENGINE, PROSODY & CLONING")
     print("=" * 78)
 
     voice_enabled_ans = prompt_val("  * Enable Neural Speech Synthesis (TTS) [true/false]", existing_env.get("VOICE_ENABLED", "true"), interactive).lower()
@@ -324,10 +449,24 @@ def run_customization_wizard(interactive: bool = True):
             print(f"    [!] Audible test notice: {e}")
 
     # =========================================================================
-    # SECTION 3: LLM INTEGRATION & AI PC WORKSTATION
+    # SECTION 3: AI MODEL SELECTION & HARDWARE TIERS (Dedicated Menu)
     # =========================================================================
     print("\n" + "=" * 78)
-    print(" [3/4] LLM INTEGRATION, PROVIDERS & AI PC WORKSTATION")
+    print(" [3/5] AI MODEL SELECTION (PRESETS VS USER-PREFERRED)")
+    print("=" * 78)
+    model_choice_result = configure_models_menu(existing_env, governor, interactive)
+    selected_tier_name = model_choice_result["tier"]
+    models = model_choice_result["models"]
+    primary_model = models["primary"]
+    coder_model = models["coder"]
+    vision_model = models["vision"]
+    embed_model = models["embed"]
+
+    # =========================================================================
+    # SECTION 4: LLM PROVIDERS & AI PC WORKSTATION
+    # =========================================================================
+    print("\n" + "=" * 78)
+    print(" [4/5] LLM PROVIDERS & AI PC WORKSTATION")
     print("=" * 78)
 
     print("  Inference Provider Architecture:")
@@ -357,18 +496,11 @@ def run_customization_wizard(interactive: bool = True):
         gemini_key = prompt_val("  * Gemini API Key", gemini_key, interactive)
         groq_key = prompt_val("  * Groq API Key", groq_key, interactive)
 
-    # Model Configuration
-    print("\n  Subsystem Models Selection:")
-    primary_model = prompt_val("  * General Reasoning / Orchestrator Model", existing_env.get("PRIMARY_MODEL", "qwen2.5:1.5b"), interactive)
-    coder_model = prompt_val("  * Hikari Autonomous Coding Swarm Model", existing_env.get("CODER_MODEL", "qwen2.5-coder:1.5b"), interactive)
-    vision_model = prompt_val("  * Visual Screen & Camera Analysis Model", existing_env.get("VISION_MODEL", "moondream:latest"), interactive)
-    embed_model = prompt_val("  * Vector RAG Embedding Model", existing_env.get("EMBED_MODEL", "nomic-embed-text:latest"), interactive)
-
     # =========================================================================
-    # SECTION 4: SWARM CONCURRENCY, PORTS & SECURITY
+    # SECTION 5: SWARM CONCURRENCY, PORTS & SECURITY
     # =========================================================================
     print("\n" + "=" * 78)
-    print(" [4/4] SWARM CONCURRENCY, PORTS & SECURITY GATE")
+    print(" [5/5] SWARM CONCURRENCY, PORTS & SECURITY GATE")
     print("=" * 78)
 
     print("  Coding Swarm Concurrency:")
@@ -384,7 +516,6 @@ def run_customization_wizard(interactive: bool = True):
 
     bridge_strict = prompt_val("  * Zero-Trust HMAC-SHA256 Token Bridge [true/false]", existing_env.get("BRIDGE_ENABLED", "true"), interactive)
 
-    # Voice Biometrics enrollment prompt
     enroll_voice = prompt_val("\n  * Enroll or Calibrate Voice Biometrics Security PIN now? [y/N]", "N", interactive).lower() == "y"
     if enroll_voice:
         voice_script = os.path.join(BASE_DIR, "scripts", "verify_voice.py")
@@ -411,6 +542,12 @@ def run_customization_wizard(interactive: bool = True):
         "GPT_SOVITS_REF_AUDIO": ref_audio,
         "GPT_SOVITS_REF_TEXT": ref_text,
         
+        "TIER_OVERRIDE": selected_tier_name,
+        "PRIMARY_MODEL": primary_model,
+        "CODER_MODEL": coder_model,
+        "VISION_MODEL": vision_model,
+        "EMBED_MODEL": embed_model,
+
         "LLM_PROVIDER": llm_provider,
         "AI_PC_IP": ai_pc_ip,
         "AI_PC_MAC": ai_pc_mac,
@@ -420,11 +557,6 @@ def run_customization_wizard(interactive: bool = True):
         "OLLAMA_HOST": f"http://{ai_pc_ip}:11434" if llm_provider == "pair" else "http://127.0.0.1:11434",
         "GEMINI_API_KEY": gemini_key,
         "GROQ_API_KEY": groq_key,
-        
-        "PRIMARY_MODEL": primary_model,
-        "CODER_MODEL": coder_model,
-        "VISION_MODEL": vision_model,
-        "EMBED_MODEL": embed_model,
         
         "SWARM_PARALLEL_ENABLED": swarm_parallel,
         "SERVER_PORT": core_port,
@@ -440,12 +572,11 @@ def run_customization_wizard(interactive: bool = True):
     update_env_file(ai_env, env_updates)
     print("\n[OK] Configuration persisted to root .env and ai-router/.env.")
 
-    # Save structured JSON profile
     profile_data = {
         "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "user": {"name": user_name, "assistant_name": bot_name, "personality": personality, "wake_word": wake_word, "workspace": default_workspace},
         "voice": {"backend": voice_backend, "name": voice_name, "speed": float(voice_speed), "gpt_sovits_url": gpt_sovits_url, "ref_audio": ref_audio},
-        "llm": {"provider": llm_provider, "ai_pc_ip": ai_pc_ip, "models": {"primary": primary_model, "coder": coder_model, "vision": vision_model, "embed": embed_model}},
+        "llm": {"provider": llm_provider, "tier": selected_tier_name, "ai_pc_ip": ai_pc_ip, "models": {"primary": primary_model, "coder": coder_model, "vision": vision_model, "embed": embed_model}},
         "infrastructure": {"ports": {"core": int(core_port), "hikari": int(hikari_port), "character": int(char_port)}, "swarm_parallel": swarm_parallel == "true", "bridge_strict": bridge_strict == "true"}
     }
     config_dir = os.path.join(BASE_DIR, "config")
@@ -485,7 +616,6 @@ def run_bootstrap(dry_run: bool = False):
     if os.path.exists(audit_script):
         subprocess.run([sys.executable, audit_script])
 
-    # Check Addons Status
     hikari_addon = os.path.abspath(os.path.join(BASE_DIR, "..", "hikari-addon"))
     solstice_addon = os.path.abspath(os.path.join(BASE_DIR, "..", "solstice-addon"))
     mobile_addon = os.path.abspath(os.path.join(BASE_DIR, "..", "mobile-addon"))
@@ -509,8 +639,11 @@ def run_bootstrap(dry_run: bool = False):
 if __name__ == "__main__":
     is_dry = "--dry-run" in sys.argv
     is_custom = "--custom" in sys.argv or "-c" in sys.argv or "/c" in sys.argv
+    is_models = "--models" in sys.argv or "-m" in sys.argv or "/m" in sys.argv
 
-    if is_custom:
-        run_customization_wizard(interactive=not is_dry)
+    if is_models:
+        run_customization_wizard(interactive=not is_dry, target_menu="models")
+    elif is_custom:
+        run_customization_wizard(interactive=not is_dry, target_menu="all")
     else:
         run_bootstrap(dry_run=is_dry)

@@ -66,6 +66,8 @@ if not exist "%VENV_DIR%\Scripts\activate.bat" (
 if /i "%~1"=="--custom" goto DO_CUSTOM
 if /i "%~1"=="-c" goto DO_CUSTOM
 if /i "%~1"=="/c" goto DO_CUSTOM
+if /i "%~1"=="--models" goto DO_MODELS
+if /i "%~1"=="-m" goto DO_MODELS
 if /i "%~1"=="--voice" goto DO_VOICE
 if /i "%~1"=="-v" goto DO_VOICE
 if /i "%~1"=="--airi" goto DO_AIRI
@@ -117,7 +119,8 @@ if "%~1"=="-q" goto END_SETUP
 if "%~1"=="--quiet" goto END_SETUP
 
 echo %CYAN%Select an immediate action or customize ecosystem:%RESET%
-echo   %YELLOW%[C]%RESET% Interactive Customization Wizard (User, Voice, LLMs, AI PC, Ports)
+echo   %YELLOW%[C]%RESET% Full Customization Wizard (User, Voice, LLMs, AI PC, Ports)
+echo   %YELLOW%[O]%RESET% AI Model Selection & Tiers (Hardware Tiers vs User-Preferred)
 echo   %YELLOW%[M]%RESET% Launch HELIOS Main Server (:8000)
 echo   %YELLOW%[A]%RESET% Launch Airi 3D Companion (:8080)
 echo   %YELLOW%[V]%RESET% Quick Voice & Reference Audio Setup
@@ -125,9 +128,10 @@ echo   %YELLOW%[T]%RESET% Run Isolation, TTS, and Biometric Test Suite
 echo   %YELLOW%[Enter]%RESET% Exit Setup
 echo.
 set "USER_ACTION="
-set /p USER_ACTION="Enter selection [C, M, A, V, T, or Enter to exit]: "
+set /p USER_ACTION="Enter selection [C, O, M, A, V, T, or Enter to exit]: "
 
 if /i "%USER_ACTION%"=="C" goto DO_CUSTOM
+if /i "%USER_ACTION%"=="O" goto DO_MODELS
 if /i "%USER_ACTION%"=="M" (
     echo [*] Starting HELIOS Main Server...
     call "%~dp0start_helios.bat"
@@ -142,6 +146,12 @@ if /i "%USER_ACTION%"=="T" (
     "%PY_EXE%" scripts\verify_voice.py --test
     goto END_SETUP
 )
+goto END_SETUP
+
+:DO_MODELS
+echo.
+echo %CYAN%[*] Launching AI Model Selection Menu...%RESET%
+"%PY_EXE%" scripts\bootstrap.py --models %*
 goto END_SETUP
 
 :DO_VOICE
