@@ -66,12 +66,12 @@ async def lifespan(app: FastAPI):
     # Ensure database is initialized
     init_db()
 
-    # Verify NVIDIA PAIR reachability if using local cluster/PAIR
+    # Verify remote host availability and services if configured for remote model host
     try:
-        from core.ai_pc_manager import ensure_ai_pc_ready
-        ensure_ai_pc_ready()
+        from core.ai_pc_manager import verify_remote_host_and_services
+        verify_remote_host_and_services(interactive=False)
     except Exception as e:
-        logger.warning(f"[NVIDIA-PAIR] Startup reachability check: {e}")
+        logger.warning(f"[REMOTE-HOST] Startup reachability check: {e}")
     
     # Backend continuous wake-word hot-mic:
     # Set ENABLE_HOT_MIC=true in .env to enable 24/7 background microphone listening.

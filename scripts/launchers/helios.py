@@ -73,8 +73,19 @@ def run_setup(args=None):
         cmd.append("--quick")
     return subprocess.run(cmd).returncode
 
+def run_remote_preflight() -> bool:
+    """Verify remote host and required inference/audio services if remote pair mode is enabled."""
+    sys.path.insert(0, str(ROUTER_DIR))
+    try:
+        from core.ai_pc_manager import verify_remote_host_and_services
+        return verify_remote_host_and_services(interactive=True)
+    except Exception as e:
+        print(f"[!] Preflight check warning: {e}")
+        return True
+
 def run_core(port="8000"):
     """Run Core AI Router Server."""
+    run_remote_preflight()
     py = get_venv_python()
     os.chdir(str(ROUTER_DIR))
     print(f"[*] Starting HELIOS Core Server on 0.0.0.0:{port}...")
@@ -83,6 +94,7 @@ def run_core(port="8000"):
 
 def run_hikari(extra_args=None):
     """Run Hikari Autonomous Coding Swarm CLI."""
+    run_remote_preflight()
     py = get_venv_python()
     os.chdir(str(ROUTER_DIR))
     cmd = [py, "helios_code.py"] + (extra_args or [])
@@ -99,6 +111,7 @@ def run_airi():
 
 def run_full():
     """Run Full Spec: Core (:8000) + Airi (:8080)."""
+    run_remote_preflight()
     py = get_venv_python()
     print("[*] Launching HELIOS Full Spec Ecosystem...")
     

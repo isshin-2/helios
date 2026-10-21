@@ -215,3 +215,155 @@ def get_ai_pc_node_status(timeout: float = 1.5) -> Dict[str, Any]:
         "available_models": models_available,
         "running_models": models_running,
     }
+
+
+def verify_service_http(url: str, timeout: float = 1.5) -> bool:
+    """Check if an HTTP service responds to a ping or GET request."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "HELIOS-Preflight"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status in (200, 204, 301, 302, 404, 405)
+    except urllib.error.HTTPError as e:
+        return e.code in (200, 204, 301, 302, 404, 405)
+    except Exception:
+        return False
+
+
+def attempt_remote_service_start(ip: str, service: str) -> bool:
+    """
+    Attempts to trigger remote service startup on the target host.
+    Uses SSH if paramiko is installed and credentials exist in environment.
+    """
+    user = os.environ.get("AI_PC_SSH_USER", os.environ.get("USER_NAME", "krithik"))
+    pwd = os.environ.get("AI_PC_SSH_PASS", "Krithik@2026")
+    try:
+        import paramiko
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ip, username=user, password=pwd, timeout=4)
+        if service.lower() in ("ollama", "models", "inference"):
+            # Launch ollama service in background
+            cmd = 'powershell -Command "if (-not (Get-Process ollama -ErrorAction SilentlyContinue)) { Start-Process ollama -ArgumentList serve }"'
+            ssh.exec_command(cmd)
+            time.sleep(2)
+        elif service.lower() in ("gpt_sovits", "voice", "tts"):
+            # Attempt to launch GPT-SoVITS server if present
+            cmd = 'powershell -Command "if (Test-Path D:\\helios\\ai-router\\venv\\Scripts\\python.exe) { cd D:\\helios; Start-Process -FilePath D:\\helios\\ai-router\\venv\\Scripts\\python.exe -ArgumentList \\"-m uvicorn main:app --host 0.0.0.0 --port 9880\\" -WindowStyle Minimized }"'
+            ssh.exec_command(cmd)
+            time.sleep(2)
+        ssh.close()
+        return True
+    except Exception as e:
+        logger.debug(f"[REMOTE-START] Remote service trigger error: {e}")
+        return False
+
+
+def verify_remote_host_and_services(interactive: bool = True) -> bool:
+    """
+    Comprehensive boot-time verification for remote model hosts:
+    1. Tests network and port reachability of the designated host.
+    2. Verifies whether required inference (Ollama) and TTS (GPT-SoVITS) services are running.
+    3. If services are down, attempts automated startup via WoL and remote trigger.
+    4. If still unavailable, prompts user: switch to lightweight local fallback or reattempt.
+    """
+    provider = os.environ.get("LLM_PROVIDER", "pair").lower()
+    host_ip = os.environ.get("AI_PC_IP", DEFAULT_AI_PC_IP)
+
+    # Only run remote verification if configured for remote host
+    if provider != "pair" or host_ip in ("127.0.0.1", "localhost", ""):
+        return True
+
+    print("\n" + "=" * 78)
+    print("  HELIOS BOOT PREFLIGHT: REMOTE HOST & SERVICE VERIFICATION")
+    print(f"  Target Host: {host_ip} (Provider: {provider.upper()})")
+    print("=" * 78)
+
+    while True:
+        print(f"[*] Checking host network availability at {host_ip}...")
+        host_up = is_ai_pc_reachable(host_ip, timeout=1.5)
+
+        if not host_up:
+            print(f"[!] Host {host_ip} is currently UNREACHABLE (sleeping or offline).")
+            print("    Attempting Wake-on-LAN beacon...")
+            send_wake_on_lan(
+                mac_address=os.environ.get("AI_PC_MAC", DEFAULT_AI_PC_MAC),
+                broadcast_ip=os.environ.get("AI_PC_BROADCAST", DEFAULT_AI_PC_BROADCAST),
+            )
+            # Give short window for wake
+            print("    Waiting 8 seconds for host to respond to wake packet...")
+            for _ in range(8):
+                time.sleep(1)
+                if is_ai_pc_reachable(host_ip, timeout=0.8):
+                    host_up = True
+                    break
+
+        if host_up:
+            print(f"[OK] Host {host_ip} is ONLINE.")
+            # Check required services
+            ollama_url = f"http://{host_ip}:11434/api/tags"
+            gpt_url = os.environ.get("GPT_SOVITS_API_URL", f"http://{host_ip}:9880")
+
+            ollama_running = verify_service_http(ollama_url)
+            gpt_running = verify_service_http(f"{gpt_url}/")
+
+            print(f"[*] Inference Service (Ollama :11434) : {'RUNNING' if ollama_running else 'DOWN / STOPPED'}")
+            if os.environ.get("GPT_SOVITS_ENABLED", "true").lower() == "true":
+                print(f"[*] Voice Cloning  (GPT-SoVITS :9880) : {'RUNNING' if gpt_running else 'STANDBY / DOWN'}")
+
+            # Attempt automatic restart if services down
+            if not ollama_running:
+                print("    [!] Required LLM inference service is not running. Attempting remote start...")
+                attempt_remote_service_start(host_ip, "ollama")
+                time.sleep(3)
+                ollama_running = verify_service_http(ollama_url)
+
+            if ollama_running:
+                print("[OK] Remote inference services verified operational.")
+                return True
+            else:
+                print("[!] Automatic startup could not confirm Ollama is active.")
+
+        # Host or critical services unavailable: Offer user choice
+        print("\n" + "-" * 78)
+        print("  REMOTE HOST SERVICE WARNING:")
+        print(f"  Remote machine ({host_ip}) could not provide required AI inference services.")
+        print("-" * 78)
+        print("  Options:")
+        print("    [1] Use lightweight local fallback (Switches LLM to local Ollama / Cloud fallback)")
+        print("    [2] Reattempt connection and service verification")
+        print("    [3] Exit startup")
+        print("-" * 78)
+
+        if not interactive or not sys.stdin.isatty():
+            print("[i] Non-interactive environment detected: automatically engaging lightweight fallback.")
+            _engage_lightweight_fallback()
+            return True
+
+        try:
+            choice = input("Select option [1-3, default=1]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nStartup interrupted.")
+            sys.exit(0)
+
+        if choice == "2":
+            print("[*] Reattempting remote host verification...")
+            continue
+        elif choice == "3":
+            print("[*] Aborting startup as requested.")
+            sys.exit(0)
+        else:
+            print("[*] Engaging lightweight local fallback...")
+            _engage_lightweight_fallback()
+            return True
+
+
+def _engage_lightweight_fallback():
+    """Switches active runtime session to local lightweight fallback mode."""
+    os.environ["LLM_PROVIDER"] = "ollama"
+    os.environ["PAIR_HOST"] = "http://127.0.0.1:11434"
+    os.environ["OLLAMA_HOST"] = "http://127.0.0.1:11434"
+    os.environ["VOICE_BACKEND"] = "kokoro"
+    os.environ["GPT_SOVITS_ENABLED"] = "false"
+    print("[OK] Switched session to local lightweight mode (Local Ollama + Kokoro ONNX TTS).")
+
